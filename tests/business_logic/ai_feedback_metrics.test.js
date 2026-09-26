@@ -1,9 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 /**
  * Extracción directa de la lógica de feedbackController.js (líneas 71-94).
  * Probamos el cálculo de precisión de la IA sin tocar la base de datos.
+ *
+ * Plan 20, Nivel 1: feedbackController.js hace `require('../config/database')` en su primera
+ * línea — importar este archivo, aunque solo se prueben sus helpers puros, disparaba una
+ * conexión real. Se simula.
  */
+vi.mock('../../config/database.js', () => {
+  const db = { allAsync: vi.fn(), getAsync: vi.fn(), runAsync: vi.fn(), getClient: vi.fn(), pool: {} };
+  return { default: db, ...db };
+});
 
 import feedbackController from '../../controllers/feedbackController.js';
 

@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Plan 20, Nivel 1: auth.js hace `require('../models/User')`, y User.js hace
+// `require('../config/database')` en su primera línea — importar este archivo, aunque solo se
+// prueben evaluarAcceso/evaluarAdmin (puras, sin BD), disparaba una conexión real. Se simula.
+vi.mock('../../config/database.js', () => {
+  const db = { allAsync: vi.fn(), getAsync: vi.fn(), runAsync: vi.fn(), getClient: vi.fn(), pool: {} };
+  return { default: db, ...db };
+});
+
 import { evaluarAcceso, evaluarAdmin } from '../../middleware/auth.js';
 
 // === PRUEBAS UNITARIAS ===
@@ -28,6 +37,13 @@ describe('Middleware de Seguridad - Lógica auth.js', () => {
     it('Debería priorizar no_auth sobre concurrent si no hay userId', () => {
       // Si no hay userId, ni siquiera debería llegar a verificar la concurrencia
       expect(evaluarAcceso({}, false)).toBe('no_auth');
+    });
+
+    it('Debería permitir múltiples sesiones concurrentes para el rol Administrador', () => {
+      // A diferencia de un Colaborador, un Administrador con sesión "no válida" (ya hay otra más
+      // nueva) igual pasa: es la excepción explícita de la línea 7 de auth.js.
+      const session = { userId: 1, rol: 'Administrador' };
+      expect(evaluarAcceso(session, false)).toBe('pass');
     });
   });
 

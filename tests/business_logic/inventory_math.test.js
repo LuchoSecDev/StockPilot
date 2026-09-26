@@ -1,9 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 /**
  * Extracción directa de la lógica matemática pura del modelo Alert.js que sigue viviendo ahí
  * (clasificación ABC, vencimiento y sobrestock). Probamos las fórmulas sin tocar la base de datos.
+ *
+ * Plan 20, Nivel 1: Alert.js hace `require('../config/database')` en su primera línea, así que
+ * solo con importar este archivo (aunque ninguna prueba llame a generate()/dryRun(), que sí están
+ * excluidas de cobertura y tocan BD de verdad) se disparaba una conexión real — incluida la
+ * auto-migración de esquema — contra lo que fuera que dijera DATABASE_URL en ese momento. Se
+ * simula el módulo para que importar Alert.js sea 100% local; ninguna de las funciones que se
+ * prueban aquí (evaluarProducto y las demás helpers puras) llama a `db` en ningún punto.
  */
+vi.mock('../../config/database.js', () => {
+  const db = { allAsync: vi.fn(), getAsync: vi.fn(), runAsync: vi.fn(), getClient: vi.fn(), pool: {} };
+  return { default: db, ...db };
+});
 
 import Alert from '../../models/Alert.js';
 
@@ -245,6 +256,41 @@ describe('Motor Matemático de Alertas (Alert.js)', () => {
       const alertas = evaluarProducto(item, { fecha_vencimiento: '2026-01-07', stock_maximo: 1000 }, hoy);
       const tipos = alertas.map((a) => a.tipo).sort();
       expect(tipos).toEqual(['stock_bajo', 'vencimiento_critico']);
+    });
+
+    it('Usa 3 días de lead time por defecto cuando el producto no tiene lead_time configurado', () => {
+      const item = {
+        id_producto: 8, velocity_7d: 5, velocity_30d: 5, qty_30d_total: 150, claseABC: 'C',
+        stock_actual: 10, stock_seguridad: 5, stock_minimo: 0, lead_time: undefined,
+        frecuencia_compra_dias: 7, factor_ia: 1,
+      };
+      const alertas = evaluarProducto(item, {}, hoy);
+      expect(alertas).toHaveLength(1);
+      // diasParaAgotar = floor(10/5) = 2 <= leadTime por defecto (3) -> "Pide hoy", y el mensaje
+      // solo puede decir "3 días" si el fallback `item.lead_time || 3` de verdad se aplicó.
+      expect(alertas[0].mensaje).toContain('el proveedor tarda 3 días en entregar');
+    });
+
+    it('Crítico por debajo de stock de seguridad, sin ventas y con stock > 0: mensaje distinto al de "sin stock"', () => {
+      const item = {
+        id_producto: 9, velocity_7d: 0, velocity_30d: 0, qty_30d_total: 0, claseABC: 'C',
+        stock_actual: 3, stock_seguridad: 5, stock_minimo: 0, lead_time: 3,
+        frecuencia_compra_dias: 7, factor_ia: 1,
+      };
+      const alertas = evaluarProducto(item, {}, hoy);
+      expect(alertas).toHaveLength(1);
+      expect(alertas[0].tipo).toBe('stock_critico');
+      expect(alertas[0].mensaje).toBe('Stock agónico. No hay ventas recientes para calcular cuántos días quedan, pero el stock ya está en el mínimo de seguridad.');
+    });
+
+    it('No genera alerta de vencimiento si la fecha está a más de 30 días, aunque venga informada', () => {
+      const item = {
+        id_producto: 10, velocity_7d: 1, velocity_30d: 1, qty_30d_total: 30, claseABC: 'C',
+        stock_actual: 100, stock_seguridad: 5, stock_minimo: 0, lead_time: 3,
+        frecuencia_compra_dias: 7, factor_ia: 1,
+      };
+      const alertas = evaluarProducto(item, { fecha_vencimiento: '2026-03-01', stock_maximo: 500 }, hoy);
+      expect(alertas).toEqual([]);
     });
   });
 });

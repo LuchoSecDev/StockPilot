@@ -1,6 +1,6 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** Hallazgos verificados y línea base (Paso 0) medida. **Sin implementar Nivel 1 ni Nivel 2** — pendiente de aprobación explícita, como se pidió.
+**Estado:** Hallazgos verificados, línea base (Paso 0) medida, y **Nivel 1 completo** (149 → 154 pruebas, `coverage.include` ampliado de forma permanente a todo el backend, cero conexiones reales a base de datos desde pruebas unitarias). **Nivel 2 sin empezar** — falta aprobar la extracción de funciones puras de controladores (sección 5) y decidir cuándo montar `stockpilot_test`.
 **Fecha:** 2026-09-25
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
@@ -66,9 +66,87 @@ Metodología: se amplió temporalmente `coverage.include` a `controllers/**`, `m
 
 ---
 
-## 3. Antes de proponer el Nivel 1 y el Nivel 2
+## 3. Decisiones del usuario (2026-09-25)
 
-Con esta línea base ya tienes el número honesto de hoy. Antes de seguir necesito que confirmes:
-1. La corrección de `dashboard_analytics.test.js` (sección 1.3) — ¿opción (a) (cambiar el test para que no reimplemente la fórmula, dejando la protección real al Nivel 2) o prefieres explorar mover el cálculo a JS aunque cambie el comportamiento de producción?
-2. Si ya tienes pensado el Postgres local como la base de pruebas del Nivel 2 (parece que sí, dado que `.env` ya apunta ahí) o si prefieres una base separada exclusiva para pruebas, distinta de la que uses para desarrollo manual.
-3. Una meta de cobertura por carpeta ahora que ves los números reales — la más urgente por dinero/stock/seguridad son `controllers/saleController.js`, `controllers/cashRegisterController.js`, `models/Product.js` y `middleware/auth.js`, pero la decisión final de metas es tuya.
+1. **`dashboard_analytics.test.js`:** no mover el cálculo a JS. Además, el usuario encontró que la copia tampoco replicaba bien el `NULLIF`+`AVG` de SQL (contaba precio=0 como margen 0 en vez de excluirlo del promedio) — corregido en el Nivel 1 (sección 4.1).
+2. **Bases de datos:** `stockpilot` local es la única que existe hoy y es la de desarrollo de Práctica de Ingeniería 5 — no crear nada nuevo todavía. Para el Nivel 2: `stockpilot_test` en el mismo servidor, inicializada con `database/init_pg.sql`, configurada en `.env.test`, con protección que aborte si el nombre no termina en `_test` o el host no es local. Lo de Bases de Datos Avanzadas (esquemas `ia`/`dw`, Docker Compose) es de los sprints 6-7 de `docs/plan_sprints_bases_datos_avanzadas.md` — no se toca en este plan.
+3. **Nivel 1 aprobado**, con las condiciones de la sección 4.
+
+---
+
+## 4. Nivel 1 — hecho
+
+### 4.1 `dashboard_analytics.test.js` corregido
+La copia local de la fórmula ahora excluye del promedio los productos con `precio === 0` (en vez de contarlos como margen 0), igual que `NULLIF(precio, 0)` + `AVG()` en SQL. Se agregó un caso de prueba con múltiples productos, uno de ellos con precio 0, que antes no distinguía las dos implementaciones (con un solo producto ambas daban 0 por coincidencia). El `describe` externo se renombró a "Especificación de la fórmula: Margen Promedio (no prueba código de producción)" y el comentario superior explica por qué no hay una función de producción que importar (el cálculo real vive en SQL, no en JS).
+
+### 4.2 Pruebas unitarias sin conexión a base de datos
+Se confirmó que 3 de los 8 archivos de prueba disparaban una conexión real solo por import:
+- `inventory_math.test.js` → importa `models/Alert.js` → `require('../config/database')`.
+- `ai_feedback_metrics.test.js` → importa `controllers/feedbackController.js` → `require('../config/database')`.
+- `security_auth_rules.test.js` → importa `middleware/auth.js` → `require('../models/User')` → `require('../config/database')`.
+
+Se agregó `vi.mock('../../config/database.js', ...)` en los 3 (un objeto con `allAsync`/`getAsync`/`runAsync`/`getClient`/`pool` simulados con `vi.fn()`). Ninguna de las funciones que se prueban en esos archivos llama a `db` — son todas puras. **Confirmado:** `npm test` ya no imprime el log de auto-migración ni toca ningún Postgres, local o remoto.
+
+### 4.3 Ramas nuevas cubiertas
+- `middleware/auth.js` línea 7 (`evaluarAcceso`, Administrador con sesión "no válida" — bypass de sesión concurrente).
+- `models/Alert.js` línea 25 (`item.lead_time || 3`, valor por defecto).
+- `models/Alert.js` líneas 44-46 (mensaje "No hay ventas recientes..." cuando el producto está en nivel crítico por `stock_seguridad` sin historial de ventas, pero con `stock_actual > 0` — antes solo se probaba el caso `stock_actual = 0`).
+- `models/Alert.js` línea 59 (una fecha de vencimiento informada que NO genera alerta, por estar a más de 30 días).
+
+`models/Alert.js` y `middleware/auth.js` quedan en 100% de sentencias y ramas dentro de lo que ya no está en `/* v8 ignore */` (que sigue intacto, tal como pediste — eso es Nivel 2).
+
+### 4.4 `coverage.include` ampliado de forma permanente
+`vitest.config.js` ahora mide `controllers/**`, `models/**`, `middleware/**`, `utils/**` y `services/**` — el backend completo, siempre. `scripts/`, `database/` y `config/` quedan fuera porque nunca estuvieron en el patrón (no hizo falta excluirlos explícitamente).
+
+### 4.5 Tabla antes/después por carpeta
+
+| Carpeta | Antes (línea base, Paso 0, con ignore) | Después (Nivel 1) |
+|---|---|---|
+| `controllers/` | 1,2% (25/2156) | 1,2% (25/2156) — sin cambio, no se extrajo nada todavía |
+| `middleware/` | 48,4% (15/31) | **51,6% (16/31)** |
+| `models/` | 27,9% (100/358) | 27,9% (100/358) — Alert.js ya estaba en 100% con ignore; lo que subió fue *branches*, no *statements* |
+| `services/` | 0,0% (0/80) | 0,0% (0/80) — sin cambio, fuera del alcance del Nivel 1 |
+| `utils/` | 52,7% (89/169) | **53,8% (91/169)** |
+| **TOTAL (sentencias)** | **8,2% (229/2794)** | **8,3% (232/2794)** |
+| **TOTAL (ramas)** | 11,87% (175/1474) | **12,48% (184/1474)** |
+
+Archivos que llegan a 100% de sentencias y ramas (dentro de lo no ignorado): `middleware/auth.js`, `middleware/validation.js`, `models/Alert.js`, `models/products/*.js`, `controllers/feedbackController.js`, `utils/ordenesBorrador.js`* y `utils/recomendacionesDashboard.js`* (*100% de sentencias, ~90% de ramas).
+
+**Pruebas:** 149 → **154** (5 nuevas: 1 en `dashboard_analytics.test.js`, 3 en `inventory_math.test.js`, 1 en `security_auth_rules.test.js`). Las 154 pasan.
+
+**Nota sobre `controllers/`:** el número no se mueve todavía a propósito — extraer funciones a `utils/` es justo lo que pediste aprobar por separado (sección 5) antes de tocar código.
+
+---
+
+## 5. Funciones puras candidatas a extraer — para tu aprobación, nada tocado todavía
+
+Revisé los 4 controladores pedidos. En `clienteController.js` no encontré lógica de cálculo/decisión pura — es sobre todo CRUD (crear/leer/actualizar clientes y abonos); no propongo ninguna extracción ahí. En los otros tres encontré 6 candidatas, dos de ellas **duplicadas literalmente entre archivos** (mismo hallazgo de tipo O2/O5 que ya vimos con el motor de riesgo en el plan 17):
+
+| # | Archivo(s) y líneas | Qué hace | Destino propuesto | Firma propuesta |
+|---|---|---|---|---|
+| 1 | `aiController.js:212-215` **y** `suppliersController.js:168-171` (duplicado, byte a byte) | Guardrail de ajuste de IA: recorta el `%` que sugiere la IA a ±100/50/20 según clase ABC, con piso de -50% | `utils/guardrailsIA.js` | `aplicarAjusteIA(baseLoad, adjNum, claseABC) → { clampedAdj, finalTotal }` |
+| 2 | `aiController.js:497-500` | Corrección: un "2x1" sin `%` explícito implica 50% de descuento real | `utils/promociones.js` (nuevo) | `normalizarDescuento(type, discount) → effectiveDiscount` |
+| 3 | `aiController.js:503-505` **y** `544/556` (duplicado dentro del mismo archivo) | Precio con descuento y capital liberado estimado | `utils/promociones.js` | `calcularImpactoPromocion(precio, stock, descuentoPct) → { discountedPrice, capitalLiberado }` |
+| 4 | `aiController.js:524-542` | Reglas deterministas de promoción cuando la IA no cubre un candidato (liquidación/descuento/combo según días para vencer y stock) | `utils/promociones.js` | `determinarPromocionFallback(diasParaVencer, stock) → { type, discount, reason, duration_days }` |
+| 5 | `aiController.js:781-787` | Umbrales sugeridos (`stock_seguridad`, `stock_minimo`) para un producto sin historial de ventas | `utils/sugerenciasStock.js` (nuevo) | `sugerirUmbralesStock(avgDailySales, leadTime) → { stockSeguridad, stockMinimo }` |
+| 6 | `suppliersController.js:144-156` | Nivel de riesgo de una orden de compra (excede presupuesto / productos críticos / productos en alerta) | `utils/ordenesBorrador.js` (ya existe) | `evaluarRiesgoOrden(totalCost, budgetLimit, itemsCriticos, itemsNaranja) → { riskLevel, riskReason }` |
+| 7 | `cashRegisterController.js:67-76` | Detecta descuadre de caja (>$5.000) y arma el título/mensaje de la notificación | `utils/cashRegisterHelpers.js` (nuevo) | `evaluarDescuadreCaja(diferencia, umbral = 5000) → { esSignificativo, esFaltante, titulo, mensaje }` |
+
+**Ninguna cambiaría el comportamiento** — son extracciones literales de código ya existente a una función con nombre, llamada desde el mismo lugar. La única duda real es la #1: como está duplicada, extraerla implica que **ambos** controladores importen la misma función en vez de mantener cada uno su copia — técnicamente no cambia el resultado (son idénticas hoy), pero sí es el tipo de cambio que vale la pena que confirmes antes de tocar dos archivos a la vez.
+
+Quedo pendiente de tu aprobación para extraer (todas, algunas, o ninguna) antes de escribir ese código.
+
+---
+
+## 6. Para continuar en la próxima sesión
+
+**Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
+
+**Pendiente, en orden:**
+1. Decidir sobre la sección 5 (extraer o no las 7 funciones puras candidatas de `aiController.js`, `suppliersController.js` y `cashRegisterController.js`). Es lo único que falta para que `controllers/` deje de estar en ~1% de cobertura.
+2. Si se aprueba la extracción: escribir el código, actualizar las pruebas correspondientes, y volver a medir `controllers/`.
+3. Nivel 2 (integración con Postgres real): crear `stockpilot_test` en el servidor local, `.env.test`, la protección de "abortar si no es una base de pruebas" (nombre termina en `_test` + host local), y las pruebas con `supertest` de los 7 flujos prioritarios listados en el encargo original (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída).
+4. Recién en el Nivel 2 se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+5. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y separar `npm test` (unitarias) de `npm run test:integration`.
+
+**Estado técnico verificado hoy:** 154/154 pruebas en verde, sin conexión a base de datos desde `npm test`, `DATABASE_URL` en `.env` apunta a `stockpilot` local (no Neon, no `stockpilot_test` — esa todavía no existe).
