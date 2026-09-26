@@ -1,5 +1,6 @@
 const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
 const { totalOrden } = require('../utils/ordenesBorrador');
+const { aplicarAjusteIA } = require('../utils/guardrailsIA');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
 const db = require('../config/database');
 const { OpenAI } = require('openai');
@@ -165,9 +166,7 @@ const suppliersController = {
       const finalCart = recomendaciones_matematicas.map(item => {
         const aiMemory = adjustments.find(a => a.id === item.id_producto);
         const adjNum = aiMemory ? parseInt(aiMemory.porcentaje.replace(/[^0-9-]/g, '')) || 0 : 0;
-        let limit = item.clasificacion_abc === 'A' ? 100 : (item.clasificacion_abc === 'B' ? 50 : 20);
-        const clampedAdj = Math.min(Math.max(adjNum, -50), limit);
-        const finalQty = Math.ceil(item.cantidad_sugerida * (1 + clampedAdj / 100));
+        const { clampedAdj, finalTotal: finalQty } = aplicarAjusteIA(item.cantidad_sugerida, adjNum, item.clasificacion_abc);
         return { ...item, calculo_base: item.cantidad_sugerida, ajuste_ia: clampedAdj > 0 ? ('+' + clampedAdj + '%') : (clampedAdj + '%'), sugerencia_final: finalQty, razon_ia: aiMemory ? aiMemory.razon : 'Sin ajuste inteligente aplicable.', presupuesto_estimado_final: Math.round(finalQty * (item.presupuesto_estimado / item.cantidad_sugerida || 0)) };
       });
       res.json({ success: true, evaluacion_riesgo: { nivel: riskLevel, justificacion: riskReason, costo_total_estimado: finalCart.reduce((acc, curr) => acc + curr.presupuesto_estimado_final, 0) }, carrito_inteligente: finalCart });

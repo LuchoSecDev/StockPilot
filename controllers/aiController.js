@@ -16,6 +16,8 @@ const { safeError } = require('../utils/securityUtils');
 const { seleccionarCandidatosReabastecimiento, esRecomendacionAccionable } = require('../utils/recomendacionesDashboard');
 const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
+const { aplicarAjusteIA } = require('../utils/guardrailsIA');
+const { calcularImpactoPromocion } = require('../utils/promociones');
 
 // Inicializar cliente OpenAI con la clave del entorno o una clave falsa para evitar crasheos al arrancar sin la variable
 const openai = new OpenAI({
@@ -209,10 +211,7 @@ const aiController = {
         const adjNum = parseInt(String(adj.adjustment ?? '').replace(/[^0-9-]/g, '')) || 0;
         
         // Guardrails Dinámicos (Clamping)
-        let limit = original.abc === 'A' ? 100 : (original.abc === 'B' ? 50 : 20);
-        const clampedAdj = Math.min(Math.max(adjNum, -50), limit);
-
-        const finalTotal = Math.ceil(original.base_load * (1 + clampedAdj/100));
+        const { clampedAdj, finalTotal } = aplicarAjusteIA(original.base_load, adjNum, original.abc);
         
         const result = {
           id_producto: original.id,
@@ -500,9 +499,7 @@ const aiController = {
         }
 
         // Cálculo de impacto financiero estimado (Capital a liberar)
-        const discountFactor = effectiveDiscount / 100;
-        const discountedPrice = Math.round(product.precio * (1 - discountFactor));
-        const capitalLiberado = Math.round(product.stock * discountedPrice);
+        const { discountedPrice, capitalLiberado } = calcularImpactoPromocion(product.precio, product.stock, effectiveDiscount);
 
         return {
           ...p,
@@ -541,7 +538,7 @@ const aiController = {
           reason = `La baja rotación reciente de este producto sugiere que un descuento puntual puede reactivar la demanda y liberar espacio en estantería para productos de mayor salida.`;
         }
 
-        const discountedPrice = Math.round(product.precio * (1 - discount / 100));
+        const { discountedPrice, capitalLiberado } = calcularImpactoPromocion(product.precio, product.stock, discount);
         promotions.push({
           id: product.id,
           type,
@@ -553,7 +550,7 @@ const aiController = {
           productName: product.nombre,
           originalPrice: product.precio,
           discountedPrice,
-          impact: Math.round(product.stock * discountedPrice),
+          impact: capitalLiberado,
           isCritical: diasParaVencer !== null && diasParaVencer <= 10
         });
       }
