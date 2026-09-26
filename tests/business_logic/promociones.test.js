@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularImpactoPromocion } from '../../utils/promociones.js';
+import { calcularImpactoPromocion, determinarPromocionFallback } from '../../utils/promociones.js';
 
 describe('calcularImpactoPromocion (ex-duplicado dentro de aiController.js)', () => {
   it('calcula precio con descuento y capital liberado', () => {
@@ -24,5 +24,42 @@ describe('calcularImpactoPromocion (ex-duplicado dentro de aiController.js)', ()
     const r = calcularImpactoPromocion(999, 3, 15); // 999*0.85 = 849.15
     expect(r.discountedPrice).toBe(849);
     expect(r.capitalLiberado).toBe(2547);
+  });
+});
+
+describe('determinarPromocionFallback (reglas deterministas cuando la IA no cubre un candidato)', () => {
+  it('vence en 10 días o menos: liquidación al 25%, duración = días restantes (mínimo 3)', () => {
+    const r = determinarPromocionFallback(7, 20);
+    expect(r.type).toBe('liquidacion');
+    expect(r.discount).toBe(25);
+    expect(r.duration_days).toBe(7);
+    expect(r.reason).toMatch(/Vence en 7 días/);
+  });
+
+  it('vence en 10 días o menos: duration_days nunca baja de 3', () => {
+    const r = determinarPromocionFallback(1, 20);
+    expect(r.duration_days).toBe(3);
+  });
+
+  it('vence entre 11 y 30 días: descuento moderado del 15% por 7 días', () => {
+    const r = determinarPromocionFallback(20, 20);
+    expect(r.type).toBe('descuento');
+    expect(r.discount).toBe(15);
+    expect(r.duration_days).toBe(7);
+    expect(r.reason).toMatch(/Con vencimiento próximo en 20 días/);
+  });
+
+  it('no vence (null) pero hay sobrestock (>50): combo al 10% por 14 días', () => {
+    const r = determinarPromocionFallback(null, 80);
+    expect(r.type).toBe('combo');
+    expect(r.discount).toBe(10);
+    expect(r.duration_days).toBe(14);
+  });
+
+  it('no vence y sin sobrestock: descuento genérico del 15% por 10 días (baja rotación)', () => {
+    const r = determinarPromocionFallback(null, 10);
+    expect(r.type).toBe('descuento');
+    expect(r.discount).toBe(15);
+    expect(r.duration_days).toBe(10);
   });
 });

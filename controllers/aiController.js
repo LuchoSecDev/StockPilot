@@ -17,7 +17,8 @@ const { seleccionarCandidatosReabastecimiento, esRecomendacionAccionable } = req
 const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
 const { aplicarAjusteIA } = require('../utils/guardrailsIA');
-const { calcularImpactoPromocion } = require('../utils/promociones');
+const { calcularImpactoPromocion, determinarPromocionFallback } = require('../utils/promociones');
+const { sugerirUmbralesStock } = require('../utils/sugerenciasStock');
 
 // Inicializar cliente OpenAI con la clave del entorno o una clave falsa para evitar crasheos al arrancar sin la variable
 const openai = new OpenAI({
@@ -522,21 +523,7 @@ const aiController = {
           ? (new Date(product.fecha_vencimiento) - new Date()) / (1000 * 60 * 60 * 24)
           : null;
 
-        let type, discount, reason, duration_days;
-
-        if (diasParaVencer !== null && diasParaVencer <= 10) {
-          type = 'liquidacion'; discount = 25; duration_days = Math.max(3, Math.floor(diasParaVencer));
-          reason = `Vence en ${Math.round(diasParaVencer)} días y al ritmo actual no se agotará. Una liquidación urgente permite recuperar capital antes de la pérdida total del inventario.`;
-        } else if (diasParaVencer !== null && diasParaVencer <= 30) {
-          type = 'descuento'; discount = 15; duration_days = 7;
-          reason = `Con vencimiento próximo en ${Math.round(diasParaVencer)} días, un descuento moderado acelera la rotación y evita pérdidas por producto no vendido a tiempo.`;
-        } else if (product.stock > 50) {
-          type = 'combo'; discount = 10; duration_days = 14;
-          reason = `El alto nivel de stock genera capital inmovilizado. Un combo estratégico incentiva la compra conjunta y mejora la rotación sin sacrificar demasiado margen.`;
-        } else {
-          type = 'descuento'; discount = 15; duration_days = 10;
-          reason = `La baja rotación reciente de este producto sugiere que un descuento puntual puede reactivar la demanda y liberar espacio en estantería para productos de mayor salida.`;
-        }
+        const { type, discount, reason, duration_days } = determinarPromocionFallback(diasParaVencer, product.stock);
 
         const { discountedPrice, capitalLiberado } = calcularImpactoPromocion(product.precio, product.stock, discount);
         promotions.push({
@@ -776,12 +763,7 @@ const aiController = {
       // 4. Matemáticas (Reorder Point)
       // Stock Emergencia = Colchón de 2 días de venta
       // Stock Mínimo = (Ventas Diarias * Días de Entrega) + Stock Emergencia
-      let stockSeguridad = Math.ceil(avgDailySales * 2); 
-      let stockMinimo = Math.ceil((avgDailySales * suggestedLeadTime) + stockSeguridad);
-
-      // Asegurar que no sugiera valores irrisorios
-      if (stockMinimo < 5) stockMinimo = 5;
-      if (stockSeguridad < 2) stockSeguridad = 2;
+      const { stockSeguridad, stockMinimo } = sugerirUmbralesStock(avgDailySales, suggestedLeadTime);
 
       res.json({
         success: true,
