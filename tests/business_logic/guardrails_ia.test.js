@@ -29,14 +29,18 @@ describe('aplicarAjusteIA (guardrail de ajuste de IA, ex-duplicado en aiControll
   it('un ajuste dentro de rango no se recorta', () => {
     const r = aplicarAjusteIA(200, 10, 'B');
     expect(r.clampedAdj).toBe(10);
-    // 200 * 1.1 = 220.00000000000003 en punto flotante de JS -> Math.ceil da 221.
-    // Es el comportamiento real de la fórmula original (Math.ceil(base * (1 + %/100))),
-    // no algo introducido por esta extracción.
-    expect(r.finalTotal).toBe(221);
+    // 200 * 1.1 da 220.00000000000003 en punto flotante de JS. Sin la corrección de
+    // redondeo previa a Math.ceil, esto daba 221 (un entero de más). Debe dar 220 exacto.
+    expect(r.finalTotal).toBe(220);
   });
 
   it('redondea finalTotal hacia arriba (Math.ceil)', () => {
     const r = aplicarAjusteIA(10, 3, 'A'); // 10 * 1.03 = 10.3
     expect(r.finalTotal).toBe(11);
+  });
+
+  it('no esconde una fracción genuina: un resultado real de 1000.00005 sigue redondeando hacia arriba a 1001', () => {
+    const r = aplicarAjusteIA(1000.00005, 0, 'A'); // no es ruido de punto flotante, es una fracción real
+    expect(r.finalTotal).toBe(1001);
   });
 });
