@@ -202,6 +202,15 @@ Primer flujo escrito, `tests/integration/autenticacion.test.js`, 10 pruebas: log
 
 No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/15min) — no es uno de los 7 flujos pedidos, y su contador en memoria es compartido por IP entre todas las pruebas del mismo archivo, así que mezclarlo con estas pruebas habría hecho el archivo frágil sin aportar a lo pedido.
 
+### 8.7 Flujo 1/7 — Venta con concurrencia: bug real de sobreventa encontrado y corregido (commit `8863f4f`)
+`tests/integration/venta_concurrencia.test.js`, 3 pruebas. La primera (`registrar-venta`, un solo producto) confirma que el `SELECT ... FOR UPDATE` que ya tenía protege bien: con stock=1 y 2 pedidos simultáneos, una gana (200) y la otra pierde (400 "Stock insuficiente"), stock final 0, una sola fila en `Ventas`.
+
+**Bug encontrado en `registrar-venta-carrito` (POS, `SaleController.registerCartSale`):** su `SELECT` de stock **no tenía `FOR UPDATE`** (a diferencia de `registerSale`). Con 2 pedidos simultáneos contra stock=1 el problema no se notaba (la ventana de carrera es muy chica, salía bien "por suerte" en 8/8 corridas de prueba) — pero con **5 pedidos simultáneos contra stock=3, las 5 se registraban como exitosas** (100% reproducible en 6/6 corridas antes del arreglo): sobreventa real, inventario podía quedar negativo. Exactamente el escenario de varios vendedores en el mismo POS o una pestaña duplicada.
+
+**Arreglo:** se agregó `FOR UPDATE` a esa consulta, mismo patrón que ya usaba `registerSale`. Verificado: la prueba de 5 pedidos/stock=3 pasó en 31/32 corridas después del arreglo (antes fallaba 6/6) — la única corrida que falló no se pudo reproducir en 15 intentos posteriores, consistente con la flakiness normal de este tipo de prueba (contención real de recursos en la máquina de desarrollo), no con que el bug siga presente.
+
+**Pruebas:** 196 unitarias (sin cambio) + **13 de integración** (10 autenticación + 3 venta). Todas en verde.
+
 ---
 
 ## 6. Para continuar en la próxima sesión
@@ -209,8 +218,8 @@ No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/1
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Los 6 flujos de integración que faltan: venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
+1. Los 5 flujos de integración que faltan: caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
 2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
 3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196/196 pruebas unitarias en verde, sin conexión a base de datos desde `npm test`. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con la infraestructura lista, faltan los 7 flujos de pruebas.
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 13 de integración en verde. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 2 de 7 flujos hechos (autenticación, venta con concurrencia — este último con un bug real de sobreventa encontrado y corregido).

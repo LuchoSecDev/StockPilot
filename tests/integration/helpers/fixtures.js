@@ -10,6 +10,8 @@
 
 const Store = require('../../../models/Store');
 const User = require('../../../models/User');
+const Product = require('../../../models/Product');
+const db = require('../../../config/database');
 
 let contador = 0;
 /** Sufijo único por llamada, para no chocar con UNIQUE (correo/usuario) entre pruebas. */
@@ -58,4 +60,40 @@ async function crearUsuario(overrides = {}) {
   return { id_usuario, id_tienda, usuario, correo, password };
 }
 
-module.exports = { crearTienda, crearUsuario };
+/**
+ * @param {Object} overrides
+ * @param {number} overrides.id_tienda - Obligatorio.
+ * @param {number} [overrides.cantidad=10] - Stock inicial.
+ * @returns {Promise<number>} id_producto
+ */
+async function crearProducto(overrides = {}) {
+  const sufijo = unico();
+  const id_producto = await Product.create({
+    codigo: overrides.codigo || `COD-${sufijo}`,
+    codigo_barras: overrides.codigo_barras || null,
+    nombre_producto: overrides.nombre_producto || `Producto de Prueba ${sufijo}`,
+    categoria: overrides.categoria || 'General',
+    subcategoria: overrides.subcategoria || null,
+    tipo_producto: overrides.tipo_producto || 'Normal',
+    precio: overrides.precio ?? 1000,
+    cantidad: overrides.cantidad ?? 10,
+    id_tienda: overrides.id_tienda,
+    stock_minimo: overrides.stock_minimo ?? 2,
+    stock_maximo: overrides.stock_maximo ?? 200,
+    frecuencia_compra_dias: overrides.frecuencia_compra_dias ?? 7,
+    stock_seguridad: overrides.stock_seguridad ?? 2,
+    lead_time: overrides.lead_time ?? 3
+  });
+  return id_producto;
+}
+
+/** Abre una sesión de caja (requisito de saleController para vender) y devuelve su id_sesion. */
+async function abrirCaja(id_tienda, id_vendedor, monto_apertura = 50000) {
+  const result = await db.runAsync(
+    `INSERT INTO SesionCaja (id_tienda, id_vendedor, monto_apertura, estado) VALUES (?, ?, ?, 'Abierta') RETURNING id_sesion`,
+    [id_tienda, id_vendedor, monto_apertura]
+  );
+  return result.lastID;
+}
+
+module.exports = { crearTienda, crearUsuario, crearProducto, abrirCaja };

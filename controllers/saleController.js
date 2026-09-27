@@ -219,8 +219,12 @@ class SaleController {
                 const productosProcesados = [];
 
                 // 1. Validar todos los productos y calcular el total
+                // FOR UPDATE (igual que registerSale): sin esto, dos carritos concurrentes del mismo
+                // producto leen el mismo stock "viejo" antes de que ninguno lo actualice y pueden
+                // sobrevender (plan 20, Nivel 2 — confirmado con 5 pedidos simultáneos contra stock=3:
+                // los 5 se registraban como exitosos).
                 for (const item of items) {
-                    const prodResult = await client.query('SELECT id_producto, cantidad, precio, nombre_producto FROM Productos WHERE id_producto = ? AND id_tienda = ?', [item.id_producto, id_tienda]);
+                    const prodResult = await client.query('SELECT id_producto, cantidad, precio, nombre_producto FROM Productos WHERE id_producto = ? AND id_tienda = ? FOR UPDATE', [item.id_producto, id_tienda]);
                     const producto = prodResult.rows[0];
 
                     if (!producto) {
