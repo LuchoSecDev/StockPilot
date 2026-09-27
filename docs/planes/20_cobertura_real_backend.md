@@ -250,6 +250,13 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 
 **Pruebas:** 196 unitarias + **36 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas). Todas en verde.
 
+### 8.12 Flujo 5/7 — Aislamiento multi-tienda (commit `9b13f62`)
+`tests/integration/aislamiento_multitienda.test.js`, 5 pruebas, complementando el chequeo puntual ya hecho en `cartera.test.js` (sección 8.10): productos (el listado de una tienda nunca incluye los de otra; ver/editar/eliminar por ID el producto de otra tienda da 404 — el guard `verifyProductOwnership`, con comentarios `🛡️ IDOR` explícitos en el código, funciona), ventas (comprar un producto de otra tienda da 404 y no mueve su stock; el listado de ventas nunca mezcla tiendas), y proveedores (el listado tampoco mezcla tiendas).
+
+**Hallazgo (sin corregir, solo reportado y probado):** `suppliersController.update` y `.delete` sí filtran su `UPDATE`/`UPDATE...estado='Inactivo'` por `WHERE id_proveedor = ? AND id_tienda = ?` — los datos quedan seguros, nunca se modifica lo de otra tienda —, pero **no revisan si la consulta afectó alguna fila**. Si el proveedor es de otra tienda (o no existe), el `UPDATE` no toca nada y el endpoint responde `{success:true, message:'Proveedor actualizado'}` igual, como si hubiera funcionado. Es distinto del patrón que ya usa `productController` (`verifyProductOwnership`, con comentarios `🛡️ IDOR` explícitos, que revisa la propiedad *antes* de escribir y devuelve 404 si no es del usuario) — `suppliersController` no tiene ese chequeo. No es una fuga de datos, es una respuesta engañosa: el frontend creería que guardó un cambio que nunca pasó. La prueba de este archivo lo deja documentado explícitamente (verifica `editar.body.success === true` **y** que la fila de la tienda A no cambió). Arreglo natural si se decide corregirlo: revisar `result.changes`/`rowCount` de `db.runAsync` (que ya lo expone) y devolver 404 si es 0, mismo patrón que `productController`.
+
+**Pruebas:** 196 unitarias + **41 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 5 aislamiento). Todas en verde.
+
 ---
 
 ## 6. Para continuar en la próxima sesión
@@ -257,8 +264,9 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Los 2 flujos de integración que faltan: aislamiento multi-tienda (uno dedicado y más amplio que el chequeo puntual ya hecho en cartera — cubrir productos/ventas/otros controladores), IA caída — reusando `tests/integration/helpers/`.
-2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
+1. El último flujo de integración: IA caída — reusando `tests/integration/helpers/`.
+2. Decidir si corregir el hallazgo de la sección 8.12 (`suppliersController.update`/`.delete` no revisan filas afectadas) — no es parte de los 7 flujos, quedó anotado para que se decida aparte.
+3. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+4. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 36 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 5 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera, `Alert.generate` concurrente — protección ya existente, confirmada funcionando).
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 41 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 6 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda — con un hallazgo de respuesta engañosa en proveedores, sin corregir todavía).
