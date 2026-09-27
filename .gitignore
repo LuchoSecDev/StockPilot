@@ -3,6 +3,8 @@ node_modules/
 
 # Archivos de entorno (¡Muy importante por seguridad!)
 .env
+.env.*
+!.env.example
 
 # Logs
 npm-debug.log*

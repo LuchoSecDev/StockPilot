@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    exclude: ['**/node_modules/**', 'dist/**', 'tests/e2e/**'],
+    exclude: ['**/node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/integration/**'],
     coverage: {
       provider: 'v8',
       // Plan 20: cobertura de TODO el backend, no de un puñado de archivos elegidos a mano —

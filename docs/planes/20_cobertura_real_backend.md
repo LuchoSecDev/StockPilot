@@ -165,13 +165,38 @@ Al escribir las pruebas de `aplicarAjusteIA` apareció un bug real, ya existente
 
 ---
 
+## 8. Nivel 2 — infraestructura lista (2026-09-27)
+
+Antes de escribir pruebas de los 7 flujos se armó la base de todo el Nivel 2:
+
+- **`tests/integration/setupTestDb.js`** — se registra como `setupFiles` de `vitest.integration.config.js` (corre antes que cualquier prueba). Carga `.env.test` con `override: true` y **aborta el proceso** si `DATABASE_URL` no es, de forma verificable, local (`localhost`/`127.0.0.1`) y con nombre de base terminado en `_test`. Probado a mano con 3 casos: `stockpilot_test` local (pasa), una URL de Neon (aborta), `stockpilot` local sin `_test` (aborta) — los tres se comportaron como se esperaba.
+- **`.env.test`** (no versionado — ver hallazgo de `.gitignore` abajo) — mismo usuario/clave de Postgres que `.env`, apuntando a `stockpilot_test`; `OPENAI_API_KEY`, `EMAIL_*` y `RESEND_API_KEY` con valores dummy a propósito (las pruebas de integración no deben depender de servicios externos reales; el flujo "IA caída" necesita justamente que la clave de OpenAI no sea válida); sin `REDIS_URL` (la app cae a sesiones en Postgres/memoria).
+- **`vitest.integration.config.js`** (nuevo, separado de `vitest.config.js`) — `include: tests/integration/**/*.test.js`, `fileParallelism: false` (varias pruebas van a compartir la misma base y alguna ejercita concurrencia real dentro de sí misma). `vitest.config.js` ahora excluye `tests/integration/**` para que `npm test` nunca las toque.
+- **`npm run test:integration`** agregado a `package.json`, separado de `npm test`.
+- **`supertest`** instalado como devDependency (no estaba).
+- **`stockpilot_test`** creada en el Postgres local, con el esquema completo (22 tablas, verificado idéntico a `stockpilot`) — bootstrap con `database/init_pg.sql` + la auto-migración de `config/database.js` (esta corrió *contra la base de prueba*, protegida por el guard de arriba).
+
+### 8.1 Hallazgo y arreglo: `database/init_pg.sql` no podía levantar una base nueva
+Al intentar correr el script contra `stockpilot_test` (recién creada, vacía) falló con `no existe la relación «usuarios»`. Causa: dependencia circular entre `Tienda` (columna `id_propietario` con `REFERENCES Usuarios`, definida en la línea 23, antes de que `Usuarios` exista) y `Usuarios` (columna `id_tienda` con `REFERENCES Tienda`, línea 38). Es el único caso circular del archivo — se revisaron todos los `CREATE TABLE`/`REFERENCES` y el resto está en orden correcto. Nunca se había notado porque ni `stockpilot` (desarrollo) ni producción se armaron corriendo este script contra una base vacía — se fueron construyendo con `ALTER TABLE` incrementales vía la auto-migración de `config/database.js`.
+
+**Arreglo:** se sacó el `REFERENCES` de `Tienda.id_propietario` (queda `INTEGER` simple ahí) y se agregó la FK con un `ALTER TABLE ... ADD CONSTRAINT` envuelto en `DO $$ ... IF NOT EXISTS (SELECT 1 FROM pg_constraint ...)` (Postgres no soporta `ADD CONSTRAINT IF NOT EXISTS`) justo después de crear `Usuarios`. Cero riesgo para `stockpilot`/producción: ahí las tablas ya existen y `CREATE TABLE IF NOT EXISTS` no hace nada; el bug solo afectaba a una base nueva. Verificado de punta a punta: `stockpilot_test` recreada desde cero, `init_pg.sql` corrido limpio, auto-migración corrida encima, 22 tablas resultantes — comparadas y **idénticas** a las de `stockpilot`.
+
+### 8.2 Hallazgo y arreglo: `.gitignore` no cubría `.env.test`
+Solo excluía `.env` exacto. Se cambió a `.env` + `.env.*` + `!.env.example` (para no perder el ejemplo versionado). Sin esto, `.env.test` (con la misma contraseña de Postgres local que `.env`) hubiera quedado expuesto a un `git add` amplio.
+
+### 8.3 Hallazgo, no corregido todavía: `config/database.js` no tiene ninguna protección
+Su bloque de auto-migración corre automáticamente en cada `require`, contra lo que sea que diga `DATABASE_URL`, sin verificar nada — igual que `scripts/migrate.js`. Es justo el riesgo que este Nivel 2 busca cerrar, pero hoy la protección solo vive en el punto de entrada de las pruebas de integración (`setupTestDb.js`), no en `config/database.js` mismo (ese archivo lo usa también la app en producción). No se tocó — queda como decisión aparte si en algún momento se quiere un guard más permanente ahí.
+
+---
+
 ## 6. Para continuar en la próxima sesión
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Nivel 2 (integración con Postgres real): crear `stockpilot_test` en el servidor local, `.env.test`, la protección de "abortar si no es una base de pruebas" (nombre termina en `_test` + host local), y las pruebas con `supertest` de los 7 flujos prioritarios listados en el encargo original (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída).
-2. Recién en el Nivel 2 se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y separar `npm test` (unitarias) de `npm run test:integration`.
+1. Escribir las pruebas de integración de los 7 flujos prioritarios (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída) en `tests/integration/`, contra `stockpilot_test` (ya armada, ver sección 8).
+2. Definir la limpieza de datos entre pruebas (probablemente `TRUNCATE ... RESTART IDENTITY CASCADE` en un `beforeEach`/`afterEach`).
+3. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+4. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196/196 pruebas en verde, sin conexión a base de datos desde `npm test`, `DATABASE_URL` en `.env` apunta a `stockpilot` local (no Neon, no `stockpilot_test` — esa todavía no existe). Sección 5 cerrada por completo.
+**Estado técnico verificado hoy (2026-09-27):** 196/196 pruebas unitarias en verde, sin conexión a base de datos desde `npm test`. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con la infraestructura lista, faltan los 7 flujos de pruebas.

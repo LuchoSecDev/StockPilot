@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS Tienda (
     razon_social VARCHAR(255),
     celular VARCHAR(20),
     ciudad VARCHAR(100),
-    id_propietario INTEGER REFERENCES Usuarios(id_usuario) ON DELETE SET NULL,
+    -- Sin REFERENCES aquí a propósito: Usuarios todavía no existe en este punto del script, y
+    -- Usuarios.id_tienda (abajo) referencia a Tienda — son circulares. La FK se agrega con
+    -- ALTER TABLE después de crear ambas tablas (plan 20, Nivel 2, bug encontrado al intentar
+    -- correr este script contra una base nueva: antes fallaba con "no existe la relación usuarios").
+    id_propietario INTEGER,
     limite_egreso_tendero NUMERIC(15, 2) DEFAULT 150000
 );
 
@@ -55,6 +59,20 @@ CREATE TABLE IF NOT EXISTS Usuarios (
     two_factor_enabled BOOLEAN DEFAULT FALSE,
     fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE
 );
+
+-- Cierra la dependencia circular Tienda <-> Usuarios de arriba: recién acá pueden existir las dos.
+-- PostgreSQL no soporta "ADD CONSTRAINT IF NOT EXISTS"; se verifica a mano para que el script
+-- siga siendo idempotente (se puede correr varias veces, como el resto de este archivo).
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_tienda_propietario'
+    ) THEN
+        ALTER TABLE Tienda
+            ADD CONSTRAINT fk_tienda_propietario
+            FOREIGN KEY (id_propietario) REFERENCES Usuarios(id_usuario) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- 3. TABLA PROVEEDORES
 CREATE TABLE IF NOT EXISTS Proveedores (

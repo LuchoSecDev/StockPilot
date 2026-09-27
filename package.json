@@ -11,6 +11,7 @@
     "migrate": "node scripts/migrate.js",
     "seed": "node database/seed_test_data.js",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.js",
     "test:evidence": "vitest run --reporter=verbose --reporter=json --outputFile=evidencia_pruebas.json && node generar_reporte.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -54,6 +55,7 @@
     "@vitest/coverage-v8": "^4.1.4",
     "@vitest/ui": "^4.1.4",
     "kill-port": "^2.0.1",
+    "supertest": "^7.3.0",
     "vitest": "^4.1.4"
   },
   "description": "",
