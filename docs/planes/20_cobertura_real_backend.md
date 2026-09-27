@@ -193,6 +193,15 @@ Su bloque de auto-migración corre automáticamente en cada `require`, contra lo
 ### 8.5 Hallazgo y arreglo: `.env.test` filtraba las credenciales reales de Redis y Resend
 Al probar el `require('./app.js')` de 8.4 contra `.env.test`, la app se conectó al **Redis real de producción** (Upstash) y quedó lista para mandar correo por el **Resend real**. Causa: `config/redis.js` y `config/mailer.js` deciden con `if (process.env.REDIS_URL)` / `!!process.env.RESEND_API_KEY` — como esas dos variables no estaban en `.env.test`, el `require('dotenv').config()` (sin `override`) que hacen `app.js`/`config/database.js` internamente las completaba con los valores reales de `.env`, porque dotenv sin `override` solo respeta una variable si ya existe en `process.env`, y estas dos no existían. Se agregaron a `.env.test` como **vacías a propósito** (`REDIS_URL=`, `RESEND_API_KEY=`) — así sí "existen" (aunque vacías) y bloquean el `dotenv.config()` posterior; verificado que con esto la app cae a sus fallbacks locales (sesiones en PostgreSQL, correo por SMTP dummy que falla silenciosamente).
 
+### 8.6 Flujo 6/7 — Autenticación (commit `ab64d46`)
+Primer flujo escrito, `tests/integration/autenticacion.test.js`, 10 pruebas: login correcto (200, sesión funcional en `/api/session-info`), contraseña incorrecta y usuario inexistente (401 idéntico en ambos casos — no filtra si el usuario existe), campos faltantes (400), endpoint protegido sin sesión (401) y con sesión (200) usando `/api/caja/sesion` (pasa por el middleware real `requireLogin`, a diferencia de `/api/session-info`/`/api/perfil` que tienen su propio chequeo inline y no sirven para probar la invalidación de sesión concurrente), logout (CSRF token vía `/api/csrf-token` + header `X-CSRF-Token`, ya que `/api/logout` no está en la lista de rutas exentas de CSRF), bloqueo de segundo login para Tendero (409 `SESSION_ACTIVE`), invalidación real de la sesión vieja al forzar un segundo login (`force:true` → la sesión anterior da 401 `CONCURRENT_SESSION` en un endpoint con `requireLogin`), y Administrador sin bloqueo de sesiones concurrentes. Las 10 pasan contra `stockpilot_test`.
+
+**Helpers nuevos, para reusar en los 6 flujos que faltan:**
+- `tests/integration/helpers/db.js` — `limpiarBaseDePruebas()`: `TRUNCATE` de las 22 tablas con `RESTART IDENTITY CASCADE`, llamado en un `beforeEach` de cada archivo de prueba.
+- `tests/integration/helpers/fixtures.js` — `crearTienda()`/`crearUsuario()`, usando `Store.create`/`User.create` reales (mismo hash bcrypt que producción), con sufijos únicos para no chocar con los `UNIQUE` de `correo`/`usuario` entre pruebas.
+
+No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/15min) — no es uno de los 7 flujos pedidos, y su contador en memoria es compartido por IP entre todas las pruebas del mismo archivo, así que mezclarlo con estas pruebas habría hecho el archivo frágil sin aportar a lo pedido.
+
 ---
 
 ## 6. Para continuar en la próxima sesión
@@ -200,9 +209,8 @@ Al probar el `require('./app.js')` de 8.4 contra `.env.test`, la app se conectó
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Escribir las pruebas de integración de los 7 flujos prioritarios (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída) en `tests/integration/`, contra `stockpilot_test` (ya armada, ver sección 8).
-2. Definir la limpieza de datos entre pruebas (probablemente `TRUNCATE ... RESTART IDENTITY CASCADE` en un `beforeEach`/`afterEach`).
-3. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-4. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
+1. Los 6 flujos de integración que faltan: venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
+2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
 **Estado técnico verificado hoy (2026-09-27):** 196/196 pruebas unitarias en verde, sin conexión a base de datos desde `npm test`. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con la infraestructura lista, faltan los 7 flujos de pruebas.
