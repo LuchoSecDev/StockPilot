@@ -1,7 +1,7 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **47 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
-**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (Nivel 2 completo: los 7 flujos + los 2 hallazgos corregidos)
+**Estado:** **Plan 20 completo — Nivel 1, sección 5 y Nivel 2, sin nada pendiente.** Los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **47 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Se limpiaron los `/* v8 ignore */` que ya no hacían falta (8.14) y se agregó un piso de `thresholds` de cobertura en `vitest.config.js` (8.15).
+**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (plan cerrado por completo)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
 ---
@@ -285,8 +285,12 @@ Se revisaron los 4 archivos con bloques `/* v8 ignore */` de todo el repo (no so
 
 Verificado: 196 unitarias + 47 de integración en verde después de la reestructuración (solo se movieron comentarios/marcadores, ninguna lógica cambió).
 
-### 8.15 `thresholds` en `vitest.config.js` (commit `<pendiente>`)
-<!-- completar después de medir la cobertura real con estos cambios -->
+### 8.15 `thresholds` en `vitest.config.js` (commit `f98de10`)
+Medida la cobertura real (`npm run test:coverage`, solo unitarias) tras cerrar las secciones 8.1-8.14: **10,53% statements / 15,69% branches / 19,55% functions / 9,75% lines**. Se agregó `coverage.thresholds` en `vitest.config.js` fijado un poco por debajo de esos números (10/15/19/9) — un piso de regresión, no una meta a alcanzar. Verificado que el mecanismo funciona de verdad: se subió `statements` a 99 a propósito, `npm run test:coverage` falló con `ERROR: Coverage for statements (10.53%) does not meet global threshold (99%)`, y se revirtió al valor real.
+
+**Nota importante para no confundirse en el futuro:** este threshold solo mide `npm test`/`npm run test:coverage` (unitarias, `tests/integration/**` sigue excluido de `vitest.config.js` a propósito). Las 47 pruebas de integración (`npm run test:integration`) cubren código real que este número no refleja (`Alert.generate`/`findActive`, `requireLogin`/`requireAdmin`, la mayoría de `middleware/validation.js`, etc. — ver sección 8.14). Si en el futuro se mueve código de un archivo cubierto por unitarias a uno que solo prueban las de integración, este número bajará aunque la cobertura *real* no haya empeorado — hay que mirar los comentarios que se dejaron en cada `/* v8 ignore */` para saber qué está probado por cuál suite antes de asumir una regresión real.
+
+**Pruebas:** 196 unitarias + 47 de integración en verde, sin cambios de conteo (solo se agregó configuración, ninguna prueba nueva).
 
 ---
 
@@ -294,6 +298,6 @@ Verificado: 196 unitarias + 47 de integración en verde después de la reestruct
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
-Todo el plan 20 está completo: Nivel 1, sección 5, Nivel 2 (los 7 flujos + los 2 hallazgos), limpieza de `/* v8 ignore */` y `thresholds` de cobertura.
+**Todo el plan 20 está completo:** Nivel 1, sección 5, Nivel 2 (los 7 flujos + los 2 hallazgos corregidos), limpieza de `/* v8 ignore */` y `thresholds` de cobertura. No queda ningún pendiente abierto en este plan — cualquier trabajo nuevo (Nivel 3, otro módulo, etc.) sería un plan aparte.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 47 de integración en verde. `stockpilot_test` creada y con el esquema completo.
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 47 de integración en verde. `stockpilot_test` creada y con el esquema completo. `coverage.thresholds` en `vitest.config.js` protegiendo el piso real medido hoy.
