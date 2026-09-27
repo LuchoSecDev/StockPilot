@@ -37,4 +37,33 @@ function totalOrden(lineas) {
   return lineas.reduce((acc, l) => acc + Number(l.cantidad) * Number(l.costo_unitario || 0), 0);
 }
 
-module.exports = { agruparPorProveedor, totalOrden };
+/**
+ * Nivel de riesgo de una orden de compra generada por el Consejero IA: alto si excede el
+ * presupuesto o si incluye productos en estado crítico de agotamiento; medio si incluye
+ * productos en alerta (naranja); bajo en cualquier otro caso.
+ *
+ * @param {number} totalCost
+ * @param {number} budgetLimit
+ * @param {number} itemsCriticos - Cantidad de productos con nivel_riesgo 'critical'.
+ * @param {number} itemsNaranja - Cantidad de productos con nivel_riesgo 'medium'.
+ * @returns {{riskLevel: string, riskReason: string}}
+ */
+function evaluarRiesgoOrden(totalCost, budgetLimit, itemsCriticos, itemsNaranja) {
+  let riskLevel = 'Bajo';
+  let riskReason = 'Presupuesto holgado y riesgos de stock controlables.';
+
+  if (totalCost > budgetLimit) {
+    riskLevel = 'Alto';
+    riskReason = 'El costo total excede el presupuesto máximo establecido.';
+  } else if (itemsCriticos > 0) {
+    riskLevel = 'Alto';
+    riskReason = `Existen ${itemsCriticos} productos en estado crítico de agotamiento (Rojo). Requiere revisión urgente.`;
+  } else if (itemsNaranja > 0) {
+    riskLevel = 'Medio';
+    riskReason = `Existen ${itemsNaranja} productos en alerta de agotamiento (Naranja). Requiere revisión manual antes de enviarse.`;
+  }
+
+  return { riskLevel, riskReason };
+}
+
+module.exports = { agruparPorProveedor, totalOrden, evaluarRiesgoOrden };

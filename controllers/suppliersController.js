@@ -1,5 +1,5 @@
 const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
-const { totalOrden } = require('../utils/ordenesBorrador');
+const { totalOrden, evaluarRiesgoOrden } = require('../utils/ordenesBorrador');
 const { aplicarAjusteIA } = require('../utils/guardrailsIA');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
 const db = require('../config/database');
@@ -142,19 +142,8 @@ const suppliersController = {
       const totalCost = recomendaciones_matematicas.reduce((acc, curr) => acc + curr.presupuesto_estimado, 0);
       const itemsCriticos = recomendaciones_matematicas.filter(r => r.nivel_riesgo === 'critical').length;
       const itemsNaranja = recomendaciones_matematicas.filter(r => r.nivel_riesgo === 'medium').length;
-      let riskLevel = 'Bajo';
-      let riskReason = 'Presupuesto holgado y riesgos de stock controlables.';
       const budgetLimit = presupuesto_maximo || 1000000;
-      if (totalCost > budgetLimit) { 
-        riskLevel = 'Alto'; 
-        riskReason = 'El costo total excede el presupuesto máximo establecido.'; 
-      } else if (itemsCriticos > 0) { 
-        riskLevel = 'Alto'; 
-        riskReason = `Existen ${itemsCriticos} productos en estado crítico de agotamiento (Rojo). Requiere revisión urgente.`; 
-      } else if (itemsNaranja > 0) {
-        riskLevel = 'Medio'; 
-        riskReason = `Existen ${itemsNaranja} productos en alerta de agotamiento (Naranja). Requiere revisión manual antes de enviarse.`; 
-      }
+      const { riskLevel, riskReason } = evaluarRiesgoOrden(totalCost, budgetLimit, itemsCriticos, itemsNaranja);
       const promptData = recomendaciones_matematicas.map(r => ({ id: r.id_producto, producto: r.nombre, abc: r.clasificacion_abc, sugerencia_matematica: r.cantidad_sugerida }));
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",

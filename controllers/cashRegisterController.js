@@ -2,6 +2,7 @@ const CashRegister = require('../models/CashRegister');
 const Store = require('../models/Store');
 const Notification = require('../models/Notification');
 const db = require('../config/database');
+const { evaluarDescuadreCaja } = require('../utils/cashRegisterHelpers');
 
 class CashRegisterController {
     static async getCurrentSession(req, res) {
@@ -64,14 +65,14 @@ class CashRegisterController {
 
             const arqueo = await CashRegister.closeSession(activeSession.id_sesion, monto_cierre_declarado);
 
-            if (Math.abs(arqueo.diferencia) > 5000) {
-                const esFaltante = arqueo.diferencia < 0;
+            const { esSignificativo, titulo, mensaje } = evaluarDescuadreCaja(arqueo.diferencia);
+            if (esSignificativo) {
                 await Notification.create({
                     id_usuario: id_vendedor,
                     id_tienda,
                     tipo: 'descuadre_caja',
-                    titulo: esFaltante ? '⚠️ Faltante en Caja' : '💰 Sobrante en Caja',
-                    mensaje: `Tu cierre de caja tuvo un ${esFaltante ? 'faltante' : 'sobrante'} de $${Math.abs(arqueo.diferencia).toLocaleString('es-CO')}. Revisa tus comprobantes.`,
+                    titulo,
+                    mensaje,
                     datos_json: JSON.stringify({ diferencia: arqueo.diferencia, id_sesion: activeSession.id_sesion })
                 });
             }

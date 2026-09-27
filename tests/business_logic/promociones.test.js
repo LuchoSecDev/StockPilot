@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { calcularImpactoPromocion, determinarPromocionFallback } from '../../utils/promociones.js';
+import { normalizarDescuento, calcularImpactoPromocion, determinarPromocionFallback } from '../../utils/promociones.js';
+
+describe('normalizarDescuento (corrección de descuento efectivo de la IA)', () => {
+  it('2x1 sin porcentaje explícito (0) se corrige a 50%', () => {
+    expect(normalizarDescuento('2x1', 0)).toBe(50);
+  });
+  it('2x1 con porcentaje explícito no se toca (la IA ya lo puso)', () => {
+    expect(normalizarDescuento('2x1', 30)).toBe(30);
+  });
+  it('otros tipos de promoción no se corrigen', () => {
+    expect(normalizarDescuento('descuento', 0)).toBe(0);
+    expect(normalizarDescuento('combo', 15)).toBe(15);
+  });
+  it('discount undefined/null se trata como 0', () => {
+    expect(normalizarDescuento('descuento', undefined)).toBe(0);
+    expect(normalizarDescuento('2x1', null)).toBe(50);
+  });
+});
 
 describe('calcularImpactoPromocion (ex-duplicado dentro de aiController.js)', () => {
   it('calcula precio con descuento y capital liberado', () => {

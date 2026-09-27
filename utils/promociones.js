@@ -14,6 +14,22 @@
  * @param {number} descuentoPct - Porcentaje de descuento (0-100).
  * @returns {{discountedPrice: number, capitalLiberado: number}}
  */
+/**
+ * Corrige el descuento de una promoción sugerida por la IA: un "2x1" sin porcentaje explícito
+ * implica 50% de ahorro real (el cliente paga 1 de 2 unidades), aunque la IA no lo haya puesto.
+ *
+ * @param {string} type - Tipo de promoción ('2x1', 'descuento', 'combo', 'liquidacion').
+ * @param {number} discount - Porcentaje de descuento sugerido por la IA (puede venir en 0 o vacío).
+ * @returns {number} effectiveDiscount
+ */
+function normalizarDescuento(type, discount) {
+  let effectiveDiscount = discount || 0;
+  if (type === '2x1' && effectiveDiscount === 0) {
+    effectiveDiscount = 50;
+  }
+  return effectiveDiscount;
+}
+
 function calcularImpactoPromocion(precio, stock, descuentoPct) {
   const discountedPrice = Math.round(precio * (1 - descuentoPct / 100));
   const capitalLiberado = Math.round(stock * discountedPrice);
@@ -49,4 +65,4 @@ function determinarPromocionFallback(diasParaVencer, stock) {
   return { type, discount, reason, duration_days };
 }
 
-module.exports = { calcularImpactoPromocion, determinarPromocionFallback };
+module.exports = { normalizarDescuento, calcularImpactoPromocion, determinarPromocionFallback };

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcularReposicion, calcularTendencia, costoUnitario } from '../../utils/reposicion.js';
-import { agruparPorProveedor, totalOrden } from '../../utils/ordenesBorrador.js';
+import { agruparPorProveedor, totalOrden, evaluarRiesgoOrden } from '../../utils/ordenesBorrador.js';
 
 const base = { ventasDia7: 2, ventasDia30: 2, ventas30Total: 60, claseABC: 'A', stock: 10, stockSeguridad: 4, leadTime: 3, factorIA: 1 };
 
@@ -136,5 +136,31 @@ describe('agruparPorProveedor', () => {
   });
   it('total = Σ cantidad × costo', () => {
     expect(totalOrden([{ cantidad: 2, costo_unitario: 500 }, { cantidad: 1, costo_unitario: 250 }])).toBe(1250);
+  });
+});
+
+describe('evaluarRiesgoOrden', () => {
+  it('excede el presupuesto → Alto, aunque no haya productos críticos ni en alerta', () => {
+    const r = evaluarRiesgoOrden(200000, 100000, 0, 0);
+    expect(r.riskLevel).toBe('Alto');
+    expect(r.riskReason).toMatch(/excede el presupuesto/);
+  });
+  it('presupuesto excedido manda sobre productos críticos (se evalúa primero)', () => {
+    const r = evaluarRiesgoOrden(200000, 100000, 3, 0);
+    expect(r.riskReason).toMatch(/excede el presupuesto/);
+  });
+  it('dentro de presupuesto pero con productos críticos → Alto', () => {
+    const r = evaluarRiesgoOrden(50000, 100000, 2, 0);
+    expect(r.riskLevel).toBe('Alto');
+    expect(r.riskReason).toMatch(/2 productos en estado crítico/);
+  });
+  it('dentro de presupuesto, sin críticos, con productos en alerta (naranja) → Medio', () => {
+    const r = evaluarRiesgoOrden(50000, 100000, 0, 4);
+    expect(r.riskLevel).toBe('Medio');
+    expect(r.riskReason).toMatch(/4 productos en alerta/);
+  });
+  it('dentro de presupuesto, sin críticos ni alertas → Bajo', () => {
+    const r = evaluarRiesgoOrden(50000, 100000, 0, 0);
+    expect(r.riskLevel).toBe('Bajo');
   });
 });

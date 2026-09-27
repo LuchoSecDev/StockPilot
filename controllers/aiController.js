@@ -17,7 +17,7 @@ const { seleccionarCandidatosReabastecimiento, esRecomendacionAccionable } = req
 const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
 const { aplicarAjusteIA } = require('../utils/guardrailsIA');
-const { calcularImpactoPromocion, determinarPromocionFallback } = require('../utils/promociones');
+const { normalizarDescuento, calcularImpactoPromocion, determinarPromocionFallback } = require('../utils/promociones');
 const { sugerirUmbralesStock } = require('../utils/sugerenciasStock');
 
 // Inicializar cliente OpenAI con la clave del entorno o una clave falsa para evitar crasheos al arrancar sin la variable
@@ -494,10 +494,7 @@ const aiController = {
         if (!product) return null;
 
         // Corrección automática: 2x1 siempre es 50% de ahorro real
-        let effectiveDiscount = p.discount || 0;
-        if (p.type === '2x1' && effectiveDiscount === 0) {
-          effectiveDiscount = 50;
-        }
+        const effectiveDiscount = normalizarDescuento(p.type, p.discount);
 
         // Cálculo de impacto financiero estimado (Capital a liberar)
         const { discountedPrice, capitalLiberado } = calcularImpactoPromocion(product.precio, product.stock, effectiveDiscount);
