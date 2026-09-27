@@ -310,14 +310,22 @@ function startServer(port) {
 if (process.env.NODE_ENV === 'production') {
     const requiredEnvVars = ['DATABASE_URL', 'SESSION_SECRET', 'OPENAI_API_KEY'];
     const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-    
+
     if (missingVars.length > 0) {
         console.error('❌ FATAL (PRODUCCIÓN): Faltan las siguientes variables de entorno críticas:', missingVars.join(', '));
         console.error('   El servidor se detendrá por seguridad. Configúralas en tu entorno de despliegue (ej. Render/Railway).');
         process.exit(1);
     }
 }
-// Iniciar planeador de tareas automáticas (Cron Jobs)
-scheduler.startScheduler();
 
-startServer(PORT);
+// Solo abrir un puerto real y arrancar los cron jobs cuando este archivo se ejecuta directamente
+// (`node app.js`, `npm start`, `npm run dev`) — no cuando una prueba de integración lo importa con
+// `require('../../app')` para usarlo con supertest (plan 20, Nivel 2). `require.main === module`
+// es `true` exactamente en los mismos casos que antes corrían este bloque sin condición.
+if (require.main === module) {
+    // Iniciar planeador de tareas automáticas (Cron Jobs)
+    scheduler.startScheduler();
+    startServer(PORT);
+}
+
+module.exports = app;

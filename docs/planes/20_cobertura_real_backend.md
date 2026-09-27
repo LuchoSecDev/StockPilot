@@ -187,6 +187,12 @@ Solo excluía `.env` exacto. Se cambió a `.env` + `.env.*` + `!.env.example` (p
 ### 8.3 Hallazgo, no corregido todavía: `config/database.js` no tiene ninguna protección
 Su bloque de auto-migración corre automáticamente en cada `require`, contra lo que sea que diga `DATABASE_URL`, sin verificar nada — igual que `scripts/migrate.js`. Es justo el riesgo que este Nivel 2 busca cerrar, pero hoy la protección solo vive en el punto de entrada de las pruebas de integración (`setupTestDb.js`), no en `config/database.js` mismo (ese archivo lo usa también la app en producción). No se tocó — queda como decisión aparte si en algún momento se quiere un guard más permanente ahí.
 
+### 8.4 Hallazgo y arreglo: `app.js` no se podía importar para pruebas
+`app.js` nunca exportaba la app de Express, y al final del archivo llamaba **incondicionalmente** a `startServer(PORT)` (abre un puerto real) y `scheduler.startScheduler()` (arranca los cron jobs reales) — pasaba lo mismo con solo hacer `require('../../app')`. Se envolvieron esas dos llamadas en `if (require.main === module) { ... }` (patrón estándar de Node) y se agregó `module.exports = app` al final. `require.main === module` es `true` exactamente en los mismos casos de siempre (`npm start`, `npm run dev`, producción) — verificado con un smoke test real (`node app.js` sigue arrancando el servidor y el scheduler igual que antes) y con un `require()` directo (ya no abre puerto ni arranca cron, y exporta la función de Express).
+
+### 8.5 Hallazgo y arreglo: `.env.test` filtraba las credenciales reales de Redis y Resend
+Al probar el `require('./app.js')` de 8.4 contra `.env.test`, la app se conectó al **Redis real de producción** (Upstash) y quedó lista para mandar correo por el **Resend real**. Causa: `config/redis.js` y `config/mailer.js` deciden con `if (process.env.REDIS_URL)` / `!!process.env.RESEND_API_KEY` — como esas dos variables no estaban en `.env.test`, el `require('dotenv').config()` (sin `override`) que hacen `app.js`/`config/database.js` internamente las completaba con los valores reales de `.env`, porque dotenv sin `override` solo respeta una variable si ya existe en `process.env`, y estas dos no existían. Se agregaron a `.env.test` como **vacías a propósito** (`REDIS_URL=`, `RESEND_API_KEY=`) — así sí "existen" (aunque vacías) y bloquean el `dotenv.config()` posterior; verificado que con esto la app cae a sus fallbacks locales (sesiones en PostgreSQL, correo por SMTP dummy que falla silenciosamente).
+
 ---
 
 ## 6. Para continuar en la próxima sesión
