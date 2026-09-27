@@ -10,6 +10,7 @@ no asumas que esos cambios son descartables solo porque no están commiteados.
 Archivos generados automáticamente que este proyecto regenera con frecuencia (repasa igual el
 `git status` antes de tocarlos, aunque en general sí es seguro sobrescribirlos):
 - `evidencia_pruebas.json`
+- `evidencia_pruebas_integration.json` (solo si `npm run test:evidence` alcanzó a correr la integración)
 - `Documentacion/Reporte_Pruebas_StockPilot.md`
 - `coverage/`
 

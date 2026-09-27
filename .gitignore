@@ -22,6 +22,7 @@ Thumbs.db
 
 # Resultados de Pruebas y Reportes (StockPilot QA)
 evidencia_pruebas.json
+evidencia_pruebas_integration.json
 coverage/
 playwright-report/
 test-results/

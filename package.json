@@ -12,7 +12,7 @@
     "seed": "node database/seed_test_data.js",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.js",
-    "test:evidence": "vitest run --reporter=verbose --reporter=json --outputFile=evidencia_pruebas.json && node generar_reporte.js",
+    "test:evidence": "node scripts/run_evidence.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:dashboard": "vitest --ui",
