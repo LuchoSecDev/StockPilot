@@ -139,7 +139,10 @@ const db = {
 // Evita que la app falle si el usuario olvida correr los scripts de migración.
 // Incluye reintentos automáticos para tolerar cold starts de Neon.
 // -----------------------------------------------------------------------------
-(async function autoMigrate() {
+// Promesa expuesta para quien necesite saber cuándo termina (p. ej. las pruebas de integración,
+// que si no la esperan pueden disparar un TRUNCATE mientras esta migración sigue a mitad de
+// camino — plan 20, Nivel 2, sección 8.9). Nadie más la mira: no cambia nada para la app en sí.
+db.migrationReady = (async function autoMigrate() {
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {

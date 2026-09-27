@@ -218,6 +218,20 @@ No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/1
 
 **Pruebas:** 196 unitarias + **23 de integración** (10 autenticación + 3 venta + 10 caja). Todas en verde.
 
+### 8.9 Hallazgo y arreglo importante: fallas intermitentes reales entre archivos de prueba (no un bug de la app)
+Al correr la suite de integración completa varias veces seguidas, entre 1 y 3 de cada 5 corridas fallaban con errores intermitentes — algunos en `autenticacion.test.js` (que ni toca ventas), del tipo "viola la llave foránea «usuarios_id_tienda_fkey»" y hasta un "se ha detectado un deadlock" real de Postgres. No era un bug de negocio: era la infraestructura de pruebas.
+
+**Causa real, en dos capas:**
+1. Vitest aísla cada archivo de prueba en su propio registro de módulos por defecto, así que `config/database.js` (con su propio `Pool` de conexiones **y** su IIFE de auto-migración) se volvía a cargar una vez por archivo — hasta 4 `Pool`s y 4 migraciones corriendo contra la misma base en la misma corrida.
+2. Esa auto-migración ya de por sí no se espera (es un IIFE sin `await` desde ningún lado) y **reintenta cada 3 segundos si falla**. Si el primer `TRUNCATE` de un `beforeEach` corría mientras la migración de OTRO archivo seguía a mitad de camino, Postgres detectaba el choque de bloqueos (deadlock) o dejaba una fila a medio insertar (violación de FK) — y si la migración fallaba por eso, reintentaba y volvía a chocar con la prueba siguiente. Esto explica que las corridas fallidas tardaran 50s en vez de los ~16s normales.
+
+**Arreglo, en dos partes:**
+- `vitest.integration.config.js`: se agregó `isolate: false` (además del `fileParallelism: false` que ya tenía) — todos los archivos de prueba comparten un solo registro de módulos, así que `config/database.js` se carga una sola vez para toda la corrida (un solo `Pool`, una sola migración).
+- `config/database.js`: la IIFE de auto-migración ahora se guarda en `db.migrationReady` (antes no estaba asignada a nada). Cambio de una línea, puramente aditivo — nada que ya use `db` se ve afectado, nadie más mira esa propiedad.
+- `tests/integration/setupTestDb.js`: ahora espera `await db.migrationReady` antes de dejar correr cualquier prueba (se convirtió a sintaxis ESM con `import`/`import()` dinámico para poder usar `await` de nivel superior, manteniendo el orden crítico: primero el guard de seguridad, recién después cargar `config/database.js`).
+
+**Verificado:** 19+ corridas completas de la suite de integración, todas limpias, después del arreglo (antes fallaba entre 20% y 60% de las veces, según el lote). Sin este arreglo, cualquier flujo nuevo de Nivel 2 habría heredado esta fragilidad.
+
 ---
 
 ## 6. Para continuar en la próxima sesión

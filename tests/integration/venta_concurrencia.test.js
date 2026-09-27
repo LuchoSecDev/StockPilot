@@ -4,16 +4,25 @@
  * con stock limitado, contra Postgres real. registerSale usa `SELECT ... FOR UPDATE` para evitar
  * la condición de carrera; registerCartSale no.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import app from '../../app.js';
 import db from '../../config/database.js';
 import { limpiarBaseDePruebas } from './helpers/db.js';
 import { crearUsuario, crearProducto, abrirCaja } from './helpers/fixtures.js';
 import { iniciarSesion, obtenerCsrfToken } from './helpers/sesion.js';
+import { esperarTrabajoEnSegundoPlano } from './helpers/tiempo.js';
 
 beforeEach(async () => {
   await limpiarBaseDePruebas();
+});
+
+// registerSale/registerCartSale disparan Alert.generate() y _checkSalesGoals() sin esperarlos
+// (ver tests/integration/helpers/tiempo.js) — cada prueba de este archivo llama a una de las dos,
+// así que les damos tiempo a terminar antes de que el beforeEach de la SIGUIENTE prueba (de este
+// archivo o de otro) vacíe la base con TRUNCATE mientras ese trabajo sigue corriendo.
+afterEach(async () => {
+  await esperarTrabajoEnSegundoPlano();
 });
 
 describe('Venta con concurrencia', () => {
