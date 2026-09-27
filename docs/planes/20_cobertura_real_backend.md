@@ -230,7 +230,12 @@ Al correr la suite de integración completa varias veces seguidas, entre 1 y 3 d
 - `config/database.js`: la IIFE de auto-migración ahora se guarda en `db.migrationReady` (antes no estaba asignada a nada). Cambio de una línea, puramente aditivo — nada que ya use `db` se ve afectado, nadie más mira esa propiedad.
 - `tests/integration/setupTestDb.js`: ahora espera `await db.migrationReady` antes de dejar correr cualquier prueba (se convirtió a sintaxis ESM con `import`/`import()` dinámico para poder usar `await` de nivel superior, manteniendo el orden crítico: primero el guard de seguridad, recién después cargar `config/database.js`).
 
-**Verificado:** 19+ corridas completas de la suite de integración, todas limpias, después del arreglo (antes fallaba entre 20% y 60% de las veces, según el lote). Sin este arreglo, cualquier flujo nuevo de Nivel 2 habría heredado esta fragilidad.
+**Verificado:** 31 corridas completas de la suite de integración, todas limpias, después del arreglo (antes fallaba entre 20% y 60% de las veces, según el lote). Sin este arreglo, cualquier flujo nuevo de Nivel 2 habría heredado esta fragilidad.
+
+### 8.10 Flujo 3/7 — Cartera (commit `df940a0`)
+`tests/integration/cartera.test.js`, 8 pruebas: crear cliente (éxito y sin nombre → 400), listar clientes con `saldo_pendiente` calculado, **flujo completo real** (venta a crédito con `metodo_pago:'Fiado'` crea deuda → `saldo_pendiente` correcto → un abono parcial la reduce → correcto también en el detalle y en el listado), abono a cliente inexistente (404), abono con monto inválido (400), venta Fiado sin `id_cliente` (400, ya cubierto a nivel unitario pero confirmado aquí de punta a punta), y **aislamiento por tienda** (un cliente de la tienda A no se puede ver, listar ni abonar desde la tienda B — 404 en los tres casos). Sin hallazgos nuevos: `clienteController.js` ya filtra correctamente por `id_tienda` en sus 4 endpoints. Las 8 pasan de la primera corrida.
+
+**Pruebas:** 196 unitarias + **31 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera). Todas en verde, confirmado con corridas repetidas tras el arreglo de la sección 8.9.
 
 ---
 
@@ -239,8 +244,8 @@ Al correr la suite de integración completa varias veces seguidas, entre 1 y 3 d
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Los 4 flujos de integración que faltan: cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
+1. Los 3 flujos de integración que faltan: `Alert.generate` concurrente, aislamiento multi-tienda (uno dedicado y más amplio que el chequeo puntual ya hecho en cartera — cubrir productos/ventas/otros controladores), IA caída — reusando `tests/integration/helpers/`.
 2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
 3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 23 de integración en verde. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 3 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja).
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 31 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (31 corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 4 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera).
