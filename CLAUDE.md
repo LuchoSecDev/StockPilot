@@ -12,3 +12,9 @@ Archivos generados automáticamente que este proyecto regenera con frecuencia (r
 - `evidencia_pruebas.json`
 - `Documentacion/Reporte_Pruebas_StockPilot.md`
 - `coverage/`
+
+## Búsquedas exploratorias de código
+
+Para cualquier búsqueda exploratoria de código (grep, leer varios archivos para entender algo),
+delega al Agent tool con `subagent_type=Explore` en vez de hacerlo en el hilo principal — incluso
+si es una sola consulta, si esperás que el resultado sea largo.
