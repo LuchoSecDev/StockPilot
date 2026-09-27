@@ -16,7 +16,10 @@ function sanitize(str) {
 /**
  * Sanitiza todos los campos string del body
  */
-/* v8 ignore start */
+// sanitizeBody y validateLogin: cubiertas por tests/integration/autenticacion.test.js y por
+// prácticamente cualquier POST de los otros flujos del Nivel 2 (plan 20, sección 8) — ya no hace
+// falta /* v8 ignore */ acá. La cobertura real viene de `npm run test:integration`, no de
+// `npm test` (que excluye tests/integration/ a propósito).
 function sanitizeBody(req, res, next) {
     if (req.body && typeof req.body === 'object') {
         for (const key of Object.keys(req.body)) {
@@ -41,6 +44,8 @@ function validateLogin(req, res, next) {
     next();
 }
 
+/* v8 ignore start -- sin pruebas todavía: ninguno de los 7 flujos de integración del Nivel 2
+   (plan 20, sección 8) ejercita /api/registro. */
 /**
  * Valida campos de registro
  */
@@ -64,7 +69,10 @@ function validateRegister(req, res, next) {
 
     next();
 }
+/* v8 ignore stop */
 
+// validateProduct y validateSale: cubiertas por tests/integration/aislamiento_multitienda.test.js
+// y tests/integration/venta_concurrencia.test.js (plan 20, sección 8).
 /**
  * Valida campos de producto
  */
@@ -118,6 +126,8 @@ function validateSale(req, res, next) {
     next();
 }
 
+/* v8 ignore start -- sin pruebas todavía: ningún flujo del Nivel 2 ejercita la creación de
+   reportes manuales. */
 /**
  * Valida campos de reporte
  */
@@ -130,6 +140,9 @@ function validateReport(req, res, next) {
 
     next();
 }
+/* v8 ignore stop */
+
+// validateCartSale: cubierta por tests/integration/venta_concurrencia.test.js.
 /**
  * Valida campos de venta múltiple (Carrito)
  */
@@ -151,8 +164,6 @@ function validateCartSale(req, res, next) {
 
     next();
 }
-
-/* v8 ignore stop */
 
 module.exports = {
     sanitize,

@@ -14,7 +14,11 @@ function evaluarAdmin(session) {
   return 'pass';
 }
 
-/* v8 ignore start */
+// requireLogin: cubierta a fondo por tests/integration/autenticacion.test.js (sin sesión, con
+// sesión, sesión concurrente invalidada) y por cualquier otro flujo que pegue a un endpoint
+// protegido; requireAdmin: cubierta en su camino de éxito (crearProveedor en
+// aislamiento_multitienda.test.js, con un usuario Administrador). Plan 20, sección 8 — ya no hace
+// falta /* v8 ignore */ acá; la cobertura real viene de `npm run test:integration`.
 async function requireLogin(req, res, next) {
     if (!req.session || !req.session.userId) {
         if (req.headers.accept && req.headers.accept.includes('application/json')) {
@@ -54,6 +58,5 @@ function requireAdmin(req, res, next) {
     }
     next();
 }
-/* v8 ignore stop */
 
 module.exports = { requireLogin, requireAdmin, evaluarAcceso, evaluarAdmin };

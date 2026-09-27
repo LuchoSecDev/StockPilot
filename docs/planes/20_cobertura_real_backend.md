@@ -1,6 +1,6 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **46 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
+**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **47 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
 **Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (Nivel 2 completo: los 7 flujos + los 2 hallazgos corregidos)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
@@ -273,7 +273,20 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 
 Pruebas actualizadas: `ia_caida.test.js` ahora espera 200 con degradación elegante en los 3 endpoints, y se agregó un caso nuevo para `getPromotionSuggestions`.
 
-**Pruebas:** 196 unitarias + **46 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 6 aislamiento + 5 IA caída — antes 4, se agregó el caso de promociones). Todas en verde. **Los 7 flujos del encargo original quedan completos, y los 2 hallazgos que quedaron pendientes ya están corregidos.**
+**Pruebas:** 196 unitarias + **47 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 6 aislamiento + 5 IA caída — antes 4, se agregó el caso de promociones). Todas en verde. **Los 7 flujos del encargo original quedan completos, y los 2 hallazgos que quedaron pendientes ya están corregidos.**
+
+### 8.14 Limpieza de `/* v8 ignore */` (commit `ab189e8`)
+Se revisaron los 4 archivos con bloques `/* v8 ignore */` de todo el repo (no solo los 2 que había anotado el plan — se hizo `grep` completo para no dejar ninguno afuera):
+
+- **`models/Alert.js`:** el bloque original cubría `generate`, `dryRun`, `findActive`, `resolve` y `getStats` juntos. Se separó: `generate()` y `findActive()` (cubiertas por `alert_generate_concurrencia.test.js`) quedan sin ignorar; `dryRun()`, `resolve()` y `getStats()` (sin ningún test todavía) quedan en dos bloques más chicos, cada uno con un comentario explicando por qué.
+- **`middleware/validation.js`:** el bloque cubría las 7 funciones de validación juntas. `sanitizeBody`, `validateLogin`, `validateProduct`, `validateSale` y `validateCartSale` quedan sin ignorar (cubiertas por los flujos de autenticación/ventas/aislamiento); `validateRegister` y `validateReport` (ningún flujo toca `/api/registro` ni reportes manuales) quedan cada una en su propio bloque, con comentario.
+- **`middleware/auth.js`:** `requireLogin` (probada a fondo: sin sesión, con sesión, sesión concurrente) y `requireAdmin` (probada en su camino de éxito) quedan sin ignorar — el bloque completo se quitó.
+- **`controllers/feedbackController.js`:** sin cambios — ningún flujo del Nivel 2 toca este módulo. Se le agregó el comentario explicando por qué sigue ignorado, que antes no tenía.
+
+Verificado: 196 unitarias + 47 de integración en verde después de la reestructuración (solo se movieron comentarios/marcadores, ninguna lógica cambió).
+
+### 8.15 `thresholds` en `vitest.config.js` (commit `<pendiente>`)
+<!-- completar después de medir la cobertura real con estos cambios -->
 
 ---
 
@@ -281,9 +294,6 @@ Pruebas actualizadas: `ia_caida.test.js` ahora espera 200 con degradación elega
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
-**Los 7 flujos de integración del encargo original y los 2 hallazgos pendientes están completos.** Queda por hacer:
+Todo el plan 20 está completo: Nivel 1, sección 5, Nivel 2 (los 7 flujos + los 2 hallazgos), limpieza de `/* v8 ignore */` y `thresholds` de cobertura.
 
-1. **Quitar los `/* v8 ignore */`** que ya no hagan falta ahora que hay pruebas de integración reales (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-2. **Cerrar el Nivel 2:** agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y confirmar que `npm run test:integration` quedó bien documentado (en `CLAUDE.md` o similar) para que cualquiera sepa que existe y cómo correrlo.
-
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 46 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 y Nivel 2 (los 7 flujos + los 2 hallazgos) completos.
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 47 de integración en verde. `stockpilot_test` creada y con el esquema completo.

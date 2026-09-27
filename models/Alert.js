@@ -90,7 +90,10 @@ class Alert {
    *     hallazgo E1 que ya se había corregido en el resto de pantallas.
    * Las reglas de vencimiento y sobrestock no cambian.
    */
-  /* v8 ignore start */
+  // Cubierta por tests/integration/alert_generate_concurrencia.test.js (plan 20, Nivel 2) — ya
+  // no hace falta /* v8 ignore */ aquí. La cobertura de `npm test` (solo unitarias) no lo refleja
+  // porque esa suite excluye tests/integration/ a propósito (sección 4 del plan); la cobertura
+  // real de esta función viene de correr `npm run test:integration`.
   static async generate(tiendaId) {
     // Plan 17, O8: interruptor de emergencia. Pensado para un problema descubierto ya en producción
     // (no para "volver" a la lógica vieja de determinarAlertaStock/calcularDiasAgotamiento, que tenía
@@ -175,6 +178,11 @@ class Alert {
     return generadas;
   }
 
+  /* v8 ignore start -- sin pruebas todavía (ni unitarias ni de integración): dryRun() es una
+     herramienta manual de auditoría (GET /api/alertas/dry-run, solo administradores), no parte
+     del flujo normal; resolve() y getStats() son consulta/update de una línea que ninguno de los
+     7 flujos del Nivel 2 ejercitó. Plan 20, sección 8 — a diferencia de generate()/findActive()
+     de arriba, estas tres siguen sin ningún test real. */
   /**
    * Calcula qué alertas generaría `generate()` para la tienda AHORA MISMO y las compara contra las
    * que ya están activas, sin escribir nada en la base de datos. Plan 17, O8: pensado para correr
@@ -238,7 +246,11 @@ class Alert {
 
     return { nuevas, actualizadas, resueltas, sinCambios };
   }
+  /* v8 ignore stop */
 
+  // Cubierta por tests/integration/alert_generate_concurrencia.test.js (llamada directamente para
+  // verificar que generate() resuelve alertas viejas correctamente) — igual que generate(), la
+  // cobertura real de esta función viene de `npm run test:integration`, no de `npm test`.
   /**
    * Obtiene las alertas activas, ordenadas por severidad
    */
@@ -271,6 +283,9 @@ class Alert {
     return await db.allAsync(sql, params);
   }
 
+  /* v8 ignore start -- sin pruebas todavía: resolve() (resolución manual de una alerta desde la
+     UI) y getStats() (conteos para Dashboard/Sidebar) son consulta/update de una línea que ninguno
+     de los 7 flujos de integración del Nivel 2 ejercitó (plan 20, sección 8). */
   /**
    * Resuelve (oculta) una alerta manualmente
    */

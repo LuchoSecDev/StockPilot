@@ -13,6 +13,11 @@ const feedbackController = {
    * Utiliza el criterio adaptativo: periodo = max(lead_time * 2, 14).
    * Puede invocarse manualmente o al cargar vistas de desempeño.
    */
+  // Sin pruebas todavía (ni unitarias ni de integración): ninguno de los 7 flujos del Nivel 2
+  // (plan 20, sección 8) ejercitó este módulo — evaluateOrder/getGlobalPrecision/getEvaluableOrders
+  // dependen de datos históricos de órdenes+ventas que ninguno de esos flujos armó. Las funciones
+  // puras de abajo (calcularPeriodoObjetivo, proyectarVentas, etc.) ya están fuera de este bloque
+  // y sí tienen pruebas unitarias reales.
   /* v8 ignore start */
   evaluateOrder: async (req, res) => {
     try {
