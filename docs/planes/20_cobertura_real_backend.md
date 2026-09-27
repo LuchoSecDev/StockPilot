@@ -1,7 +1,7 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** Hallazgos verificados, línea base (Paso 0) medida, y **Nivel 1 completo** (149 → 154 pruebas, `coverage.include` ampliado de forma permanente a todo el backend, cero conexiones reales a base de datos desde pruebas unitarias). **Nivel 2 sin empezar** — falta aprobar la extracción de funciones puras de controladores (sección 5) y decidir cuándo montar `stockpilot_test`.
-**Fecha:** 2026-09-25
+**Estado:** Hallazgos verificados, línea base (Paso 0) medida, **Nivel 1 completo** y **sección 5 completa** (las 7 funciones puras candidatas extraídas de `aiController.js`, `suppliersController.js` y `cashRegisterController.js`, ver sección 7). De paso se encontró y corrigió un bug real de redondeo de punto flotante que ya existía antes de esta sesión (sección 7.4). 154 → **196 pruebas**. **Nivel 2 sin empezar** — falta decidir cuándo montar `stockpilot_test` y escribir las pruebas de integración.
+**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (sección 5 completa + fix de redondeo)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
 ---
@@ -138,15 +138,40 @@ Quedo pendiente de tu aprobación para extraer (todas, algunas, o ninguna) antes
 
 ---
 
+## 7. Sección 5 ejecutada — las 7 extracciones + corrección de redondeo (2026-09-25 a 2026-09-27)
+
+Aprobadas las 7, se hicieron en 3 tandas (grupo A/B/C) más un commit de corrección, cada uno verificado con la suite completa en verde antes de commitear. Todo en `feature/cobertura-nivel-1`, sin subir a `origin` ni mezclar a `main`.
+
+### 7.1 Grupo A (commit `205be5e`)
+- `aplicarAjusteIA` (#1, guardrail de ajuste de IA) → `utils/guardrailsIA.js`, usada por `aiController.js` y `suppliersController.js` (elimina la duplicación entre los dos archivos).
+- `calcularImpactoPromocion` (#3) → `utils/promociones.js` (nuevo), usada dos veces dentro de `aiController.js` (elimina la duplicación interna).
+- 154 → 164 pruebas.
+
+### 7.2 Grupo B (commit `d54a9a6`)
+- `determinarPromocionFallback` (#4) → `utils/promociones.js`.
+- `sugerirUmbralesStock` (#5) → `utils/sugerenciasStock.js` (nuevo).
+- 164 → 174 pruebas.
+
+### 7.3 Corrección de redondeo, primera pasada (commit `d42dc4b`)
+Al escribir las pruebas de `aplicarAjusteIA` apareció un bug real, ya existente en el código original desde antes de esta sesión (nadie lo había visto porque no tenía pruebas): `baseLoad * (1 + %/100)` puede dar p. ej. `220.00000000000003` en vez de `220` exacto (ruido de punto flotante de JS), y `Math.ceil` sube al entero siguiente (`221`) aunque el resultado real sea un entero. Se corrigió puntualmente en `guardrailsIA.js` con `Math.ceil(Number(x.toFixed(6)))`. 174 → 175 pruebas.
+
+### 7.4 Grupo C + generalización de la corrección de redondeo (commits `2654924` y `d8bc841`)
+- `normalizarDescuento` (#2), `evaluarRiesgoOrden` (#6, a `utils/ordenesBorrador.js` que ya existía) y `evaluarDescuadreCaja` (#7, `utils/cashRegisterHelpers.js` nuevo). 175 → 188 pruebas.
+- Al auditar el resto del backend buscando el mismo patrón (`Math.ceil` sobre un cálculo con divisiones), se encontró el **mismo bug** en `utils/sugerenciasStock.js` (las dos líneas de `sugerirUmbralesStock`) y en `utils/reposicion.js` (`cantidadBase` línea 75 y, más importante, `rop` línea 85 — `rop` decide la clasificación de riesgo CRÍTICO/MEDIO/BAJO de un producto).
+- Se creó **`techoSeguro(x)`** en `utils/redondeo.js` como reemplazo único de `Math.ceil` para este patrón, y se aplicó en los tres archivos: `guardrailsIA.js`, `sugerenciasStock.js` (2 líneas) y `reposicion.js` (líneas 75 y 85; la línea 82, el piso para productos sin ventas, se dejó igual — valores ya enteros, sin el mismo riesgo). Caso real verificado: `calcularReposicion` con `ventasDia30=2.2, leadTime=25, stockSeguridad=0, stock=56` pasaba de `nivel: "reponer"` (incorrecto, por `rop=56`) a `nivel: "ok"` (correcto, `rop=55`) con la corrección.
+- 188 → 196 pruebas (8 nuevas: 2 en `sugerencias_stock.test.js`, 1 en `reposicion.test.js`, 5 en `redondeo.test.js` nuevo). Se confirmó explícitamente que ninguna prueba preexistente de `reposicion.test.js` (17 de `calcularReposicion` + las de `calcularTendencia`/`costoUnitario`/`agruparPorProveedor`) cambió de resultado.
+
+**Nota sobre `controllers/`:** su cobertura casi no se movió con estas extracciones (~1.2%) — es esperado, ver nota de la sección 4.5: el código movido se prueba desde `utils/`, no desde el controlador que lo llama.
+
+---
+
 ## 6. Para continuar en la próxima sesión
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Decidir sobre la sección 5 (extraer o no las 7 funciones puras candidatas de `aiController.js`, `suppliersController.js` y `cashRegisterController.js`). Es lo único que falta para que `controllers/` deje de estar en ~1% de cobertura.
-2. Si se aprueba la extracción: escribir el código, actualizar las pruebas correspondientes, y volver a medir `controllers/`.
-3. Nivel 2 (integración con Postgres real): crear `stockpilot_test` en el servidor local, `.env.test`, la protección de "abortar si no es una base de pruebas" (nombre termina en `_test` + host local), y las pruebas con `supertest` de los 7 flujos prioritarios listados en el encargo original (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída).
-4. Recién en el Nivel 2 se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-5. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y separar `npm test` (unitarias) de `npm run test:integration`.
+1. Nivel 2 (integración con Postgres real): crear `stockpilot_test` en el servidor local, `.env.test`, la protección de "abortar si no es una base de pruebas" (nombre termina en `_test` + host local), y las pruebas con `supertest` de los 7 flujos prioritarios listados en el encargo original (venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, autenticación, IA caída).
+2. Recién en el Nivel 2 se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y separar `npm test` (unitarias) de `npm run test:integration`.
 
-**Estado técnico verificado hoy:** 154/154 pruebas en verde, sin conexión a base de datos desde `npm test`, `DATABASE_URL` en `.env` apunta a `stockpilot` local (no Neon, no `stockpilot_test` — esa todavía no existe).
+**Estado técnico verificado hoy (2026-09-27):** 196/196 pruebas en verde, sin conexión a base de datos desde `npm test`, `DATABASE_URL` en `.env` apunta a `stockpilot` local (no Neon, no `stockpilot_test` — esa todavía no existe). Sección 5 cerrada por completo.

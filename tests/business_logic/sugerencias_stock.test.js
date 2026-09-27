@@ -28,4 +28,14 @@ describe('sugerirUmbralesStock (umbrales de reorder point sin historial propio)'
     expect(r.stockMinimo).toBe(5);
     expect(r.stockSeguridad).toBe(2);
   });
+
+  it('ruido de punto flotante (2.2 * 25 = 55.00000000000001 en JS) no debe sumar una unidad de más a stockMinimo', () => {
+    const r = sugerirUmbralesStock(2.2, 25);
+    expect(r.stockMinimo).toBe(60);
+  });
+
+  it('ruido de punto flotante (1.12 * 25 = 28.000000000000004 en JS) no debe sumar una unidad de más a stockMinimo', () => {
+    const r = sugerirUmbralesStock(1.12, 25);
+    expect(r.stockMinimo).toBe(31);
+  });
 });

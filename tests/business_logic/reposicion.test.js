@@ -97,6 +97,11 @@ describe('calcularReposicion', () => {
     expect(calcularReposicion(p, { diasCoberturaOverride: 7 }).cantidadBase).toBe(5);
     expect(calcularReposicion(p, { diasCoberturaOverride: 90 }).cantidadBase).toBe(5);
   });
+  it('ruido de punto flotante (2.2 * 25 = 55.00000000000001 en JS) no debe subir rop ni nivel a "reponer" de más (plan 20, corrección de redondeo)', () => {
+    const r = calcularReposicion({ ...base, ventasDia30: 2.2, leadTime: 25, stockSeguridad: 0, stock: 56 });
+    expect(r.rop).toBe(55);
+    expect(r.nivel).toBe('ok');
+  });
 });
 
 describe('calcularTendencia', () => {

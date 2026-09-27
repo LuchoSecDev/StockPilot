@@ -7,18 +7,22 @@
  * @module utils/sugerenciasStock
  */
 
+const { techoSeguro } = require('./redondeo');
+
 /**
  * Stock de seguridad = colchón de 2 días de venta. Stock mínimo = ventas durante el lead time
  * más ese colchón. Ambos con un piso mínimo (2 y 5 respectivamente) para no sugerir valores
- * irrisorios cuando las ventas diarias son casi nulas.
+ * irrisorios cuando las ventas diarias son casi nulas. Usa `techoSeguro` (en vez de `Math.ceil`
+ * directo) porque `avgDailySales` suele venir de una división (ventas ÷ días) y arrastra ruido
+ * de punto flotante — ver utils/redondeo.js.
  *
  * @param {number} avgDailySales
  * @param {number} leadTime - Días de entrega del proveedor.
  * @returns {{stockSeguridad: number, stockMinimo: number}}
  */
 function sugerirUmbralesStock(avgDailySales, leadTime) {
-  let stockSeguridad = Math.ceil(avgDailySales * 2);
-  let stockMinimo = Math.ceil((avgDailySales * leadTime) + stockSeguridad);
+  let stockSeguridad = techoSeguro(avgDailySales * 2);
+  let stockMinimo = techoSeguro((avgDailySales * leadTime) + stockSeguridad);
 
   if (stockMinimo < 5) stockMinimo = 5;
   if (stockSeguridad < 2) stockSeguridad = 2;

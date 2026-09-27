@@ -26,6 +26,8 @@ const URGENCIA = { HOY: 'Pide hoy', SEMANA: 'En esta compra', ESPERAR: 'Puede es
 // nivel, alguien podría confundirlo con "hay que reponer", que es justo lo contrario.
 const NIVEL = { AGOTADO: 'agotado', CRITICO: 'critico', REPONER: 'reponer', OK: 'ok' };
 
+const { techoSeguro } = require('./redondeo');
+
 const num = (v, def = 0) => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : def);
 
 /**
@@ -72,7 +74,7 @@ function calcularReposicion(p, opciones = {}) {
   const diasOverride = num(opciones.diasCoberturaOverride, null);
   const dias = diasOverride ?? (DIAS_COBERTURA[p.claseABC] ?? DIAS_COBERTURA.C);
   const stockObjetivo = v30 * tendencia * dias + seguridad;
-  let cantidadBase = Math.max(0, Math.ceil(stockObjetivo - stock));
+  let cantidadBase = Math.max(0, techoSeguro(stockObjetivo - stock));
 
   // Sin ventas no hay señal para calcular cuánto pedir, y stockObjetivo puede salir en 0 si además
   // stock_seguridad tampoco está configurado (su valor por defecto). Un producto nuevo y agotado no
@@ -82,7 +84,7 @@ function calcularReposicion(p, opciones = {}) {
     cantidadBase = Math.max(cantidadBase, Math.ceil(piso));
   }
 
-  const rop = Math.ceil((v30 * leadTime + seguridad) * factorIA);
+  const rop = techoSeguro((v30 * leadTime + seguridad) * factorIA);
   const riesgo = stock <= seguridad ? 'CRÍTICO' : (stock <= rop ? 'MEDIO' : 'BAJO');
 
   const diasParaAgotar = v30 > 0.01 ? Math.floor(stock / v30) : null;
