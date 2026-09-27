@@ -211,6 +211,13 @@ No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/1
 
 **Pruebas:** 196 unitarias (sin cambio) + **13 de integración** (10 autenticación + 3 venta). Todas en verde.
 
+### 8.8 Flujo 2/7 — Caja (commit `8b228ba`)
+`tests/integration/caja.test.js`, 10 pruebas: abrir caja (éxito, refleja en `/api/caja/sesion`), abrir dos veces seguidas (400 la segunda), **5 aperturas simultáneas del mismo vendedor** (mismo tipo de prueba de contención dura que expuso el bug de la sección 8.7), cerrar sin abrir (400), cerrar sin descuadre (sin notificación), cerrar con descuadre >$5.000 (notificación de faltante, con el `titulo`/`mensaje` que arma `evaluarDescuadreCaja` del grupo C de la sección 5), egreso de Tendero dentro/fuera del límite de la tienda (`limite_egreso_tendero`, default $150.000), Administrador sin ese límite, y egreso sin caja abierta (400).
+
+**Sobre la prueba de 5 aperturas simultáneas:** a diferencia de `registrar-venta-carrito` (sección 8.7), acá **no se reprodujo ningún duplicado** — 10/10 corridas dieron exactamente 1 sesión abierta (1×200 + 4×400). El código tampoco usa transacción ni `FOR UPDATE` acá (`openSession` hace un `SELECT` y después un `INSERT`, sin bloqueo explícito), así que no está *garantizado* por diseño — pero a diferencia del caso de ventas (que fallaba 100% de las veces bajo la misma prueba), acá la ventana de carrera es mucho más angosta (2 consultas simples vs. el loop de `registerCartSale`) y no logré forzar el bug ni con más contención. Lo dejo anotado como posible mejora futura de bajo riesgo (un índice único parcial `WHERE estado = 'Abierta'` en `SesionCaja` cerraría la duda de raíz), no como un bug confirmado — no lo implementé porque no hay una falla reproducida que lo justifique.
+
+**Pruebas:** 196 unitarias + **23 de integración** (10 autenticación + 3 venta + 10 caja). Todas en verde.
+
 ---
 
 ## 6. Para continuar en la próxima sesión
@@ -218,8 +225,8 @@ No se probó el límite de fuerza bruta de `authLimiter` (10 intentos fallidos/1
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Los 5 flujos de integración que faltan: caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
+1. Los 4 flujos de integración que faltan: cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída — reusando `tests/integration/helpers/`.
 2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
 3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 13 de integración en verde. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 2 de 7 flujos hechos (autenticación, venta con concurrencia — este último con un bug real de sobreventa encontrado y corregido).
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 23 de integración en verde. `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 3 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja).
