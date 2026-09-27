@@ -1,7 +1,7 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** Hallazgos verificados, línea base (Paso 0) medida, **Nivel 1 completo** y **sección 5 completa** (las 7 funciones puras candidatas extraídas de `aiController.js`, `suppliersController.js` y `cashRegisterController.js`, ver sección 7). De paso se encontró y corrigió un bug real de redondeo de punto flotante que ya existía antes de esta sesión (sección 7.4). 154 → **196 pruebas**. **Nivel 2 sin empezar** — falta decidir cuándo montar `stockpilot_test` y escribir las pruebas de integración.
-**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (sección 5 completa + fix de redondeo)
+**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **45 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 2 bugs reales (sobreventa concurrente en `registrar-venta-carrito`, sección 8.7; dependencia circular en `database/init_pg.sql`, sección 8) y quedaron 2 hallazgos anotados sin corregir (secciones 8.12 y 8.13) para decisión aparte. Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
+**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (Nivel 2 completo: los 7 flujos de integración)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
 ---
@@ -259,14 +259,30 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 
 ---
 
+### 8.13 Flujo 7/7 — IA caída (commit `cad4517`)
+`tests/integration/ia_caida.test.js`, 4 pruebas. `.env.test` deja `OPENAI_API_KEY` con un valor presente pero inválido a propósito (no un mock: la llamada a OpenAI se intenta de verdad y falla con un `401 Incorrect API key` real del servicio de OpenAI) — la forma más fiel de simular la IA caída sin inventar un doble falso.
+
+- **`getDashboardRecommendations` (con productos para reponer, para forzar la llamada a OpenAI):** degrada con elegancia — responde **200** con `error:true` y una recomendación de reemplazo ("Motor IA en mantenimiento. Use el análisis de riesgo detallado."), no rompe la pantalla del usuario.
+- **`getDashboardRecommendations` sin productos para reponer:** ni siquiera intenta llamar a OpenAI, responde `recommendations:[]` de una.
+- **`getDashboardRecommendations` sin `OPENAI_API_KEY` configurada** (mutada en caliente dentro de la prueba, restaurada en un `finally`): 500 explícito "no está configurada", sin intentar la red.
+- **`assessClientRisk` con OpenAI fallando:** propaga un **500** crudo.
+
+**Hallazgo (sin corregir, solo reportado):** de los 3 endpoints de IA que llaman a OpenAI directamente en `aiController.js` (`getDashboardRecommendations`, `getPromotionSuggestions`, `assessClientRisk`), **solo uno** (`getDashboardRecommendations`) degrada con elegancia ante una falla de OpenAI — los otros dos (`getPromotionSuggestions` y `assessClientRisk`, confirmado leyendo su código) simplemente devuelven `res.status(500)` con el error crudo. No es necesariamente un bug — un 500 es una respuesta válida ante un error real de servidor — pero es una inconsistencia de diseño entre endpoints que resuelven el mismo tipo de falla (IA no disponible) de dos maneras distintas. Vale la pena decidir en algún momento si conviene que los 3 se comporten igual.
+
+**Pruebas:** 196 unitarias + **45 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 5 aislamiento + 4 IA caída). Todas en verde. **Los 7 flujos del encargo original quedan completos.**
+
+---
+
 ## 6. Para continuar en la próxima sesión
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
-**Pendiente, en orden:**
-1. El último flujo de integración: IA caída — reusando `tests/integration/helpers/`.
-2. Decidir si corregir el hallazgo de la sección 8.12 (`suppliersController.update`/`.delete` no revisan filas afectadas) — no es parte de los 7 flujos, quedó anotado para que se decida aparte.
-3. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-4. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
+**Los 7 flujos de integración del encargo original están completos** (autenticación, venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída). Quedan 3 decisiones pendientes, ninguna es "escribir más pruebas de flujo":
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 41 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 6 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda — con un hallazgo de respuesta engañosa en proveedores, sin corregir todavía).
+1. **Decidir sobre los 2 hallazgos sin corregir**, ninguno de los dos es parte de los 7 flujos en sí:
+   - Sección 8.12: `suppliersController.update`/`.delete` no revisan filas afectadas (respuesta `success:true` engañosa cuando el proveedor es de otra tienda).
+   - Sección 8.13: inconsistencia entre los 3 endpoints de IA — solo uno degrada con elegancia ante una falla de OpenAI.
+2. **Quitar los `/* v8 ignore */`** que ya no hagan falta ahora que hay pruebas de integración reales (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+3. **Cerrar el Nivel 2:** agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y confirmar que `npm run test:integration` quedó bien documentado (en `CLAUDE.md` o similar) para que cualquiera sepa que existe y cómo correrlo.
+
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 45 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 y Nivel 2 (los 7 flujos) completos.
