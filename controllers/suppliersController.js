@@ -62,11 +62,17 @@ const suppliersController = {
       const tiendaId = req.session.tiendaId;
       const { nombre_empresa, contacto_principal, email, telefono, direccion } = req.body;
       const query = `
-        UPDATE Proveedores 
+        UPDATE Proveedores
         SET nombre_empresa = ?, contacto_principal = ?, email = ?, correo = ?, telefono = ?, direccion = ?
         WHERE id_proveedor = ? AND id_tienda = ?
       `;
-      await db.runAsync(query, [nombre_empresa, contacto_principal, email, email, telefono, direccion, id, tiendaId]);
+      const result = await db.runAsync(query, [nombre_empresa, contacto_principal, email, email, telefono, direccion, id, tiendaId]);
+      // 🛡️ IDOR: WHERE ... AND id_tienda = ? ya evita tocar el proveedor de otra tienda, pero sin
+      // revisar `changes` la respuesta decía "actualizado" igual aunque no se haya tocado nada
+      // (plan 20, Nivel 2, hallazgo sección 8.12).
+      if (result.changes === 0) {
+        return res.status(404).json({ success: false, error: 'Proveedor no encontrado' });
+      }
       res.json({ success: true, message: 'Proveedor actualizado' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });
@@ -79,7 +85,11 @@ const suppliersController = {
       const { id } = req.params;
       const tiendaId = req.session.tiendaId;
       const query = `UPDATE Proveedores SET estado = 'Inactivo' WHERE id_proveedor = ? AND id_tienda = ?`;
-      await db.runAsync(query, [id, tiendaId]);
+      const result = await db.runAsync(query, [id, tiendaId]);
+      // 🛡️ IDOR: mismo caso que en update() de arriba.
+      if (result.changes === 0) {
+        return res.status(404).json({ success: false, error: 'Proveedor no encontrado' });
+      }
       res.json({ success: true, message: 'Proveedor eliminado del sistema' });
     } catch (e) {
       res.status(500).json({ success: false, error: e.message });

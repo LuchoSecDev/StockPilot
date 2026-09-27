@@ -461,34 +461,46 @@ const aiController = {
       }
 
       // 4. Prompt de Estrategia Comercial
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: `Eres un Experto en Retail y Estrategia de Ventas. Analizarás productos estancados o en riesgo de pérdida.
-            Tu misión es proponer estrategias COMERCIALES (no logísticas).${humanInTheLoopContext}
-            TIPOS PERMITIDOS: 'descuento', 'combo', '2x1', 'liquidacion'.
-            REGLAS:
-            - Descuento máximo: 30%.
-            - Si el tipo es '2x1', el campo 'discount' DEBE SER 50 (porque el cliente paga 1 y lleva 2, es decir, ahorra el 50%).
-            - Los 'combos' deben ser lógicos y estratégicos.
-            - TONO: Consultivo, ejecutivo y analítico.
-            - ESTILO: Escribe un párrafo fluido, natural y profesional de 35 a 50 palabras. NO uses etiquetas como '(Diagnóstico)' o '(Objetivo)'.
-            - LÓGICA: Conecta la causa técnica (ej: baja rotación, sobrestock) con el beneficio estratégico (ej: recuperar liquidez, optimizar espacio) usando conectores naturales.
-            - EJEMPLO: 'Dado que la rotación de [Producto] ha sido nula en los últimos 20 días, se sugiere este descuento para recuperar el capital inmovilizado y optimizar el espacio en estantería para productos de mayor demanda.'
-            - EXTENSIÓN: Entre 35 y 50 palabras.
-            - DURACIÓN: Sugiere una duración lógica en 'duration_days'.
-            - COMBOS: Si es 'combo', identifica un producto afín y pon su nombre en 'complementary_name'.
-            - COBERTURA OBLIGATORIA: Debes generar exactamente UNA sugerencia por CADA producto del array. No puedes omitir ninguno.
-            - Responde ÚNICAMENTE JSON: { "promotions": [ { "id": ID, "type": "TIPO", "title": "Título corto", "reason": "Justificación profesional fluida", "duration_days": 15, "complementary_name": "Nombre o null", "discount": 15 } ] }`
-          },
-          { role: "user", content: `Genera una estrategia promocional para CADA uno de estos ${candidates.length} productos (uno por uno, sin omitir ninguno): ${JSON.stringify(candidates)}` }
-        ],
-        response_format: { type: "json_object" }
-      });
+      // Si OpenAI no responde (caída, clave inválida, timeout), no se aborta con un 500: se trata
+      // como si la IA no hubiera cubierto NINGÚN candidato, y el motor de reglas deterministas de
+      // abajo (pensado originalmente solo para los candidatos que la IA omitía) cubre el 100% —
+      // misma calidad de sugerencia (basada en días para vencer y stock), sin depender de la IA
+      // (plan 20, Nivel 2, hallazgo sección 8.13: antes este endpoint era el único de los 3 que no
+      // degradaba con elegancia).
+      let aiResponse;
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `Eres un Experto en Retail y Estrategia de Ventas. Analizarás productos estancados o en riesgo de pérdida.
+              Tu misión es proponer estrategias COMERCIALES (no logísticas).${humanInTheLoopContext}
+              TIPOS PERMITIDOS: 'descuento', 'combo', '2x1', 'liquidacion'.
+              REGLAS:
+              - Descuento máximo: 30%.
+              - Si el tipo es '2x1', el campo 'discount' DEBE SER 50 (porque el cliente paga 1 y lleva 2, es decir, ahorra el 50%).
+              - Los 'combos' deben ser lógicos y estratégicos.
+              - TONO: Consultivo, ejecutivo y analítico.
+              - ESTILO: Escribe un párrafo fluido, natural y profesional de 35 a 50 palabras. NO uses etiquetas como '(Diagnóstico)' o '(Objetivo)'.
+              - LÓGICA: Conecta la causa técnica (ej: baja rotación, sobrestock) con el beneficio estratégico (ej: recuperar liquidez, optimizar espacio) usando conectores naturales.
+              - EJEMPLO: 'Dado que la rotación de [Producto] ha sido nula en los últimos 20 días, se sugiere este descuento para recuperar el capital inmovilizado y optimizar el espacio en estantería para productos de mayor demanda.'
+              - EXTENSIÓN: Entre 35 y 50 palabras.
+              - DURACIÓN: Sugiere una duración lógica en 'duration_days'.
+              - COMBOS: Si es 'combo', identifica un producto afín y pon su nombre en 'complementary_name'.
+              - COBERTURA OBLIGATORIA: Debes generar exactamente UNA sugerencia por CADA producto del array. No puedes omitir ninguno.
+              - Responde ÚNICAMENTE JSON: { "promotions": [ { "id": ID, "type": "TIPO", "title": "Título corto", "reason": "Justificación profesional fluida", "duration_days": 15, "complementary_name": "Nombre o null", "discount": 15 } ] }`
+            },
+            { role: "user", content: `Genera una estrategia promocional para CADA uno de estos ${candidates.length} productos (uno por uno, sin omitir ninguno): ${JSON.stringify(candidates)}` }
+          ],
+          response_format: { type: "json_object" }
+        });
+        aiResponse = JSON.parse(completion.choices[0].message.content);
+      } catch (aiError) {
+        console.error('⚠️ IA no disponible para promociones, usando motor de reglas deterministas:', aiError.message);
+        aiResponse = { promotions: [] };
+      }
 
-      const aiResponse = JSON.parse(completion.choices[0].message.content);
       const promotions = (aiResponse.promotions || []).map(p => {
         const product = candidates.find(c => c.id === p.id);
         if (!product) return null;
@@ -825,37 +837,57 @@ Tus respuestas deben estar en formato JSON con la siguiente estructura:
 }`;
       const userPrompt = `Analiza este historial crediticio y determina el riesgo:\n${JSON.stringify(historialAnalisis, null, 2)}`;
 
-      const gptResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1
-      });
+      // Si OpenAI no responde (caída, clave inválida, timeout), no se propaga un 500: se degrada
+      // con el mismo criterio que getDashboardRecommendations (plan 20, Nivel 2, hallazgo sección
+      // 8.13: antes este endpoint era uno de los 2 que no degradaban con elegancia). No hay un
+      // motor de reglas determinista para riesgo crediticio (a diferencia de promociones), así que
+      // el fallback es un aviso de mantenimiento, no un cálculo inventado sin pedir aprobación.
+      let aiData;
+      let esFallback = false;
+      try {
+        const gptResponse = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1
+        });
+        aiData = JSON.parse(gptResponse.choices[0].message.content);
+      } catch (aiError) {
+        console.error('⚠️ IA no disponible para evaluar riesgo de cliente:', aiError.message);
+        esFallback = true;
+        aiData = {
+          perfil: 'Evaluando',
+          riesgo: 'Evaluando',
+          razon: 'Motor IA en mantenimiento. No se pudo evaluar el riesgo automáticamente en este momento.',
+          sugerencia: 'Revisa el historial de fiados y abonos de este cliente manualmente mientras se restablece el servicio.'
+        };
+      }
 
-      const aiData = JSON.parse(gptResponse.choices[0].message.content);
+      if (!esFallback) {
+        // Guardar en auditoría IA (solo cuando el análisis es real; un fallback de mantenimiento
+        // no aporta nada que auditar).
+        await db.runAsync(
+          `INSERT INTO Auditoria_IA (id_tienda, motor_ia, prompt_utilizado, datos_base_json, sugerencia_ia_json, impacto_decision, razon_ia)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tiendaId,
+            'Evaluador Riesgo Fiados v1.0',
+            userPrompt,
+            JSON.stringify(historialAnalisis),
+            JSON.stringify(aiData),
+            `Perfil: ${aiData.perfil}, Riesgo: ${aiData.riesgo}`,
+            aiData.razon
+          ]
+        );
 
-      // Guardar en auditoría IA
-      await db.runAsync(
-        `INSERT INTO Auditoria_IA (id_tienda, motor_ia, prompt_utilizado, datos_base_json, sugerencia_ia_json, impacto_decision, razon_ia)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          tiendaId, 
-          'Evaluador Riesgo Fiados v1.0', 
-          userPrompt, 
-          JSON.stringify(historialAnalisis), 
-          JSON.stringify(aiData), 
-          `Perfil: ${aiData.perfil}, Riesgo: ${aiData.riesgo}`, 
-          aiData.razon
-        ]
-      );
-      
-      // Log legado
-      logToAuditFile(tiendaId, null, `Evaluación de riesgo cliente ${clienteRes.nombre}`, `Riesgo: ${aiData.riesgo}`);
+        // Log legado
+        logToAuditFile(tiendaId, null, `Evaluación de riesgo cliente ${clienteRes.nombre}`, `Riesgo: ${aiData.riesgo}`);
+      }
 
-      res.json({ success: true, analisis: aiData });
+      res.json({ success: true, error: esFallback, analisis: aiData });
     } catch (e) {
       console.error('❌ ERROR EN ASSESS_CLIENT_RISK:', e);
       res.status(500).json({ error: safeError(e, 'Error evaluando riesgo del cliente con IA') });

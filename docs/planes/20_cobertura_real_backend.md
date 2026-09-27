@@ -1,7 +1,7 @@
 # Plan 20: Cobertura de pruebas real del backend
 
-**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **45 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 2 bugs reales (sobreventa concurrente en `registrar-venta-carrito`, sección 8.7; dependencia circular en `database/init_pg.sql`, sección 8) y quedaron 2 hallazgos anotados sin corregir (secciones 8.12 y 8.13) para decisión aparte. Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
-**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (Nivel 2 completo: los 7 flujos de integración)
+**Estado:** **Nivel 1, sección 5 y Nivel 2 completos** — los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **46 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Pendiente: quitar los `/* v8 ignore */` que ya no hagan falta y cerrar con `thresholds` en `vitest.config.js` (sección 6).
+**Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (Nivel 2 completo: los 7 flujos + los 2 hallazgos corregidos)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
 ---
@@ -253,9 +253,9 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 ### 8.12 Flujo 5/7 — Aislamiento multi-tienda (commit `9b13f62`)
 `tests/integration/aislamiento_multitienda.test.js`, 5 pruebas, complementando el chequeo puntual ya hecho en `cartera.test.js` (sección 8.10): productos (el listado de una tienda nunca incluye los de otra; ver/editar/eliminar por ID el producto de otra tienda da 404 — el guard `verifyProductOwnership`, con comentarios `🛡️ IDOR` explícitos en el código, funciona), ventas (comprar un producto de otra tienda da 404 y no mueve su stock; el listado de ventas nunca mezcla tiendas), y proveedores (el listado tampoco mezcla tiendas).
 
-**Hallazgo (sin corregir, solo reportado y probado):** `suppliersController.update` y `.delete` sí filtran su `UPDATE`/`UPDATE...estado='Inactivo'` por `WHERE id_proveedor = ? AND id_tienda = ?` — los datos quedan seguros, nunca se modifica lo de otra tienda —, pero **no revisan si la consulta afectó alguna fila**. Si el proveedor es de otra tienda (o no existe), el `UPDATE` no toca nada y el endpoint responde `{success:true, message:'Proveedor actualizado'}` igual, como si hubiera funcionado. Es distinto del patrón que ya usa `productController` (`verifyProductOwnership`, con comentarios `🛡️ IDOR` explícitos, que revisa la propiedad *antes* de escribir y devuelve 404 si no es del usuario) — `suppliersController` no tiene ese chequeo. No es una fuga de datos, es una respuesta engañosa: el frontend creería que guardó un cambio que nunca pasó. La prueba de este archivo lo deja documentado explícitamente (verifica `editar.body.success === true` **y** que la fila de la tienda A no cambió). Arreglo natural si se decide corregirlo: revisar `result.changes`/`rowCount` de `db.runAsync` (que ya lo expone) y devolver 404 si es 0, mismo patrón que `productController`.
+**Hallazgo — corregido (2026-09-27):** `suppliersController.update` y `.delete` sí filtraban su `UPDATE`/`UPDATE...estado='Inactivo'` por `WHERE id_proveedor = ? AND id_tienda = ?` — los datos quedaban seguros, nunca se modificaba lo de otra tienda —, pero no revisaban si la consulta afectó alguna fila: si el proveedor era de otra tienda, el endpoint respondía `{success:true, message:'Proveedor actualizado'}` igual, como si hubiera funcionado. Se corrigió revisando `result.changes` (que `db.runAsync` ya expone) y devolviendo 404 si es 0 — mismo patrón que `productController.verifyProductOwnership`. La prueba de este archivo se actualizó para esperar el 404, y se agregó una prueba nueva confirmando que actualizar el propio proveedor (misma tienda) sigue funcionando.
 
-**Pruebas:** 196 unitarias + **41 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 5 aislamiento). Todas en verde.
+**Pruebas:** 196 unitarias + **41 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 6 aislamiento). Todas en verde.
 
 ---
 
@@ -267,9 +267,13 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 - **`getDashboardRecommendations` sin `OPENAI_API_KEY` configurada** (mutada en caliente dentro de la prueba, restaurada en un `finally`): 500 explícito "no está configurada", sin intentar la red.
 - **`assessClientRisk` con OpenAI fallando:** propaga un **500** crudo.
 
-**Hallazgo (sin corregir, solo reportado):** de los 3 endpoints de IA que llaman a OpenAI directamente en `aiController.js` (`getDashboardRecommendations`, `getPromotionSuggestions`, `assessClientRisk`), **solo uno** (`getDashboardRecommendations`) degrada con elegancia ante una falla de OpenAI — los otros dos (`getPromotionSuggestions` y `assessClientRisk`, confirmado leyendo su código) simplemente devuelven `res.status(500)` con el error crudo. No es necesariamente un bug — un 500 es una respuesta válida ante un error real de servidor — pero es una inconsistencia de diseño entre endpoints que resuelven el mismo tipo de falla (IA no disponible) de dos maneras distintas. Vale la pena decidir en algún momento si conviene que los 3 se comporten igual.
+**Hallazgo — corregido (2026-09-27):** de los 3 endpoints de IA que llaman a OpenAI directamente en `aiController.js`, solo `getDashboardRecommendations` degradaba con elegancia ante una falla de OpenAI — `getPromotionSuggestions` y `assessClientRisk` devolvían `res.status(500)` con el error crudo. Se corrigieron los dos:
+- `getPromotionSuggestions`: ya tenía un motor de reglas deterministas (`determinarPromocionFallback`) para cubrir candidatos que la IA *omitía* en su respuesta. Se reutilizó ese mismo motor para cubrir el 100% de los candidatos cuando la llamada a OpenAI falla del todo (se envuelve solo esa llamada en su propio `try/catch`, y si falla se sigue como si `aiResponse.promotions` viniera vacío) — sigue devolviendo sugerencias reales, no un aviso genérico.
+- `assessClientRisk`: no existe un motor determinista de riesgo crediticio, así que el fallback es un aviso de mantenimiento (mismo criterio que `getDashboardRecommendations`), con `{success:true, error:true, analisis:{riesgo:'Evaluando', ...}}`; se salta el registro en `Auditoria_IA` en ese caso (no hay nada real que auditar).
 
-**Pruebas:** 196 unitarias + **45 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 5 aislamiento + 4 IA caída). Todas en verde. **Los 7 flujos del encargo original quedan completos.**
+Pruebas actualizadas: `ia_caida.test.js` ahora espera 200 con degradación elegante en los 3 endpoints, y se agregó un caso nuevo para `getPromotionSuggestions`.
+
+**Pruebas:** 196 unitarias + **46 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas + 6 aislamiento + 5 IA caída — antes 4, se agregó el caso de promociones). Todas en verde. **Los 7 flujos del encargo original quedan completos, y los 2 hallazgos que quedaron pendientes ya están corregidos.**
 
 ---
 
@@ -277,12 +281,9 @@ Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de con
 
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
-**Los 7 flujos de integración del encargo original están completos** (autenticación, venta con concurrencia, caja, cartera, `Alert.generate` concurrente, aislamiento multi-tienda, IA caída). Quedan 3 decisiones pendientes, ninguna es "escribir más pruebas de flujo":
+**Los 7 flujos de integración del encargo original y los 2 hallazgos pendientes están completos.** Queda por hacer:
 
-1. **Decidir sobre los 2 hallazgos sin corregir**, ninguno de los dos es parte de los 7 flujos en sí:
-   - Sección 8.12: `suppliersController.update`/`.delete` no revisan filas afectadas (respuesta `success:true` engañosa cuando el proveedor es de otra tienda).
-   - Sección 8.13: inconsistencia entre los 3 endpoints de IA — solo uno degrada con elegancia ante una falla de OpenAI.
-2. **Quitar los `/* v8 ignore */`** que ya no hagan falta ahora que hay pruebas de integración reales (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
-3. **Cerrar el Nivel 2:** agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y confirmar que `npm run test:integration` quedó bien documentado (en `CLAUDE.md` o similar) para que cualquiera sepa que existe y cómo correrlo.
+1. **Quitar los `/* v8 ignore */`** que ya no hagan falta ahora que hay pruebas de integración reales (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
+2. **Cerrar el Nivel 2:** agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda, y confirmar que `npm run test:integration` quedó bien documentado (en `CLAUDE.md` o similar) para que cualquiera sepa que existe y cómo correrlo.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 45 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 y Nivel 2 (los 7 flujos) completos.
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 46 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 y Nivel 2 (los 7 flujos + los 2 hallazgos) completos.

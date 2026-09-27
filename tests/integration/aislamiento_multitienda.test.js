@@ -83,6 +83,19 @@ describe('Aislamiento multi-tienda', () => {
     expect(ventasDeB.body.data.length).toBe(0);
   });
 
+  it('Proveedores: actualizar el propio (misma tienda) sigue funcionando después del arreglo de la sección 8.12', async () => {
+    const { agente, csrfToken } = await agenteLogueado({ rol: 'Administrador' });
+    const idProveedor = await crearProveedor(agente, csrfToken);
+
+    const editar = await agente.put(`/api/proveedores/${idProveedor}`).set('X-CSRF-Token', csrfToken)
+      .send({ nombre_empresa: 'Nombre Actualizado', contacto_principal: 'Ana', email: 'ana@test.local', telefono: '3001112233', direccion: 'Calle 2' });
+    expect(editar.status).toBe(200);
+    expect(editar.body.success).toBe(true);
+
+    const tras = await db.getAsync('SELECT nombre_empresa FROM Proveedores WHERE id_proveedor = ?', [idProveedor]);
+    expect(tras.nombre_empresa).toBe('Nombre Actualizado');
+  });
+
   it('Proveedores: la lista de una tienda nunca incluye proveedores de otra', async () => {
     const tiendaA = await agenteLogueado({ rol: 'Administrador' });
     const tiendaB = await agenteLogueado({ rol: 'Administrador' });
@@ -92,7 +105,7 @@ describe('Aislamiento multi-tienda', () => {
     expect(listaB.body.data).toEqual([]);
   });
 
-  it('Proveedores: actualizar/eliminar el de otra tienda no lo modifica de verdad, aunque la respuesta diga success:true (hallazgo, ver plan)', async () => {
+  it('Proveedores: actualizar/eliminar el de otra tienda da 404 y no lo modifica (corregido, ver plan sección 8.12)', async () => {
     const tiendaA = await agenteLogueado({ rol: 'Administrador' });
     const tiendaB = await agenteLogueado({ rol: 'Administrador' });
     const idProveedorDeA = await crearProveedor(tiendaA.agente, tiendaA.csrfToken);
@@ -104,14 +117,13 @@ describe('Aislamiento multi-tienda', () => {
       .send({ nombre_empresa: 'Hackeado', contacto_principal: 'X', email: 'x@x.com', telefono: '1', direccion: 'X' });
     const eliminar = await tiendaB.agente.delete(`/api/proveedores/${idProveedorDeA}`).set('X-CSRF-Token', tiendaB.csrfToken);
 
-    // El hallazgo, hecho explícito: el HTTP dice éxito en los dos casos...
-    expect(editar.status).toBe(200);
-    expect(editar.body.success).toBe(true);
-    expect(eliminar.status).toBe(200);
-    expect(eliminar.body.success).toBe(true);
+    // Antes ambos respondían success:true aunque no afectaran ninguna fila (hallazgo, ya corregido):
+    // ahora revisan `changes` y devuelven 404 cuando el proveedor no es de la tienda del usuario.
+    expect(editar.status).toBe(404);
+    expect(editar.body.success).toBe(false);
+    expect(eliminar.status).toBe(404);
+    expect(eliminar.body.success).toBe(false);
 
-    // ...pero los datos de la tienda A quedan intactos: el WHERE id_tienda=? del UPDATE evitó el
-    // cambio real, el controlador solo no se dio cuenta (no revisa cuántas filas afectó).
     const tras = await db.getAsync('SELECT nombre_empresa, estado FROM Proveedores WHERE id_proveedor = ?', [idProveedorDeA]);
     expect(tras.nombre_empresa).toBe(nombreOriginal.nombre_empresa);
     expect(tras.estado).toBe(nombreOriginal.estado);
