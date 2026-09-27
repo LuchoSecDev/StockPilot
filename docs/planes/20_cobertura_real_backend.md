@@ -237,6 +237,19 @@ Al correr la suite de integración completa varias veces seguidas, entre 1 y 3 d
 
 **Pruebas:** 196 unitarias + **31 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera). Todas en verde, confirmado con corridas repetidas tras el arreglo de la sección 8.9.
 
+### 8.11 Flujo 4/7 — `Alert.generate()` concurrente (commit `7d2cba7`)
+`tests/integration/alert_generate_concurrencia.test.js`, 5 pruebas. A diferencia de los flujos de venta (sección 8.7, sin protección) y caja (sección 8.8, sin protección pero sin bug reproducido), `Alert.generate()` **ya tenía** una defensa explícita desde el plan 17 (hallazgo O3): `pg_advisory_xact_lock(tiendaId)` dentro de la transacción, para que dos regeneraciones de la misma tienda queden en fila en vez de pisarse.
+
+- **5 llamadas concurrentes a `/api/alertas/generate` de la misma tienda:** nunca duplica la alerta del mismo producto — confirmado con 10 corridas repetidas de esta prueba puntual (después de lo aprendido en la sección 8.7, donde 2 pedidos "pasaban por suerte" y hacían falta 5 para exponer el bug real; acá 5 concurrentes nunca fallaron, ni una vez).
+- **Dos tiendas distintas generando al mismo tiempo:** el lock es por tienda (usa `tiendaId` como clave del advisory lock) — ninguna bloquea a la otra y cada una termina con su propia alerta, sin mezclarse.
+- **Generar dos veces seguidas (secuencial):** la alerta se actualiza en el mismo lugar (mismo `id_alerta`, misma `fecha_creacion`) en vez de duplicarse — confirma explícitamente el comportamiento "upsert" que ya se sabía por el código, ahora con una prueba real.
+- **Producto que deja de estar crítico:** la siguiente generación resuelve la alerta vieja (`resuelta=1`), no queda activa.
+- **`DISABLE_ALERT_ENGINE=true` (interruptor de emergencia, plan 17 O8):** `generate()` no crea nada y devuelve 0 — probado activando la variable en caliente dentro de la prueba y restaurándola en un `finally`.
+
+Sin hallazgos nuevos — es el primer flujo de los 7 donde la protección de concurrencia ya existía y de verdad funciona como se esperaba.
+
+**Pruebas:** 196 unitarias + **36 de integración** (10 autenticación + 3 venta + 10 caja + 8 cartera + 5 alertas). Todas en verde.
+
 ---
 
 ## 6. Para continuar en la próxima sesión
@@ -244,8 +257,8 @@ Al correr la suite de integración completa varias veces seguidas, entre 1 y 3 d
 **Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
 
 **Pendiente, en orden:**
-1. Los 3 flujos de integración que faltan: `Alert.generate` concurrente, aislamiento multi-tienda (uno dedicado y más amplio que el chequeo puntual ya hecho en cartera — cubrir productos/ventas/otros controladores), IA caída — reusando `tests/integration/helpers/`.
+1. Los 2 flujos de integración que faltan: aislamiento multi-tienda (uno dedicado y más amplio que el chequeo puntual ya hecho en cartera — cubrir productos/ventas/otros controladores), IA caída — reusando `tests/integration/helpers/`.
 2. Recién con el Nivel 2 completo se quitan los `/* v8 ignore */` que ya no hagan falta (`models/Alert.js:93-307`, `controllers/feedbackController.js:16-228`) — los que queden, con un comentario explicando por qué.
 3. Al cerrar el Nivel 2: agregar `thresholds` en `vitest.config.js` para que la cobertura no retroceda.
 
-**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 31 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (31 corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 4 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera).
+**Estado técnico verificado hoy (2026-09-27):** 196 unitarias + 36 de integración en verde, con la suite de integración ya libre de la fragilidad de la sección 8.9 (corridas repetidas limpias). `stockpilot_test` creada y con el esquema completo. Sección 5 cerrada por completo; Nivel 2 con 5 de 7 flujos hechos (autenticación, venta con concurrencia — con un bug real de sobreventa encontrado y corregido —, caja, cartera, `Alert.generate` concurrente — protección ya existente, confirmada funcionando).
