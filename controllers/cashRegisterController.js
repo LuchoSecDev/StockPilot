@@ -190,10 +190,13 @@ class CashRegisterController {
             const admin_id = req.session.userId;
             const id_tienda = req.session.tiendaId;
             
-            // Obtener datos del egreso para notificar al tendero
-            const egreso = await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ?', [id_egreso]);
-            
-            await CashRegister.approveExpense(id_egreso, admin_id);
+            // Obtener datos del egreso (solo de esta tienda: P22-09) para notificar al tendero
+            const egreso = /^\d+$/.test(id_egreso)
+                ? await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
+                : null;
+            if (!egreso) return res.status(404).json({ error: 'Egreso no encontrado.' });
+
+            await CashRegister.approveExpense(id_egreso, admin_id, id_tienda);
 
             // Notificar al tendero que registró el egreso
             if (egreso && egreso.id_usuario !== admin_id) {
@@ -225,10 +228,13 @@ class CashRegisterController {
             const id_tienda = req.session.tiendaId;
             const notas_admin = req.body.notas_admin || null;
             
-            // Obtener datos del egreso para notificar al tendero
-            const egreso = await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ?', [id_egreso]);
-            
-            await CashRegister.rejectExpense(id_egreso, admin_id, notas_admin);
+            // Obtener datos del egreso (solo de esta tienda: P22-09) para notificar al tendero
+            const egreso = /^\d+$/.test(id_egreso)
+                ? await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
+                : null;
+            if (!egreso) return res.status(404).json({ error: 'Egreso no encontrado.' });
+
+            await CashRegister.rejectExpense(id_egreso, admin_id, id_tienda, notas_admin);
 
             // Notificar al tendero que registró el egreso
             if (egreso && egreso.id_usuario !== admin_id) {

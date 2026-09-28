@@ -154,21 +154,23 @@ class CashRegister {
         );
     }
 
-    static async approveExpense(id_egreso, admin_id) {
+    // Ambos filtran por id_tienda (P22-09): un egreso de otra tienda no se toca aunque se conozca su id.
+    // Devuelven { changes }: 0 si el egreso no existe en esa tienda.
+    static async approveExpense(id_egreso, admin_id, id_tienda) {
         return await db.runAsync(
-            `UPDATE EgresosCaja 
-             SET estado = 'Aprobado', aprobado_por = ?, fecha_aprobacion = CURRENT_TIMESTAMP 
-             WHERE id_egreso = ?`,
-            [admin_id, id_egreso]
+            `UPDATE EgresosCaja
+             SET estado = 'Aprobado', aprobado_por = ?, fecha_aprobacion = CURRENT_TIMESTAMP
+             WHERE id_egreso = ? AND id_tienda = ?`,
+            [admin_id, id_egreso, id_tienda]
         );
     }
 
-    static async rejectExpense(id_egreso, admin_id, notas_admin = null) {
+    static async rejectExpense(id_egreso, admin_id, id_tienda, notas_admin = null) {
         return await db.runAsync(
-            `UPDATE EgresosCaja 
-             SET estado = 'Rechazado', aprobado_por = ?, fecha_aprobacion = CURRENT_TIMESTAMP, notas_admin = ? 
-             WHERE id_egreso = ?`,
-            [admin_id, notas_admin, id_egreso]
+            `UPDATE EgresosCaja
+             SET estado = 'Rechazado', aprobado_por = ?, fecha_aprobacion = CURRENT_TIMESTAMP, notas_admin = ?
+             WHERE id_egreso = ? AND id_tienda = ?`,
+            [admin_id, notas_admin, id_egreso, id_tienda]
         );
     }
 }
