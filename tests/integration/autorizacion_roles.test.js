@@ -4,7 +4,10 @@
  * responde HOY un Tendero (rol sin privilegios de administrador) contra endpoints que solo exigen
  * `requireLogin` — ninguno de estos tiene `requireAdmin`, aunque conceptualmente debería tenerlo.
  * Con esta tabla se arma la fase I0 del plan 22. No se corrige nada aquí, solo se registra el
- * comportamiento actual (casi siempre 200/éxito, incluido cruzando de tienda en egresos).
+ * comportamiento actual (casi siempre 200/éxito).
+ *
+ * Los egresos de caja (aprobar/rechazar) ya NO están aquí: se corrigieron en P22-09 y sus pruebas
+ * (403 al Tendero, 404 entre tiendas) viven en el bloque «Egresos de caja» al final de este archivo.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -28,43 +31,6 @@ async function agenteLogueado(overrides = {}) {
 }
 
 describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Administrador', () => {
-  // I0: invertir a 403 según la matriz de roles
-  it('COMPORTAMIENTO ACTUAL, posible bug: un Tendero aprueba y rechaza egresos de su PROPIA tienda', async () => {
-    const { agente, csrfToken, id_usuario } = await agenteLogueado({ rol: 'Tendero' });
-    await agente.post('/api/caja/abrir').set('X-CSRF-Token', csrfToken).send({ monto_apertura: 50000 });
-    const egreso1 = await agente.post('/api/caja/egreso').set('X-CSRF-Token', csrfToken).send({ monto: 10000, motivo: 'Primer gasto de prueba' });
-    expect(egreso1.status).toBe(200);
-    const egreso2 = await agente.post('/api/caja/egreso').set('X-CSRF-Token', csrfToken).send({ monto: 10000, motivo: 'Segundo gasto de prueba' });
-    expect(egreso2.status).toBe(200);
-    const filas = await db.allAsync('SELECT id_egreso FROM EgresosCaja WHERE id_usuario = ? ORDER BY id_egreso', [id_usuario]);
-
-    const aprobar = await agente.put(`/api/caja/egreso/${filas[0].id_egreso}/aprobar`).set('X-CSRF-Token', csrfToken);
-    expect(aprobar.status).toBe(200);
-    const rechazar = await agente.put(`/api/caja/egreso/${filas[1].id_egreso}/rechazar`).set('X-CSRF-Token', csrfToken).send({ notas_admin: 'No aplica' });
-    expect(rechazar.status).toBe(200);
-
-    const estados = await db.allAsync('SELECT estado FROM EgresosCaja WHERE id_usuario = ? ORDER BY id_egreso', [id_usuario]);
-    expect(estados.map(e => e.estado)).toEqual(['Aprobado', 'Rechazado']);
-  });
-
-  // I0: invertir a 403 según la matriz de roles
-  // (además del rol, falta filtrar por id_tienda: entre tiendas debe dar 404/403, ver P22-09)
-  it('COMPORTAMIENTO ACTUAL, posible bug: un Tendero aprueba un egreso de OTRA tienda (CashRegister.approveExpense no filtra por id_tienda)', async () => {
-    const tiendaA = await agenteLogueado({ rol: 'Administrador' });
-    await tiendaA.agente.post('/api/caja/abrir').set('X-CSRF-Token', tiendaA.csrfToken).send({ monto_apertura: 50000 });
-    const egreso = await tiendaA.agente.post('/api/caja/egreso').set('X-CSRF-Token', tiendaA.csrfToken).send({ monto: 20000, motivo: 'Gasto de la tienda A' });
-    const filaEgreso = await db.getAsync('SELECT id_egreso FROM EgresosCaja WHERE id_usuario = ?', [tiendaA.id_usuario]);
-
-    const tiendaB = await agenteLogueado({ rol: 'Tendero' }); // tienda distinta, sin relación con la A
-
-    const res = await tiendaB.agente.put(`/api/caja/egreso/${filaEgreso.id_egreso}/aprobar`).set('X-CSRF-Token', tiendaB.csrfToken);
-    expect(res.status).toBe(200); // hoy no hay ningún chequeo de tienda ni de rol en este endpoint
-
-    const fila = await db.getAsync('SELECT estado, aprobado_por FROM EgresosCaja WHERE id_egreso = ?', [filaEgreso.id_egreso]);
-    expect(fila.estado).toBe('Aprobado');
-    expect(fila.aprobado_por).toBe(tiendaB.id_usuario); // aprobado por alguien de OTRA tienda
-  });
-
   // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede editar y eliminar un producto de su propia tienda (PUT/DELETE /api/productos/:id)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
@@ -146,5 +112,104 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     const res = await agente.post('/api/exportar/ventas').set('X-CSRF-Token', csrfToken);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+});
+
+describe('Egresos de caja: aprobar y rechazar (P22-09, corregido)', () => {
+  // Un Administrador y un Tendero de la MISMA tienda; el Tendero registra dos egresos.
+  async function tiendaConEgresos() {
+    const admin = await agenteLogueado({ rol: 'Administrador' });
+    const datosTendero = await crearUsuario({ rol: 'Tendero', id_tienda: admin.id_tienda });
+    const tendero = request.agent(app);
+    await iniciarSesion(tendero, datosTendero);
+    const csrfTendero = await obtenerCsrfToken(tendero);
+    await tendero.post('/api/caja/abrir').set('X-CSRF-Token', csrfTendero).send({ monto_apertura: 50000 });
+    for (const motivo of ['Primer gasto de prueba', 'Segundo gasto de prueba']) {
+      const r = await tendero.post('/api/caja/egreso').set('X-CSRF-Token', csrfTendero).send({ monto: 10000, motivo });
+      expect(r.status).toBe(200);
+    }
+    const filas = await db.allAsync('SELECT id_egreso FROM EgresosCaja WHERE id_tienda = ? ORDER BY id_egreso', [admin.id_tienda]);
+    return { admin, tendero, csrfTendero, idTendero: datosTendero.id_usuario, ids: filas.map(f => f.id_egreso) };
+  }
+  const estadoDe = async (id) => (await db.getAsync('SELECT estado, aprobado_por FROM EgresosCaja WHERE id_egreso = ?', [id]));
+
+  it('un Tendero NO puede aprobar ni rechazar egresos, ni siquiera los de su propia tienda: 403 y la fila no cambia', async () => {
+    const { tendero, csrfTendero, ids } = await tiendaConEgresos();
+
+    const aprobar = await tendero.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', csrfTendero);
+    const rechazar = await tendero.put(`/api/caja/egreso/${ids[1]}/rechazar`).set('X-CSRF-Token', csrfTendero).send({ notas_admin: 'No aplica' });
+    expect(aprobar.status).toBe(403);
+    expect(rechazar.status).toBe(403);
+    expect((await estadoDe(ids[0])).estado).toBe('Registrado');
+    expect((await estadoDe(ids[1])).estado).toBe('Registrado');
+  });
+
+  it('el Administrador de la tienda aprueba y rechaza: 200, queda quién lo hizo y el Tendero recibe la notificación', async () => {
+    const { admin, idTendero, ids } = await tiendaConEgresos();
+
+    const aprobar = await admin.agente.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', admin.csrfToken);
+    const rechazar = await admin.agente.put(`/api/caja/egreso/${ids[1]}/rechazar`).set('X-CSRF-Token', admin.csrfToken).send({ notas_admin: 'No aplica' });
+    expect(aprobar.status).toBe(200);
+    expect(rechazar.status).toBe(200);
+    expect(await estadoDe(ids[0])).toMatchObject({ estado: 'Aprobado', aprobado_por: admin.id_usuario });
+    expect(await estadoDe(ids[1])).toMatchObject({ estado: 'Rechazado', aprobado_por: admin.id_usuario });
+
+    const notificaciones = await db.allAsync('SELECT tipo FROM NotificacionesUsuario WHERE id_usuario = ? ORDER BY tipo', [idTendero]);
+    expect(notificaciones.map(n => n.tipo)).toEqual(['egreso_aprobado', 'egreso_rechazado']);
+  });
+
+  it('un egreso de OTRA tienda no se puede tocar: 403 al Tendero, 404 al Administrador de la otra tienda, y la fila no cambia', async () => {
+    const { ids } = await tiendaConEgresos();
+
+    const tenderoAjeno = await agenteLogueado({ rol: 'Tendero' }); // otra tienda
+    const adminAjeno = await agenteLogueado({ rol: 'Administrador' }); // otra tienda
+
+    const t = await tenderoAjeno.agente.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', tenderoAjeno.csrfToken);
+    expect(t.status).toBe(403);
+
+    const aprobar = await adminAjeno.agente.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', adminAjeno.csrfToken);
+    const rechazar = await adminAjeno.agente.put(`/api/caja/egreso/${ids[1]}/rechazar`).set('X-CSRF-Token', adminAjeno.csrfToken).send({ notas_admin: 'x' });
+    expect(aprobar.status).toBe(404);
+    expect(rechazar.status).toBe(404);
+    expect(await estadoDe(ids[0])).toMatchObject({ estado: 'Registrado', aprobado_por: null });
+    expect(await estadoDe(ids[1])).toMatchObject({ estado: 'Registrado', aprobado_por: null });
+    const notificaciones = await db.allAsync('SELECT 1 FROM NotificacionesUsuario');
+    expect(notificaciones).toHaveLength(0);
+  });
+
+  it('un id que no existe o no es numérico da 404, no 500', async () => {
+    const { admin } = await tiendaConEgresos();
+    const inexistente = await admin.agente.put('/api/caja/egreso/999999/aprobar').set('X-CSRF-Token', admin.csrfToken);
+    const basura = await admin.agente.put('/api/caja/egreso/abc/rechazar').set('X-CSRF-Token', admin.csrfToken);
+    expect(inexistente.status).toBe(404);
+    expect(basura.status).toBe(404);
+  });
+
+  it('un egreso ya resuelto no se reabre: aprobar/rechazar de nuevo da 409, la fila y las notificaciones no cambian', async () => {
+    const { admin, idTendero, ids } = await tiendaConEgresos();
+    const put = (id, accion, cuerpo = {}) => admin.agente.put(`/api/caja/egreso/${id}/${accion}`).set('X-CSRF-Token', admin.csrfToken).send(cuerpo);
+
+    expect((await put(ids[0], 'aprobar')).status).toBe(200);
+    expect((await put(ids[1], 'rechazar', { notas_admin: 'No aplica' })).status).toBe(200);
+    const antes = [await estadoDe(ids[0]), await estadoDe(ids[1])];
+
+    expect((await put(ids[0], 'aprobar')).status).toBe(409);                 // aprobado → aprobar
+    expect((await put(ids[0], 'rechazar', { notas_admin: 'x' })).status).toBe(409); // aprobado → rechazar
+    expect((await put(ids[1], 'aprobar')).status).toBe(409);                 // rechazado → aprobar
+    expect((await put(ids[1], 'rechazar', { notas_admin: 'x' })).status).toBe(409); // rechazado → rechazar
+
+    expect([await estadoDe(ids[0]), await estadoDe(ids[1])]).toEqual(antes);
+    const notificaciones = await db.allAsync('SELECT tipo FROM NotificacionesUsuario WHERE id_usuario = ?', [idTendero]);
+    expect(notificaciones).toHaveLength(2); // solo las dos de la primera resolución
+  });
+
+  it('dos peticiones simultáneas sobre el mismo egreso: una gana (200) y la otra recibe 409', async () => {
+    const { admin, ids } = await tiendaConEgresos();
+    const [a, b] = await Promise.all([
+      admin.agente.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', admin.csrfToken),
+      admin.agente.put(`/api/caja/egreso/${ids[0]}/rechazar`).set('X-CSRF-Token', admin.csrfToken).send({ notas_admin: 'x' })
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect((await estadoDe(ids[0])).estado).toBe(a.status === 200 ? 'Aprobado' : 'Rechazado');
   });
 });
