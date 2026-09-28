@@ -14,7 +14,7 @@ router.patch('/:id/resolve', requireLogin, alertController.resolveAlert);
 
 // Ruta para disparo manual del resumen semanal (solo admins)
 const { runWeeklySummary } = require('../services/schedulerService');
-router.post('/test-summary', requireLogin, async (req, res) => {
+router.post('/test-summary', requireLogin, requireAdmin, async (req, res) => {
     try {
         const tiendaId = req.session.tiendaId;
         if (!tiendaId) return res.status(400).json({ error: 'No se encontró la tienda en la sesión' });
