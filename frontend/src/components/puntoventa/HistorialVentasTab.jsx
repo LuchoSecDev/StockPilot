@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { SYNC_EVENTS, subscribeToSync } from '../../utils/stockSync';
 import { DollarSign, Package, Receipt, Trophy, Download, Rocket } from 'lucide-react';
 import CustomDatePicker from '../CustomDatePicker';
@@ -8,6 +9,8 @@ import CustomSelect from '../CustomSelect';
 
 const HistorialVentasTab = () => {
   const toast = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'Administrador'; // exportar ventas es solo del Administrador (P22-10, D3)
   const [ventasOriginales, setVentasOriginales] = useState([]);
   const [statsServidor, setStatsServidor] = useState({ totalVentas: 0, totalProductos: 0, ventaPromedio: 0, productosUnicos: 0 });
   const [categorias, setCategorias] = useState([]);
@@ -216,9 +219,11 @@ const HistorialVentasTab = () => {
           <button onClick={abrirTopVendidos} className="flex-1 sm:flex-none bg-azul/10 hover:bg-azul-hondo text-azul hover:text-white py-4 px-6 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
             <Trophy size={16} /> Top
           </button>
-          <button onClick={exportarCSV} className="flex-1 sm:flex-none bg-exito hover:bg-emerald-700 text-white py-4 px-6 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
-             <Download size={16} /> Reporte
-          </button>
+          {isAdmin && (
+            <button onClick={exportarCSV} className="flex-1 sm:flex-none bg-exito hover:bg-emerald-700 text-white py-4 px-6 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
+               <Download size={16} /> Reporte
+            </button>
+          )}
         </div>
       </div>
 

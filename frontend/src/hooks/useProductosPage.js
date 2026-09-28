@@ -49,6 +49,10 @@ export const useProductosPage = () => {
   const [linkBarcodeCode, setLinkBarcodeCode] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
 
+  // Modal «Sumar stock» (Tendero: al escanear un producto que ya existe; matriz de roles P22-10, D1)
+  const [sumarStockProducto, setSumarStockProducto] = useState(null);
+  const [sumarStockLoading, setSumarStockLoading] = useState(false);
+
   // Upload
   const [uploadLoading, setUploadLoading] = useState(false);
 
@@ -272,14 +276,39 @@ export const useProductosPage = () => {
     }
   };
 
+  const submitSumarStock = async ({ id_producto, cantidad, observacion }) => {
+    if (sumarStockLoading) return;
+    setSumarStockLoading(true);
+    try {
+      await axios.post('/api/inventario/entrada', {
+        id_producto,
+        cantidad,
+        observacion: observacion || 'Recepción de mercancía (Entrada rápida)'
+      });
+      toast.success(`¡Inventario ingresado exitosamente! (+${cantidad} ud)`);
+      emitSyncEvent(SYNC_EVENTS.STOCK_UPDATED, { id: id_producto });
+      setSumarStockProducto(null);
+      cargarProductos();
+    } catch (err) {
+      toast.error(`${err.response?.data?.error || err.message}`);
+    } finally {
+      setSumarStockLoading(false);
+    }
+  };
+
   const handleBarcodeScan = async (code) => {
     if (!code) return;
     if (modalOpen && !editMode) return;
+    if (sumarStockProducto) return;
     
     // Buscar primero por codigo_barras, luego por codigo
     const existingProduct = productos.find(p => p.codigo_barras === code || p.codigo === code);
     
-    if (existingProduct) {
+    if (existingProduct && !isAdmin) {
+      // Tendero: el escaneo solo le permite sumar stock (no editar precio ni datos del producto)
+      setSumarStockProducto(existingProduct);
+      toast.success(`Producto encontrado: ${existingProduct.nombre_producto}`);
+    } else if (existingProduct) {
       // Si el producto existe, abrir modal de edición (ya no venta)
       setEditMode(true);
       setFormData(existingProduct);
@@ -294,6 +323,7 @@ export const useProductosPage = () => {
 
   // Función para continuar con la creación de un nuevo producto (se llama desde el modal Link)
   const openNewProductWithBarcode = async (code) => {
+      if (!isAdmin) return; // crear productos es solo del Administrador (P22-10, D1)
       setLinkModalOpen(false);
       toast.info('Buscando detalles del producto...');
       const apiData = await fetchProductFromOpenFoodFacts(code);
@@ -383,6 +413,9 @@ export const useProductosPage = () => {
 
     // Toggle Modal
     toggleModalOpen, setToggleModalOpen, toggleProducto, setToggleProducto, toggleLoading, submitToggleEstado,
+
+    // Sumar stock (Tendero)
+    sumarStockProducto, setSumarStockProducto, sumarStockLoading, submitSumarStock,
 
     // Link Barcode Modal
     linkModalOpen, setLinkModalOpen, linkBarcodeCode, linkLoading, submitLinkBarcode, openNewProductWithBarcode,
