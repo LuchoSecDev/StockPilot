@@ -14,6 +14,7 @@ import { limpiarBaseDePruebas } from './helpers/db.js';
 import { crearUsuario, crearProducto } from './helpers/fixtures.js';
 import { iniciarSesion, obtenerCsrfToken } from './helpers/sesion.js';
 import { instalarMockOpenAI, restaurarMockOpenAI } from './helpers/mockOpenAI.js';
+import { esperarTrabajoEnSegundoPlano } from './helpers/tiempo.js';
 
 beforeEach(async () => {
   await limpiarBaseDePruebas();
@@ -71,6 +72,7 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     const recibir = await agente.post(`/api/ordenes/${ordenId}/completar`).set('X-CSRF-Token', csrfToken)
       .send({ items: [{ id_producto: idProducto, cantidad_recibida: 10 }] });
     expect(recibir.status).toBe(200);
+    await esperarTrabajoEnSegundoPlano(); // completarRecepcion dispara Alert.generate sin esperarlo
 
     const producto = await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto]);
     expect(producto.cantidad).toBe(20); // 10 iniciales + 10 recibidas
@@ -89,6 +91,7 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     const recibir = await agente.post(`/api/ordenes/${ordenId}/completar`).set('X-CSRF-Token', csrfToken)
       .send({ items: [{ id_producto: idProducto, cantidad_recibida: 4 }] });
     expect(recibir.status).toBe(200);
+    await esperarTrabajoEnSegundoPlano();
 
     const orden = await db.getAsync('SELECT estado FROM Ordenes_Compra WHERE id_orden = ?', [ordenId]);
     expect(orden.estado).toBe('Completada');
@@ -111,6 +114,7 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     const recibir = await agente.post(`/api/ordenes/${ordenId}/completar`).set('X-CSRF-Token', csrfToken)
       .send({ items: [{ id_producto: idProducto, cantidad_recibida: 500 }] });
     expect(recibir.status).toBe(200);
+    await esperarTrabajoEnSegundoPlano();
 
     const producto = await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto]);
     expect(producto.cantidad).toBe(510); // 10 + 500, sin ninguna objeción
