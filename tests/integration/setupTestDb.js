@@ -22,6 +22,9 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { beforeAll } from 'vitest';
+// Debe importarse antes que cualquier módulo que cargue middleware/rateLimiter.js.
+import { reiniciarLimitadores } from './helpers/limitadores.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test'), override: true });
@@ -54,3 +57,10 @@ if (!esHostLocal || !esBaseDePruebas) {
 // `import` estático se evaluaría antes de que dotenv.config() corriera).
 const { default: db } = await import('../../config/database.js');
 await db.migrationReady;
+
+// Cada archivo de prueba arranca con los contadores de los limitadores en cero (ver
+// helpers/limitadores.js): sin esto se acumulan entre archivos porque `isolate: false` comparte
+// el proceso, y `RESTART IDENTITY` hace que todas las pruebas usen la misma clave `user_1`.
+beforeAll(async () => {
+  await reiniciarLimitadores();
+});
