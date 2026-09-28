@@ -117,11 +117,9 @@ describe('POST /api/feedback/evaluate/:orderId: evaluar una orden de la propia t
     expect(res.body.error).toBe('La orden no tiene detalles.');
   });
 
-  it('un id que no es numérico hoy da 500 (error de Postgres sin controlar)', async () => {
-    // COMPORTAMIENTO ACTUAL, posible bug menor: el handler no valida el id; con "abc" Postgres lanza
-    // «invalid input syntax for type integer» y sale 500 en vez de 404. Se corrige en la rama de C2.
+  it('un id que no es numérico da 404 (antes daba 500 por un error de Postgres sin controlar; corregido con C2)', async () => {
     const admin = await agenteLogueado({ rol: 'Administrador' });
     const res = await admin.agente.post('/api/feedback/evaluate/abc').set('X-CSRF-Token', admin.csrfToken);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
   });
 });

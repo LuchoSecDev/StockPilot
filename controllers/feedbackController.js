@@ -22,6 +22,12 @@ const feedbackController = {
   evaluateOrder: async (req, res) => {
     try {
       const { orderId } = req.params;
+      // La orden tiene que ser de la tienda de la sesión (hallazgo C2). Esto va aquí y no en
+      // evaluateOrderInternal, porque el scheduler la usa a propósito para órdenes de todas las tiendas.
+      const propia = /^\d+$/.test(orderId)
+        ? await db.getAsync('SELECT id_orden FROM Ordenes_Compra WHERE id_orden = ? AND id_tienda = ?', [orderId, req.session.tiendaId])
+        : null;
+      if (!propia) return res.status(404).json({ success: false, error: 'Orden no encontrada' });
       const result = await feedbackController.evaluateOrderInternal(orderId);
       res.json(result);
     } catch (e) {
