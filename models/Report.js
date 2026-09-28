@@ -26,29 +26,31 @@ class Report {
         return await db.allAsync(query, [storeId]);
     }
 
-    static async findById(id) {
-        const query = `SELECT * FROM reportes WHERE id = ?`;
-        return await db.getAsync(query, [id]);
+    // findById/update/delete filtran por id_tienda (hallazgo C1): un reporte de otra tienda no se ve ni se toca
+    // aunque se conozca su id. update/delete devuelven false si no existe en esa tienda.
+    static async findById(id, id_tienda) {
+        const query = `SELECT * FROM reportes WHERE id = ? AND id_tienda = ?`;
+        return await db.getAsync(query, [id, id_tienda]);
     }
 
-    static async update(id, reportData) {
+    static async update(id, id_tienda, reportData) {
         const { titulo, descripcion, fecha_reporte, creador, tipo, fecha_inicio, fecha_fin } = reportData;
         
         const query = `
             UPDATE reportes
             SET titulo = ?, descripcion = ?, fecha_reporte = ?, creador = ?, tipo = ?, fecha_inicio = ?, fecha_fin = ?
-            WHERE id = ?
+            WHERE id = ? AND id_tienda = ?
         `;
         const result = await db.runAsync(query, [
             titulo, descripcion, fecha_reporte, creador, tipo, 
-            fecha_inicio || null, fecha_fin || null, id
+            fecha_inicio || null, fecha_fin || null, id, id_tienda
         ]);
         return result.changes > 0;
     }
 
-    static async delete(id) {
-        const query = `DELETE FROM reportes WHERE id = ?`;
-        const result = await db.runAsync(query, [id]);
+    static async delete(id, id_tienda) {
+        const query = `DELETE FROM reportes WHERE id = ? AND id_tienda = ?`;
+        const result = await db.runAsync(query, [id, id_tienda]);
         return result.changes > 0;
     }
 }

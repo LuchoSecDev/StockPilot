@@ -91,6 +91,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
   });
 
   // I0: invertir a 403 según la matriz de roles
+  // (PUT/DELETE de reportes ya son solo Administrador desde la rama de C1; aquí sigue POST)
   it('un Tendero puede crear y descargar un reporte (POST /api/reportes)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     await crearProducto({ id_tienda });
