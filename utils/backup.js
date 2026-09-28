@@ -17,6 +17,24 @@ function runPgDump(databaseUrl, outputPath) {
 }
 
 /**
+ * Si el cron interno de respaldo (services/schedulerService.js) debe programarse. Función pura,
+ * sin efectos secundarios, para poder probarla sin mockear cron/db/mailer.
+ *
+ * En producción (Render, plan gratuito) no tiene sentido programarlo: no hay disco persistente, así
+ * que el archivo no sobrevive a un redeploy ni a un reinicio del contenedor, y el proceso se duerme
+ * tras 15 min sin tráfico, así que el cron de las 2:00 casi nunca llega a correr. El respaldo real de
+ * producción es el workflow de GitHub Actions (.github/workflows/respaldo-neon.yml), que corre en la
+ * infraestructura de GitHub y no depende de que el servicio esté despierto — ver
+ * docs/restaurar_respaldo.md.
+ *
+ * @param {string} [nodeEnv=process.env.NODE_ENV]
+ * @returns {boolean}
+ */
+function debeProgramarRespaldoLocal(nodeEnv = process.env.NODE_ENV) {
+    return nodeEnv !== 'production';
+}
+
+/**
  * Respaldo lógico de PostgreSQL vía pg_dump. Reemplaza al respaldo por copia de archivo (utils/backup.js
  * original, pensado para inventario.db de SQLite, dejó de funcionar al migrar a PostgreSQL en la nube).
  *
@@ -66,4 +84,4 @@ async function createBackup() {
     }
 }
 
-module.exports = { createBackup };
+module.exports = { createBackup, debeProgramarRespaldoLocal };

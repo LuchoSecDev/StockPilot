@@ -1,0 +1,107 @@
+name: Respaldo externo de Neon
+
+# Complementa el "Instant Restore" de Neon (6 horas en el plan gratuito, ver docs/planes/19_...,
+# sección respaldos) y el respaldo de utils/backup.js (deshabilitado en producción: Render free no
+# tiene disco persistente y el proceso se duerme tras 15 min sin tráfico, así que ese cron interno
+# casi nunca llega a correr allí). Este workflow corre en la infraestructura de GitHub, no en Render,
+# así que no depende de que el servicio esté despierto. Restauración: ver docs/restaurar_respaldo.md.
+#
+# Secrets requeridos (no se crean aquí, los agrega quien administre el repositorio):
+#   NEON_DATABASE_URL  — la conexión DIRECTA de Neon (host sin "-pooler"), no la pooled: pg_dump
+#                        necesita mantener una sola sesión larga y pgbouncer (modo transaction, el que
+#                        usa la conexión pooled) no lo soporta bien para volcados grandes.
+#   BACKUP_PASSPHRASE  — frase de cifrado simétrico de gpg. Sin ella el workflow falla, no corre sin
+#                        cifrar.
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # 07:00 UTC = 02:00 Bogotá (UTC-5, sin horario de verano)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # postgres:17 trae pg_dump/psql 17. Es el cliente, no el servidor de Neon: cuando Neon suba a un
+    # major mayor, subir este número también (el paso "Verificar versión" falla en rojo si no).
+    container:
+      image: postgres:17
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Verificar que los secrets están configurados
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::Falta el secret NEON_DATABASE_URL (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+            echo "::error::Falta el secret BACKUP_PASSPHRASE (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Instalar gnupg (la imagen de postgres no siempre lo trae)
+        run: |
+          set -euo pipefail
+          if ! command -v gpg >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends gnupg
+          fi
+
+      - name: Verificar que pg_dump es >= la versión del servidor de Neon
+        run: |
+          set -euo pipefail
+          server_version_num=$(psql "$DATABASE_URL" -Atc "SHOW server_version_num;")
+          server_major=$((server_version_num / 10000))
+          client_major=$(pg_dump --version | grep -oE '[0-9]+' | head -n1)
+          echo "Servidor Neon: Postgres $server_major (server_version_num=$server_version_num)"
+          echo "Cliente pg_dump: Postgres $client_major"
+          if [ "$client_major" -lt "$server_major" ]; then
+            echo "::error::pg_dump ($client_major) es más antiguo que el servidor de Neon ($server_major)."
+            echo "::error::Sube la etiqueta de la imagen 'postgres:17' de este workflow a $server_major o superior."
+            exit 1
+          fi
+
+      - name: Conteo de filas por tabla (solo para el log — nunca datos)
+        run: |
+          set -euo pipefail
+          echo "## Conteo de filas por tabla (para comparar tras restaurar)" | tee conteos.txt
+          psql "$DATABASE_URL" -Atc \
+            "SELECT quote_ident(table_name) FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name" \
+          | while IFS= read -r tabla; do
+              total=$(psql "$DATABASE_URL" -Atc "SELECT COUNT(*) FROM $tabla")
+              printf '%-30s %s\n' "$tabla" "$total" | tee -a conteos.txt
+            done
+
+      - name: pg_dump contra la conexión directa (formato -F c, restaurable con pg_restore)
+        run: |
+          set -euo pipefail
+          pg_dump "$DATABASE_URL" -F c -f respaldo.dump
+          ls -lh respaldo.dump
+
+      - name: Comprimir y cifrar (gpg --symmetric, AES256)
+        run: |
+          set -euo pipefail
+          gzip -c respaldo.dump > respaldo.dump.gz
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$BACKUP_PASSPHRASE" --pinentry-mode loopback \
+              -o respaldo.dump.gz.gpg respaldo.dump.gz
+          rm -f respaldo.dump respaldo.dump.gz
+          ls -lh respaldo.dump.gz.gpg
+
+      - name: Nombre del artefacto con la fecha (UTC)
+        id: fecha
+        run: echo "valor=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Subir el respaldo cifrado como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-neon-${{ steps.fecha.outputs.valor }}
+          path: respaldo.dump.gz.gpg
+          retention-days: 14
+          if-no-files-found: error
