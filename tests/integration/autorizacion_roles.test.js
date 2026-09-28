@@ -184,4 +184,32 @@ describe('Egresos de caja: aprobar y rechazar (P22-09, corregido)', () => {
     expect(inexistente.status).toBe(404);
     expect(basura.status).toBe(404);
   });
+
+  it('un egreso ya resuelto no se reabre: aprobar/rechazar de nuevo da 409, la fila y las notificaciones no cambian', async () => {
+    const { admin, idTendero, ids } = await tiendaConEgresos();
+    const put = (id, accion, cuerpo = {}) => admin.agente.put(`/api/caja/egreso/${id}/${accion}`).set('X-CSRF-Token', admin.csrfToken).send(cuerpo);
+
+    expect((await put(ids[0], 'aprobar')).status).toBe(200);
+    expect((await put(ids[1], 'rechazar', { notas_admin: 'No aplica' })).status).toBe(200);
+    const antes = [await estadoDe(ids[0]), await estadoDe(ids[1])];
+
+    expect((await put(ids[0], 'aprobar')).status).toBe(409);                 // aprobado → aprobar
+    expect((await put(ids[0], 'rechazar', { notas_admin: 'x' })).status).toBe(409); // aprobado → rechazar
+    expect((await put(ids[1], 'aprobar')).status).toBe(409);                 // rechazado → aprobar
+    expect((await put(ids[1], 'rechazar', { notas_admin: 'x' })).status).toBe(409); // rechazado → rechazar
+
+    expect([await estadoDe(ids[0]), await estadoDe(ids[1])]).toEqual(antes);
+    const notificaciones = await db.allAsync('SELECT tipo FROM NotificacionesUsuario WHERE id_usuario = ?', [idTendero]);
+    expect(notificaciones).toHaveLength(2); // solo las dos de la primera resolución
+  });
+
+  it('dos peticiones simultáneas sobre el mismo egreso: una gana (200) y la otra recibe 409', async () => {
+    const { admin, ids } = await tiendaConEgresos();
+    const [a, b] = await Promise.all([
+      admin.agente.put(`/api/caja/egreso/${ids[0]}/aprobar`).set('X-CSRF-Token', admin.csrfToken),
+      admin.agente.put(`/api/caja/egreso/${ids[0]}/rechazar`).set('X-CSRF-Token', admin.csrfToken).send({ notas_admin: 'x' })
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect((await estadoDe(ids[0])).estado).toBe(a.status === 200 ? 'Aprobado' : 'Rechazado');
+  });
 });

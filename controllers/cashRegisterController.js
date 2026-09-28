@@ -192,11 +192,17 @@ class CashRegisterController {
             
             // Obtener datos del egreso (solo de esta tienda: P22-09) para notificar al tendero
             const egreso = /^\d+$/.test(id_egreso)
-                ? await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
+                ? await db.getAsync('SELECT id_usuario, monto, motivo, estado FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
                 : null;
             if (!egreso) return res.status(404).json({ error: 'Egreso no encontrado.' });
 
-            await CashRegister.approveExpense(id_egreso, admin_id, id_tienda);
+            if (egreso.estado !== 'Registrado') {
+                return res.status(409).json({ error: `Este egreso ya fue ${egreso.estado.toLowerCase()}; no se puede aprobar de nuevo.` });
+            }
+
+            const resultado = await CashRegister.approveExpense(id_egreso, admin_id, id_tienda);
+            // Otra petición pudo resolverlo entre el SELECT y el UPDATE: el UPDATE solo toca «Registrado».
+            if (resultado.changes === 0) return res.status(409).json({ error: 'Este egreso ya fue resuelto.' });
 
             // Notificar al tendero que registró el egreso
             if (egreso && egreso.id_usuario !== admin_id) {
@@ -230,11 +236,16 @@ class CashRegisterController {
             
             // Obtener datos del egreso (solo de esta tienda: P22-09) para notificar al tendero
             const egreso = /^\d+$/.test(id_egreso)
-                ? await db.getAsync('SELECT id_usuario, monto, motivo FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
+                ? await db.getAsync('SELECT id_usuario, monto, motivo, estado FROM EgresosCaja WHERE id_egreso = ? AND id_tienda = ?', [id_egreso, id_tienda])
                 : null;
             if (!egreso) return res.status(404).json({ error: 'Egreso no encontrado.' });
 
-            await CashRegister.rejectExpense(id_egreso, admin_id, id_tienda, notas_admin);
+            if (egreso.estado !== 'Registrado') {
+                return res.status(409).json({ error: `Este egreso ya fue ${egreso.estado.toLowerCase()}; no se puede rechazar.` });
+            }
+
+            const resultado = await CashRegister.rejectExpense(id_egreso, admin_id, id_tienda, notas_admin);
+            if (resultado.changes === 0) return res.status(409).json({ error: 'Este egreso ya fue resuelto.' });
 
             // Notificar al tendero que registró el egreso
             if (egreso && egreso.id_usuario !== admin_id) {
