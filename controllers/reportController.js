@@ -80,6 +80,7 @@ class ReportController {
             const reportId = req.params.id;
             const { titulo, descripcion, fecha_reporte, creador, tipo, fecha_inicio, fecha_fin, force } = req.body;
             const id_tienda = req.session.tiendaId; // Fix #19
+            if (!/^\d+$/.test(reportId)) return res.status(404).json({ success: false, error: "Reporte no encontrado" });
 
             // PRE-VALIDACION: Bloquear guardado si el rango de fechas no tiene datos
             let validationQuery = null;
@@ -113,7 +114,7 @@ class ReportController {
                 }
             }
 
-            const success = await Report.update(reportId, {
+            const success = await Report.update(reportId, id_tienda, {
                 titulo,
                 descripcion,
                 fecha_reporte,
@@ -137,7 +138,8 @@ class ReportController {
     static async deleteReport(req, res) {
         try {
             const reportId = req.params.id;
-            const success = await Report.delete(reportId);
+            if (!/^\d+$/.test(reportId)) return res.status(404).json({ success: false, error: "Reporte no encontrado" });
+            const success = await Report.delete(reportId, req.session.tiendaId);
 
             if (!success) {
                 return res.status(404).json({ success: false, error: "Reporte no encontrado" });
@@ -153,7 +155,8 @@ class ReportController {
     static async downloadReport(req, res) {
         try {
             const reportId = req.params.id;
-            const reporte = await Report.findById(reportId);
+            if (!/^\d+$/.test(reportId)) return res.status(404).json({ success: false, error: "Reporte no encontrado" });
+            const reporte = await Report.findById(reportId, req.session.tiendaId);
             
             if (!reporte) {
                 return res.status(404).json({ success: false, error: "Reporte no encontrado" });
