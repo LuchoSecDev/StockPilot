@@ -31,7 +31,6 @@ const reportRoutes = require('./routes/reportRoutes');
 const tenderoRoutes = require('./routes/tenderoRoutes');
 const cashRegisterRoutes = require('./routes/cashRegisterRoutes');
 const exportRoutes = require('./routes/exportRoutes');
-const seedRoutes = require('./routes/seedRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
@@ -179,7 +178,6 @@ app.use('/', saleRoutes);
 app.use('/', reportRoutes);
 app.use('/', tenderoRoutes);
 app.use('/', exportRoutes);
-app.use('/', seedRoutes);
 app.use('/', inventoryRoutes);
 app.use('/', ordenBorradorRoutes); // antes que supplierRoutes: /api/ordenes/borradores/resumen no debe caer en /api/ordenes/:ordenId
 app.use('/', supplierRoutes);
