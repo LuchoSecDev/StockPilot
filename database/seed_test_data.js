@@ -1,5 +1,17 @@
 // database/seed_test_data.js
 // Seeder de datos de prueba para PostgreSQL — Versión Monolito
+// SOLO como comando (`npm run seed`); no hay ruta HTTP. TRUNCATE de toda la base + admin/admin123.
+require('dotenv').config();
+const { evaluarGuardiaSemilla } = require('./guardiaSemilla');
+
+// La guardia va ANTES de cargar config/database.js: ese módulo se conecta y auto-migra apenas se
+// importa, contra cualquier DATABASE_URL, así que hay que negarse antes de tocarlo.
+const guardia = evaluarGuardiaSemilla(process.env.DATABASE_URL, { permitirBaseLocal: process.argv.includes('--base-local') });
+if (!guardia.ok) {
+    console.error(`❌ Semilla abortada: ${guardia.motivo}`);
+    process.exit(1);
+}
+
 const db = require('../config/database');
 const bcrypt = require('bcrypt');
 
