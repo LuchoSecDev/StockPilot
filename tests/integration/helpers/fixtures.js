@@ -82,7 +82,9 @@ async function crearProducto(overrides = {}) {
     stock_maximo: overrides.stock_maximo ?? 200,
     frecuencia_compra_dias: overrides.frecuencia_compra_dias ?? 7,
     stock_seguridad: overrides.stock_seguridad ?? 2,
-    lead_time: overrides.lead_time ?? 3
+    lead_time: overrides.lead_time ?? 3,
+    costo_compra: overrides.costo_compra ?? 500,
+    id_proveedor: overrides.id_proveedor ?? null
   });
   return id_producto;
 }
