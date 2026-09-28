@@ -28,6 +28,7 @@ async function agenteLogueado(overrides = {}) {
 }
 
 describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Administrador', () => {
+  // I0: invertir a 403 según la matriz de roles
   it('COMPORTAMIENTO ACTUAL, posible bug: un Tendero aprueba y rechaza egresos de su PROPIA tienda', async () => {
     const { agente, csrfToken, id_usuario } = await agenteLogueado({ rol: 'Tendero' });
     await agente.post('/api/caja/abrir').set('X-CSRF-Token', csrfToken).send({ monto_apertura: 50000 });
@@ -46,6 +47,8 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(estados.map(e => e.estado)).toEqual(['Aprobado', 'Rechazado']);
   });
 
+  // I0: invertir a 403 según la matriz de roles
+  // (además del rol, falta filtrar por id_tienda: entre tiendas debe dar 404/403, ver P22-09)
   it('COMPORTAMIENTO ACTUAL, posible bug: un Tendero aprueba un egreso de OTRA tienda (CashRegister.approveExpense no filtra por id_tienda)', async () => {
     const tiendaA = await agenteLogueado({ rol: 'Administrador' });
     await tiendaA.agente.post('/api/caja/abrir').set('X-CSRF-Token', tiendaA.csrfToken).send({ monto_apertura: 50000 });
@@ -62,6 +65,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(fila.aprobado_por).toBe(tiendaB.id_usuario); // aprobado por alguien de OTRA tienda
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede editar y eliminar un producto de su propia tienda (PUT/DELETE /api/productos/:id)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     const idProducto = await crearProducto({ id_tienda });
@@ -74,6 +78,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(eliminar.status).toBe(200);
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede aplicar una promoción manual (POST /api/promociones)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     const idProducto = await crearProducto({ id_tienda, precio: 1000 });
@@ -84,6 +89,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(res.body.success).toBe(true);
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede aplicar una estrategia de precio sugerida por IA (POST /api/ia/apply-strategy)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     const idProducto = await crearProducto({ id_tienda, precio: 1000 });
@@ -93,6 +99,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(res.status).toBe(200);
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede disparar la regeneración de alertas y resolver una (POST /api/alertas/generate, PATCH /api/alertas/:id/resolve)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     await crearProducto({ id_tienda, cantidad: 0, stock_minimo: 5, stock_seguridad: 5 });
@@ -106,6 +113,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(resolver.status).toBe(200);
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede registrar un ajuste de inventario por conteo físico (POST /api/inventario/ajuste)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     const idProducto = await crearProducto({ id_tienda, cantidad: 10 });
@@ -116,6 +124,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     await esperarTrabajoEnSegundoPlano(); // registerAdjustment dispara Alert.generate sin esperarlo
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede crear y descargar un reporte (POST /api/reportes)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
     await crearProducto({ id_tienda });
@@ -126,6 +135,7 @@ describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Admin
     expect(res.body.success).toBe(true);
   });
 
+  // I0: invertir a 403 según la matriz de roles
   it('un Tendero puede exportar las ventas de la tienda (POST /api/exportar/ventas)', async () => {
     const { agente, csrfToken, id_tienda, id_usuario } = await agenteLogueado({ rol: 'Tendero' });
     const idProducto = await crearProducto({ id_tienda, cantidad: 5, precio: 1000 });
