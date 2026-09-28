@@ -1,20 +1,22 @@
 /**
  * @file autorizacion_roles.test.js
- * @description Pruebas de caracterización (plan 21, R0, requisito 4 del usuario): fija lo que
- * responde HOY un Tendero (rol sin privilegios de administrador) contra endpoints que solo exigen
- * `requireLogin` — ninguno de estos tiene `requireAdmin`, aunque conceptualmente debería tenerlo.
- * Con esta tabla se arma la fase I0 del plan 22. No se corrige nada aquí, solo se registra el
- * comportamiento actual (casi siempre 200/éxito).
- *
- * Los egresos de caja (aprobar/rechazar) ya NO están aquí: se corrigieron en P22-09 y sus pruebas
- * (403 al Tendero, 404 entre tiendas) viven en el bloque «Egresos de caja» al final de este archivo.
+ * @description Matriz de roles (plan 22, P22-10, fase I0). En R0 estas pruebas fijaban lo que un
+ * Tendero podía hacer «hoy» (casi todo respondía 200); con las decisiones D1 a D4 de Luis se
+ * invirtieron:
+ *  - RUTAS SOLO DEL ADMINISTRADOR (tabla `SOLO_ADMIN`): el Tendero recibe 403 y no cambia nada en la
+ *    base; el Administrador NO recibe 403 (puede recibir 400/404 por datos incompletos).
+ *  - LO QUE EL TENDERO SÍ HACE: vincular código de barras, entrada de mercancía, resolver alertas y
+ *    solicitar un producto al administrador.
+ *  - EGRESOS DE CAJA (P22-09): aprobar/rechazar solo Administrador y solo de su tienda.
+ * Las rutas de tienda tienen su propia prueba (tienda_permisos.test.js), y reportes PUT/DELETE,
+ * feedback y test-summary están en aislamiento_reportes/feedback y alertas_test_summary.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../../app.js';
 import db from '../../config/database.js';
 import { limpiarBaseDePruebas } from './helpers/db.js';
-import { crearUsuario, crearProducto, abrirCaja } from './helpers/fixtures.js';
+import { crearUsuario, crearProducto } from './helpers/fixtures.js';
 import { iniciarSesion, obtenerCsrfToken } from './helpers/sesion.js';
 import { esperarTrabajoEnSegundoPlano } from './helpers/tiempo.js';
 
@@ -30,89 +32,112 @@ async function agenteLogueado(overrides = {}) {
   return { agente, csrfToken, ...datosUsuario };
 }
 
-describe('Autorización por rol: lo que un Tendero puede hacer hoy sin ser Administrador', () => {
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede editar y eliminar un producto de su propia tienda (PUT/DELETE /api/productos/:id)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    const idProducto = await crearProducto({ id_tienda });
+/** Un Administrador y un Tendero de la MISMA tienda, con un producto. */
+async function tienda() {
+  const admin = await agenteLogueado({ rol: 'Administrador' });
+  const tendero = await agenteLogueado({ rol: 'Tendero', id_tienda: admin.id_tienda });
+  const idProducto = await crearProducto({ id_tienda: admin.id_tienda, precio: 1000, cantidad: 10 });
+  return { admin, tendero, idProducto };
+}
 
-    const editar = await agente.put(`/api/productos/${idProducto}`).set('X-CSRF-Token', csrfToken)
-      .send({ codigo: 'X', nombre_producto: 'Editado por Tendero', categoria: 'X', precio: 1, cantidad: 1, stock_minimo: 1 });
-    expect(editar.status).toBe(200);
+// Foto de las tablas que estas rutas podrían tocar: si un 403 es real, no cambia nada.
+async function foto() {
+  const cuenta = async (t) => Number((await db.getAsync(`SELECT COUNT(*) AS n FROM ${t}`)).n);
+  return {
+    productos: await db.allAsync('SELECT id_producto, nombre_producto, precio, cantidad, estado FROM Productos ORDER BY id_producto'),
+    promociones: await cuenta('promociones_manuales'),
+    reportes: await cuenta('reportes'),
+    movimientos: await cuenta('movimientosstock'),
+    clientes: await cuenta('clientes'),
+    abonos: await cuenta('abonos'),
+    alertas: await cuenta('alertas')
+  };
+}
 
-    const eliminar = await agente.delete(`/api/productos/${idProducto}`).set('X-CSRF-Token', csrfToken);
-    expect(eliminar.status).toBe(200);
+// Rutas que la matriz reserva al Administrador (D1 a D4 de Luis, 28-sep-2026).
+const cuerpoProducto = { codigo: 'NUEVO-1', nombre_producto: 'Producto nuevo', categoria: 'General', precio: 1000, cantidad: 5, stock_minimo: 1 };
+const SOLO_ADMIN = [
+  { etiqueta: 'POST /api/productos/bulk (carga masiva)', ruta: () => ['post', '/api/productos/bulk'] },
+  { etiqueta: 'POST /api/productos/admin (crear producto)', ruta: () => ['post', '/api/productos/admin', cuerpoProducto] },
+  { etiqueta: 'PUT /api/productos/:id (editar)', ruta: (c) => ['put', `/api/productos/${c.idProducto}`, { ...cuerpoProducto, codigo: 'EDIT-1', nombre_producto: 'Editado por Tendero', precio: 1 }] },
+  { etiqueta: 'PUT /api/productos/inhabilitar/:id', ruta: (c) => ['put', `/api/productos/inhabilitar/${c.idProducto}`] },
+  { etiqueta: 'PUT /api/productos/habilitar/:id', ruta: (c) => ['put', `/api/productos/habilitar/${c.idProducto}`] },
+  { etiqueta: 'DELETE /api/productos/:id', ruta: (c) => ['delete', `/api/productos/${c.idProducto}`] },
+  { etiqueta: 'POST /api/promociones', ruta: (c) => ['post', '/api/promociones', { id_producto: c.idProducto, descuento_porcentaje: 10, motivo: 'Liquidación decidida por el Tendero' }] },
+  { etiqueta: 'POST /api/inventario/salida', ruta: (c) => ['post', '/api/inventario/salida', { id_producto: c.idProducto, cantidad: 2, observacion: 'Salida manual' }] },
+  { etiqueta: 'POST /api/inventario/ajuste', ruta: (c) => ['post', '/api/inventario/ajuste', { id_producto: c.idProducto, cantidad: -3, observacion: 'Conteo físico' }] },
+  { etiqueta: 'POST /api/alertas/generate', ruta: () => ['post', '/api/alertas/generate'] },
+  { etiqueta: 'POST /api/reportes', ruta: () => ['post', '/api/reportes', { titulo: 'Reporte de Tendero', descripcion: 'x', fecha_reporte: '2026-01-01', creador: 'Tendero', tipo: 'Inventario' }] },
+  { etiqueta: 'POST /api/exportar/ventas', ruta: () => ['post', '/api/exportar/ventas'] },
+  { etiqueta: 'POST /api/exportar/reportes', ruta: () => ['post', '/api/exportar/reportes'] },
+  { etiqueta: 'POST /api/ia/apply-strategy', ruta: (c) => ['post', '/api/ia/apply-strategy', { id_producto: c.idProducto, nuevo_precio: 800, duration_days: 7, razon: 'Decidido por el Tendero' }] },
+  { etiqueta: 'POST /api/clientes', ruta: () => ['post', '/api/clientes', { nombre: 'Cliente de prueba', telefono: '3000000000' }] },
+  { etiqueta: 'POST /api/clientes/:id/abonos', ruta: () => ['post', '/api/clientes/999999/abonos', { monto: 1000 }] }
+];
+
+describe('Matriz de roles (P22-10, I0): rutas solo del Administrador', () => {
+  it.each(SOLO_ADMIN)('Tendero → $etiqueta: 403 y no cambia nada', async ({ ruta }) => {
+    const ctx = await tienda();
+    const [metodo, url, cuerpo] = ruta(ctx);
+    const antes = await foto();
+
+    const res = await ctx.tendero.agente[metodo](url).set('X-CSRF-Token', ctx.tendero.csrfToken).send(cuerpo);
+    expect(res.status).toBe(403);
+    expect(await foto()).toEqual(antes);
   });
 
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede aplicar una promoción manual (POST /api/promociones)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    const idProducto = await crearProducto({ id_tienda, precio: 1000 });
+  it.each(SOLO_ADMIN)('Administrador → $etiqueta: la ruta le responde (no 401/403)', async ({ ruta }) => {
+    const ctx = await tienda();
+    const [metodo, url, cuerpo] = ruta(ctx);
 
-    const res = await agente.post('/api/promociones').set('X-CSRF-Token', csrfToken)
-      .send({ id_producto: idProducto, descuento_porcentaje: 10, motivo: 'Liquidación decidida por el Tendero' });
+    const res = await ctx.admin.agente[metodo](url).set('X-CSRF-Token', ctx.admin.csrfToken).send(cuerpo);
+    expect([401, 403]).not.toContain(res.status);
+    await esperarTrabajoEnSegundoPlano(); // varias rutas regeneran alertas sin esperarlas
+  });
+});
+
+describe('Matriz de roles (P22-10, I0): lo que el Tendero SÍ puede hacer', () => {
+  it('vincular un código de barras a un producto (PUT /api/productos/:id/link-barcode)', async () => {
+    const { tendero, idProducto } = await tienda();
+    const res = await tendero.agente.put(`/api/productos/${idProducto}/link-barcode`).set('X-CSRF-Token', tendero.csrfToken)
+      .send({ codigo_barras: '7701234567890' });
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect((await db.getAsync('SELECT codigo_barras FROM Productos WHERE id_producto = ?', [idProducto])).codigo_barras).toBe('7701234567890');
   });
 
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede aplicar una estrategia de precio sugerida por IA (POST /api/ia/apply-strategy)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    const idProducto = await crearProducto({ id_tienda, precio: 1000 });
-
-    const res = await agente.post('/api/ia/apply-strategy').set('X-CSRF-Token', csrfToken)
-      .send({ id_producto: idProducto, nuevo_precio: 800, duration_days: 7, razon: 'Decidido por el Tendero' });
+  it('registrar una entrada de mercancía (POST /api/inventario/entrada): suma stock y deja el movimiento', async () => {
+    const { tendero, idProducto } = await tienda();
+    const res = await tendero.agente.post('/api/inventario/entrada').set('X-CSRF-Token', tendero.csrfToken)
+      .send({ id_producto: idProducto, cantidad: 4, observacion: 'Recepción de mercancía' });
     expect(res.status).toBe(200);
+    await esperarTrabajoEnSegundoPlano(); // registerEntry dispara Alert.generate sin esperarlo
+    expect(Number((await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto])).cantidad)).toBe(14);
+    expect(Number((await db.getAsync('SELECT COUNT(*) AS n FROM MovimientosStock')).n)).toBeGreaterThan(0);
   });
 
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede disparar la regeneración de alertas y resolver una (POST /api/alertas/generate, PATCH /api/alertas/:id/resolve)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    await crearProducto({ id_tienda, cantidad: 0, stock_minimo: 5, stock_seguridad: 5 });
-
-    const generar = await agente.post('/api/alertas/generate').set('X-CSRF-Token', csrfToken);
+  it('resolver una alerta (PATCH /api/alertas/:id/resolve), generada por el Administrador', async () => {
+    const { admin, tendero } = await tienda();
+    await crearProducto({ id_tienda: admin.id_tienda, cantidad: 0, stock_minimo: 5, stock_seguridad: 5 });
+    const generar = await admin.agente.post('/api/alertas/generate').set('X-CSRF-Token', admin.csrfToken);
     expect(generar.status).toBe(200);
-    expect(generar.body.generadas).toBeGreaterThan(0);
 
-    const alerta = await db.getAsync('SELECT id_alerta FROM Alertas WHERE id_tienda = ? LIMIT 1', [id_tienda]);
-    const resolver = await agente.patch(`/api/alertas/${alerta.id_alerta}/resolve`).set('X-CSRF-Token', csrfToken);
+    const alerta = await db.getAsync('SELECT id_alerta FROM Alertas WHERE id_tienda = ? LIMIT 1', [admin.id_tienda]);
+    const resolver = await tendero.agente.patch(`/api/alertas/${alerta.id_alerta}/resolve`).set('X-CSRF-Token', tendero.csrfToken);
     expect(resolver.status).toBe(200);
+    expect(Number((await db.getAsync('SELECT resuelta FROM Alertas WHERE id_alerta = ?', [alerta.id_alerta])).resuelta)).toBe(1);
   });
 
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede registrar un ajuste de inventario por conteo físico (POST /api/inventario/ajuste)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    const idProducto = await crearProducto({ id_tienda, cantidad: 10 });
+  it('solicitar un producto al administrador (POST /api/ordenes/borrador/solicitar)', async () => {
+    const { admin, tendero } = await tienda();
+    const prov = await db.runAsync("INSERT INTO Proveedores (id_tienda, nombre_empresa) VALUES (?, 'Proveedor de prueba') RETURNING id_proveedor", [admin.id_tienda]);
+    const idProducto = await crearProducto({ id_tienda: admin.id_tienda, id_proveedor: prov.lastID });
 
-    const res = await agente.post('/api/inventario/ajuste').set('X-CSRF-Token', csrfToken)
-      .send({ id_producto: idProducto, cantidad: -3, observacion: 'Conteo físico del Tendero' });
-    expect(res.status).toBe(200);
-    await esperarTrabajoEnSegundoPlano(); // registerAdjustment dispara Alert.generate sin esperarlo
-  });
-
-  // I0: invertir a 403 según la matriz de roles
-  // (PUT/DELETE de reportes ya son solo Administrador desde la rama de C1; aquí sigue POST)
-  it('un Tendero puede crear y descargar un reporte (POST /api/reportes)', async () => {
-    const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Tendero' });
-    await crearProducto({ id_tienda });
-
-    const res = await agente.post('/api/reportes').set('X-CSRF-Token', csrfToken)
-      .send({ titulo: 'Reporte de Tendero', descripcion: 'x', fecha_reporte: '2026-01-01', creador: 'Tendero', tipo: 'Inventario' });
+    const res = await tendero.agente.post('/api/ordenes/borrador/solicitar').set('X-CSRF-Token', tendero.csrfToken)
+      .send({ id_producto: idProducto, cantidad: 5 });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-  });
-
-  // I0: invertir a 403 según la matriz de roles
-  it('un Tendero puede exportar las ventas de la tienda (POST /api/exportar/ventas)', async () => {
-    const { agente, csrfToken, id_tienda, id_usuario } = await agenteLogueado({ rol: 'Tendero' });
-    const idProducto = await crearProducto({ id_tienda, cantidad: 5, precio: 1000 });
-    await abrirCaja(id_tienda, id_usuario);
-    await agente.post('/api/registrar-venta').set('X-CSRF-Token', csrfToken).send({ id_producto: idProducto, cantidad: 1 });
-    await esperarTrabajoEnSegundoPlano(); // registerSale también dispara trabajo en segundo plano sin esperarlo
-
-    const res = await agente.post('/api/exportar/ventas').set('X-CSRF-Token', csrfToken);
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    const detalle = await db.getAsync('SELECT solicitado_por FROM Ordenes_Detalle WHERE id_producto = ?', [idProducto]);
+    expect(detalle.solicitado_por).toBe(tendero.id_usuario);
   });
 });
 

@@ -6,7 +6,7 @@ const alertController = require('../controllers/alertController');
 
 const { requireLogin, requireAdmin } = require('../middleware/auth');
 
-router.post('/generate', requireLogin, alertController.generateAlerts);
+router.post('/generate', requireLogin, requireAdmin, alertController.generateAlerts);
 router.get('/dry-run', requireLogin, requireAdmin, alertController.dryRun);
 router.get('/', requireLogin, alertController.getActiveAlerts);
 router.get('/stats', requireLogin, alertController.getStats);

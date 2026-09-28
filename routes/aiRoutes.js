@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
-const { requireLogin } = require('../middleware/auth');
+const { requireLogin, requireAdmin } = require('../middleware/auth');
 
 // --- MOTOR ANALÍTICO (MATEMÁTICAS) ---
 // Snapshot analítico: Velocidad de Venta y Clasificación Pareto
@@ -15,7 +15,7 @@ router.get('/recommendations', requireLogin, aiController.getDashboardRecommenda
 router.get('/promotions', requireLogin, aiController.getPromotionSuggestions);
 
 // Aplicar estrategia sugerida (Actualización de Inventario)
-router.post('/apply-strategy', requireLogin, aiController.applyPromotionStrategy);
+router.post('/apply-strategy', requireLogin, requireAdmin, aiController.applyPromotionStrategy);
 
 // --- AUDITORÍA Y TENDENCIAS ---
 // Sugerencia dinámica de stock mínimo y de seguridad (Asistente IA)

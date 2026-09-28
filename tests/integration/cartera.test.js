@@ -57,32 +57,36 @@ describe('Cartera (clientes fiados)', () => {
   });
 
   it('flujo completo: venta fiada crea deuda, un abono parcial la reduce (saldo_pendiente correcto en todo momento)', async () => {
-    const { agente, csrfToken, id_tienda, id_usuario } = await agenteLogueado({ rol: 'Tendero' });
+    // Matriz de roles (P22-10, D4): crear clientes y registrar abonos es solo del Administrador; el
+    // Tendero sigue vendiendo fiado (POST /api/registrar-venta) a un cliente ya creado.
+    const admin = await agenteLogueado();
+    const tendero = await agenteLogueado({ rol: 'Tendero', id_tienda: admin.id_tienda });
+    const { id_tienda } = admin;
     const id_producto = await crearProducto({ id_tienda, cantidad: 10, precio: 5000 });
-    await abrirCaja(id_tienda, id_usuario);
+    await abrirCaja(id_tienda, tendero.id_usuario);
 
-    const cliente = await agente.post('/api/clientes').set('X-CSRF-Token', csrfToken).send({ nombre: 'Cliente Fiado', limite_credito: 50000 });
+    const cliente = await admin.agente.post('/api/clientes').set('X-CSRF-Token', admin.csrfToken).send({ nombre: 'Cliente Fiado', limite_credito: 50000 });
     const id_cliente = cliente.body.cliente.id_cliente;
 
     // Venta fiada de 2 unidades a $5.000 = $10.000 de deuda.
-    const venta = await agente.post('/api/registrar-venta').set('X-CSRF-Token', csrfToken)
+    const venta = await tendero.agente.post('/api/registrar-venta').set('X-CSRF-Token', tendero.csrfToken)
       .send({ id_producto, cantidad: 2, metodo_pago: 'Fiado', id_cliente });
     expect(venta.status).toBe(200);
 
-    const detalleTrasVenta = await agente.get(`/api/clientes/${id_cliente}`);
+    const detalleTrasVenta = await admin.agente.get(`/api/clientes/${id_cliente}`);
     expect(detalleTrasVenta.body.cliente.saldo_pendiente).toBe(10000);
     expect(detalleTrasVenta.body.cliente.historial_ventas.length).toBe(1);
 
     // Abono parcial de $4.000.
-    const abono = await agente.post(`/api/clientes/${id_cliente}/abonos`).set('X-CSRF-Token', csrfToken)
+    const abono = await admin.agente.post(`/api/clientes/${id_cliente}/abonos`).set('X-CSRF-Token', admin.csrfToken)
       .send({ monto: 4000, metodo_pago: 'Efectivo' });
     expect(abono.status).toBe(200);
 
-    const detalleTrasAbono = await agente.get(`/api/clientes/${id_cliente}`);
+    const detalleTrasAbono = await admin.agente.get(`/api/clientes/${id_cliente}`);
     expect(detalleTrasAbono.body.cliente.saldo_pendiente).toBe(6000);
     expect(detalleTrasAbono.body.cliente.historial_abonos.length).toBe(1);
 
-    const listado = await agente.get('/api/clientes');
+    const listado = await admin.agente.get('/api/clientes');
     expect(listado.body.clientes[0].saldo_pendiente).toBe(6000);
   });
 
