@@ -57,13 +57,12 @@ const validateFileType = async (req, res, next) => {
 router.get('/api/productos', requireLogin, ProductController.getProducts);
 router.get('/api/productos/:id', requireLogin, ProductController.getProduct);
 router.get('/api/productos/barcode/:code', requireLogin, ProductController.getByBarcode);
-// Matriz de roles (P22-10, I0): link-barcode y agregar/:id los puede usar el Tendero (recibir mercancía);
+// Matriz de roles (P22-10, I0): link-barcode lo puede usar el Tendero (recibir mercancía);
 // crear, editar, borrar, pausar, promociones y carga masiva son solo del Administrador.
 router.put('/api/productos/:id/link-barcode', requireLogin, sanitizeBody, ProductController.linkBarcode);
 router.post('/api/productos/bulk', requireLogin, requireAdmin, upload.single('file'), validateFileType, ProductController.bulkUpload);
 router.post('/api/productos/admin', requireLogin, requireAdmin, sanitizeBody, validateProduct, ProductController.createProduct);
 router.put('/api/productos/:id', requireLogin, requireAdmin, sanitizeBody, validateProduct, ProductController.updateProduct);
-router.put('/api/productos/agregar/:id', requireLogin, sanitizeBody, ProductController.addStock);
 router.put('/api/productos/inhabilitar/:id', requireLogin, requireAdmin, ProductController.toggleProductStatus);
 router.put('/api/productos/habilitar/:id', requireLogin, requireAdmin, ProductController.toggleProductStatus);
 router.post('/api/promociones', requireLogin, requireAdmin, sanitizeBody, ProductController.applyManualPromotion);

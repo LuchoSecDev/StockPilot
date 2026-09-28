@@ -347,35 +347,6 @@ class ProductController {
         }
     }
 
-    static async addStock(req, res) {
-        try {
-            const productId = req.params.id;
-            const tiendaId = req.session.tiendaId;
-            const { cantidad } = req.body;
-
-            // 🛡️ IDOR: Verificar propiedad
-            const ownership = await verifyProductOwnership(productId, tiendaId);
-            if (!ownership) {
-                return res.status(404).json({ success: false, error: 'Producto no encontrado' });
-            }
-
-            const success = await Product.addStock(productId, parseInt(cantidad));
-            
-            if (!success) {
-                return res.status(404).json({ success: false, error: 'Producto no encontrado' });
-            }
-
-            // Plan 17, Fase 4 (hallazgo O2): recibir mercancía por esta vía también cambia el nivel de
-            // stock. Fire-and-forget, igual que tras una venta.
-            Alert.generate(tiendaId).catch(e => console.error('Error regenerando alertas post-stock:', e));
-
-            res.json({ success: true, message: "Stock agregado correctamente" });
-        } catch (error) {
-            console.error('Error agregando stock:', error);
-            res.status(500).json({ success: false, error: safeError(error, 'Error al agregar stock') });
-        }
-    }
-
     static async getByBarcode(req, res) {
         try {
             const barcode = req.params.code;

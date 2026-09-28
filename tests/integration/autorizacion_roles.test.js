@@ -141,6 +141,15 @@ describe('Matriz de roles (P22-10, I0): lo que el Tendero SÍ puede hacer', () =
   });
 });
 
+describe('Rutas eliminadas', () => {
+  it('PUT /api/productos/agregar/:id ya no existe (sumaba stock sin dejar movimiento y sin validar el signo)', async () => {
+    const { admin, idProducto } = await tienda();
+    const res = await admin.agente.put(`/api/productos/agregar/${idProducto}`).set('X-CSRF-Token', admin.csrfToken).send({ cantidad: 5 });
+    expect(res.status).toBe(404);
+    expect(Number((await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto])).cantidad)).toBe(10);
+  });
+});
+
 describe('Egresos de caja: aprobar y rechazar (P22-09, corregido)', () => {
   // Un Administrador y un Tendero de la MISMA tienda; el Tendero registra dos egresos.
   async function tiendaConEgresos() {
