@@ -1,6 +1,6 @@
 # Plan 21: Refactorización por capas y alertas en tiempo real
 
-**Estado:** R0 implementada y en verde (rama `test/plan21-r0-caracterizacion`, sin mezclar a `main` — ver resultados en la sección R0 más abajo). R1-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
+**Estado (3-oct-2026):** R0 terminada y mezclada en `main` el 28-sep (ver resultados en la sección R0). R1-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
 **Orden de ejecución:** este plan dice *qué* se hace en cada fase y *por qué*. *Cuándo* se hace cada una está en el **plan 22, sección 5**, que es el único orden vigente para los planes 19, 21 y 22. La sección 6 de este plan solo recoge las dependencias entre fases. No todo el plan se hace antes del piloto: lo que queda para después está programado, no descartado.
 **Fecha:** 2026-09-27
 **Origen:**
@@ -86,7 +86,7 @@ Pruebas de integración con `supertest` contra `stockpilot_test`, siguiendo el p
 
 **Criterio de salida:** los endpoints de la tabla quedan con prueba y la suite de integración sigue en verde.
 
-#### R0 — Resultados (rama `test/plan21-r0-caracterizacion`, sin mezclar a `main`)
+#### R0 — Resultados (rama `test/plan21-r0-caracterizacion`, mezclada en `main` el 28-sep)
 
 **Pruebas nuevas:** 50 en 6 archivos de `tests/integration/` (48 de caracterización + 2 de guardia),
 sin tocar código de producción. Toda esta fase es **P21-01**.
@@ -97,7 +97,7 @@ sin tocar código de producción. Toda esta fase es **P21-01**.
 | Proveedores (orden IA, aprobar, recibir, borrador consejero) | `proveedores_flujo.test.js` | 12 |
 | Autenticación (2FA, restablecer, cambiar contraseña) | `autenticacion_flujos.test.js` | 15 |
 | Productos (carga masiva .xlsx real y .csv) | `productos_carga_masiva.test.js` | 8 |
-| Autorización por rol (Tendero sin `requireAdmin`; los 9 casos llevan `// I0: invertir a 403 según la matriz de roles`) | `autorizacion_roles.test.js` | 9 |
+| Autorización por rol (Tendero sin `requireAdmin`; los 9 casos llevaban `// I0: invertir a 403 según la matriz de roles`; en I0 se reemplazaron por una tabla de 16 rutas, ver plan 22, 1.4) | `autorizacion_roles.test.js` | 9 |
 | Guardia del reinicio de limitadores | `limitadores_reinicio.test.js` | 2 |
 
 **Corridas:** suite de integración (13 archivos, 97 pruebas: 47 preexistentes + 50 nuevas) corrida
@@ -302,23 +302,25 @@ services/
 
 ## 6. Dependencias entre fases y tramo de cada una
 
-El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. Esta sección solo dice qué depende de qué dentro del plan 21 y en qué tramo cae cada fase respecto al piloto. Reemplaza el "orden sugerido" del 27-sep, que trataba el plan 21 como si fuera lo único pendiente y no tenía en cuenta el plan 22, los hallazgos de R0 ni el congelamiento del piloto.
+El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. Esta sección solo dice qué depende de qué dentro del plan 21 y en qué tramo cae cada fase respecto al piloto.
+
+**Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) para la visita a las tiendas piloto. Eso cambia el tramo de tres filas: la app reemplaza al modo básico web antes del piloto, así que **R3.1 ya no va antes del piloto**; **R1 pasa a después del piloto**, salvo que la fecha del Sprint 6.3 lo exija antes, y el tiempo real (T1 y T2) **se replantea**, porque para una app nativa lo natural son notificaciones push y no SSE.
 
 | Fase | Requiere | Tramo | Motivo |
 |---|---|---|---|
-| **R0** | — | Hecha (rama `test/plan21-r0-caracterizacion`, falta el merge) | Red de seguridad de todo lo demás. |
-| **Correcciones de R0** (P21-09 y P21-13 juntas, mismo archivo; P21-10 cuando se decida la regla) | R0 | Antes del piloto | Cambian el comportamiento a propósito, así que no van dentro de un refactor (sección 3): cada una en su commit, con su prueba. |
-| **R1** | R0 | Antes del piloto, sin bloquearlo | Es la base del `ia-service` del Sprint 6.3. Si el tiempo no alcanza, se desarrolla en rama durante el piloto. |
-| **R2, solo `caja.js`** (punto 2.4) | R0 | Antes del piloto (adelantado) | Una doble apertura de caja dañaría los arqueos, que son datos del piloto. Es pequeño y ya tiene el patrón de la venta. |
-| **R3.1** (`DashboardPage`) | Una prueba E2E o de componente que fije el Dashboard actual | Antes del piloto | El modo básico (plan 19, 3.4) toca los mismos archivos; hacerlo después evita pelear con ellos (nota de R3). |
-| **R4, solo migración explícita** (punto 2.2) | — | Antes del piloto (recomendado, decisión 4) | Con datos reales en producción, una auto-migración en cada `require` es un riesgo que no conviene llevar al piloto. |
+| **R0** | — | Hecha (mezclada en `main` el 28-sep) | Red de seguridad de todo lo demás. |
+| **P21-09 y P21-13** (limitador de `verify-reset-code` y `skip` de `globalLimiter`) | R0 | Antes de la visita, en la rama del backend para la app | La app usa esas rutas de autenticación. Cambian el comportamiento a propósito, así que no van dentro de un refactor (sección 3): cada una en su commit, con su prueba. |
+| **R2, solo `caja.js`** (punto 2.4) | R0 | Antes de la visita, en la rama del backend para la app | La app abre y cierra caja; una doble apertura dañaría los arqueos, que son datos del piloto. |
+| **P21-10** (recepción sin tope) | R0 | Antes del arranque del piloto, cuando se decida la regla (decisión 5) | La app recibe mercancía. |
+| **R4, solo migración explícita** (punto 2.2) | — | Antes del arranque del piloto (recomendado, decisión 4) | Con datos reales en producción, una auto-migración en cada `require` es un riesgo que no conviene llevar al piloto. |
+| **R1** | R0 | Después del piloto, salvo que el Sprint 6.3 lo exija antes | La app no lo necesita; es la base del `ia-service`. |
 | **R2** (resto) | R0 | Después del piloto; en rama durante | Toca ventas, inventario y alertas, justo lo que mide el piloto. |
-| **T1 + T2 y sus pruebas (T4)** | R2 (`eventosInventario`) | Después del piloto; en rama durante | Para medir activación y adopción basta la consulta periódica actual (1 a 5 minutos). |
-| **R3.2 a R3.4** | R3.1 | Después del piloto | Sin relación con los indicadores del piloto. |
+| **T1 + T2 y sus pruebas (T4)** | R2 (`eventosInventario`) | Después del piloto, **replanteado** | Para la app nativa, las alertas en tiempo real se entregan con notificaciones push; SSE sigue sirviendo para la web. Para medir activación y adopción basta la consulta periódica actual. |
+| **R3.1 a R3.4** | Una prueba E2E o de componente que fije cada página (hoy 7 de 11 E2E están desactualizados, ver `docs/hallazgo_e2e_desactualizados.md`) | Después del piloto | Con la app nativa, el modo básico web deja de ir antes del piloto, y con él la razón para adelantar R3.1. |
 | **T3** | T1 + T2 y el worker del Sprint 6.2 (punto 2.3) | Con el Sprint 6 de Bases de Datos Avanzadas | Si el Sprint 6 cae durante el piloto, se trabaja en rama y se muestra en Docker, sin desplegar. |
 | **R4** (resto, incluido P21-12) | R1 a R3 | Después del piloto | Limpieza. |
 
-**Congelar durante el piloto significa no desplegar a producción**, salvo correcciones de errores con su prueba. El desarrollo sigue en ramas, así que el plan 21 avanza aunque el piloto esté en curso.
+**Congelar durante el piloto significa no desplegar a producción ni publicar versiones nuevas de la app**, salvo correcciones de errores con su prueba. El desarrollo sigue en ramas.
 
 ---
 

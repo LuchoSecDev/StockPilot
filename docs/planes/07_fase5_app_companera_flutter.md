@@ -46,3 +46,37 @@ La App Compañera debería incluir únicamente los siguientes módulos para mant
 ## 5. Recomendación Hardware vs Software
 - **Para PC de Escritorio/Caja:** Se recomienda seguir utilizando la Plataforma Web actual junto a una pistola láser física conectada por USB.
 - **Para Movilidad en Tienda:** Se recomienda migrar a la App Compañera en Flutter instalada en smartphones o terminales POS Android (ej. Sunmi, Honeywell).
+
+---
+
+## 6. Actualización (3-oct-2026): la app se adelanta para la visita a las tiendas piloto
+
+**Estado:** en construcción por el equipo, en un repositorio aparte. El orden general está en el plan 22, sección 5.
+
+### 6.1 Por qué se adelanta
+El equipo decidió llevar la app a la visita a las tiendas piloto (semana del 5 de octubre). La visita no es el arranque del piloto: allí se hace la presentación, la autorización de datos, la línea base y la prueba de usabilidad (fase 4) con una versión de prueba. El arranque se programa después con cada dueño, con la app ya corregida.
+
+La app del Tendero cubre casi las mismas vistas que el modo básico web (plan 19, 3.4), así que ese modo deja de construirse antes del piloto.
+
+### 6.2 Alcance de la versión para el piloto
+Todo usa endpoints que ya existen y que, después de I0 (plan 22, 1.4), el Tendero puede usar.
+
+| Función | Endpoints | Notas |
+|---|---|---|
+| Iniciar sesión | `GET /api/csrf-token`, `POST /api/login`, `POST /api/2fa/verify` | El Administrador (casi siempre el dueño) tiene segundo factor obligatorio: la app necesita la pantalla del código. La configuración inicial del segundo factor se hace en la web, durante la visita. |
+| Vender | `POST /api/registrar-venta-carrito`, `GET /api/productos/barcode/:code` | Escáner, carrito y método de pago. **Incluye fiado a un cliente existente** (`GET /api/clientes`); crear clientes y registrar abonos es solo del Administrador (decisión D4). |
+| Caja | `GET /api/caja/sesion`, `POST /api/caja/abrir`, `POST /api/caja/cerrar`, `POST /api/caja/egreso` | Sin el registro de egresos, cada gasto de caja chica aparece como faltante en el cierre. |
+| Recibir mercancía | `POST /api/inventario/entrada` | Sin esto el stock solo baja y las alertas y el consejero de IA trabajan con datos falsos. Deja el movimiento en el Kardex. |
+| Alertas | `GET /api/alertas`, `PATCH /api/alertas/:id/resolve` | |
+| Catálogo y consulta | `GET /api/productos`, `PUT /api/productos/:id/link-barcode` | Al principio muchos productos no tendrán el código de barras asociado. |
+| Recomendables | `POST /api/ordenes/borrador/solicitar`, ventas del turno, `/api/notificaciones` | Si alcanza el tiempo. |
+
+**Se queda en la web (Administrador):** crear o editar productos y precios, proveedores, reportes, estrategias de IA, cartera y abonos, y usuarios.
+
+**Requisitos que no son pantallas:** enviar el token CSRF en cada escritura, como la web; no perder el carrito si falla la red; mostrar «conectando…» mientras el servidor despierta (Render gratuito se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en volver).
+
+### 6.3 Decisiones técnicas
+- **Flutter, un solo código para Android e iPhone.** Para la visita y el piloto se distribuye **solo en Android**, como APK o por prueba interna de Google Play. Publicar en la tienda exige, para una cuenta personal nueva, una prueba cerrada de 12 personas durante 14 días. iPhone queda para después: compilar requiere un Mac, y entregar la app a otras personas (TestFlight) requiere la membresía de pago de Apple.
+- **Repositorio aparte.** Lo construye otra parte del equipo, con otro lenguaje y otras herramientas, y sus commits no deben disparar despliegues del backend en Render. Para que la app y la API no se desincronicen, **el contrato vive en el repositorio del backend** (`docs/contrato_api_app_tendero.md`), con una prueba de integración por endpoint. Cualquier cambio de la API que afecte a la app se acuerda primero ahí.
+- **Sesión por canal.** Hoy el Tendero solo puede tener una sesión abierta. La app enviará `X-Canal: app` al iniciar sesión, y el backend permitirá **una sesión en la web y una en la app al mismo tiempo**, manteniendo el bloqueo de un segundo inicio de sesión dentro del mismo canal. El mismo dato llena `Ventas.canal`, para medir la adopción por canal en el piloto.
+- **Congelamiento:** durante las 6 semanas del piloto no se publican versiones nuevas de la app, salvo correcciones de errores.

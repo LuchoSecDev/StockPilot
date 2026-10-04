@@ -1,6 +1,6 @@
 # Plan 22: Panel interno del equipo y funciones liberables por tienda
 
-**Estado:** I0 en progreso: la rama `fix/rutas-tienda-requireadmin` (solo las rutas de tienda) espera aprobación, y el 28-sep I0 se amplió a una auditoría de autorización completa (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
+**Estado (3-oct-2026):** I0 terminada y en producción (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
 **La sección 5 es el único orden de ejecución vigente** para los planes 19, 21 y 22.
 **Fecha:** 2026-09-28
 **Origen:** decisión de Luis (28-sep) de tener, antes del piloto, un panel del equipo para:
@@ -62,6 +62,19 @@ Esto se verificó leyendo el código; no se ejecutó.
 No todo lo segundo es un defecto: resolver una alerta o registrar un conteo físico pueden ser tareas normales del Tendero. Por eso I0 empieza con una decisión (P22-10, sección 7): la matriz rol × endpoint. Los 9 casos de la prueba llevan la marca `// I0: invertir a 403 según la matriz de roles`; solo se invierten los que la matriz indique.
 
 **Arreglo:** agregar `requireAdmin` a ambas rutas, más una prueba de integración con una sesión de Tendero que espere 403 en las dos. Va primero (fase I0) porque el piloto pondrá cuentas de Tendero reales en uso.
+
+**Estado (3-oct-2026): I0 terminada, mezclada en `main` y desplegada.** Lo que se corrigió, cada punto con sus pruebas de integración:
+- Rutas de tienda con `requireAdmin` (hallazgo 1.4).
+- **P22-09:** aprobar y rechazar egresos solo el Administrador y solo de su tienda; además, solo desde el estado «Registrado» (409 en otro caso), porque el arqueo suma todo egreso que no esté «Rechazado».
+- **Matriz de roles (P22-10):** decisiones D1 a D4 = solo Administrador (sección 7, decisión 6; detalle en `docs/propuesta_matriz_roles_P22-10.md`). `requireAdmin` en 16 rutas. En la interfaz, el Tendero que escanea un producto existente solo puede sumar stock, y ya no ve exportar ventas ni «Activar Oferta».
+
+Hallazgos encontrados durante I0, también corregidos y desplegados:
+- **Semilla en producción (crítico):** `POST /api/admin/seed` vaciaba **todas** las tablas de todas las tiendas y creaba `admin/admin123`, y cualquier persona registrada podía llamarla, porque el registro crea Administradores. Se eliminó la ruta; la semilla solo corre como comando y con una guardia que exige base local.
+- **C1:** reportes editables y borrables entre tiendas. **C2:** evaluación de IA de órdenes de otra tienda, con fuga de nombres y ventas de productos. **C3:** `alertas/test-summary` sin `requireAdmin`.
+- **C6:** la carpeta `exports/` era compartida: cualquier usuario listaba y descargaba exportaciones de otras tiendas. Ahora cada archivo lleva la tienda en el nombre, se verifica al descargar, se borra tras la descarga y se eliminó el listado.
+- **C7:** `PUT /api/productos/agregar/:id` sumaba (o restaba, con cantidad negativa) stock sin dejar movimiento en el Kardex. Se eliminó.
+
+Quedan abiertos, sin riesgo de seguridad: **C4** (un CSRF inválido responde 500 en vez de 403) y **C5** (`clienteRoutes` aplica `requireLogin` a todo `/api`).
 
 ---
 
@@ -138,6 +151,8 @@ Todo se agrega también a la auto-migración, con el mismo patrón `IF NOT EXIST
 | `interno.v_adopcion_semanal` | por semana: días con ventas ÷ días de apertura | Adopción del piloto (meta ≥ 80 %) |
 | `interno.v_embudo` | registros → activadas → con uso en la semana 4 | Embudo de la convocatoria |
 
+**Tiendas de prueba (decisión del 3-oct):** en producción conviven las tiendas de QA del equipo con las del piloto. Las vistas deben excluirlas; si no, la activación y la adopción saldrían infladas con datos de prueba. Propuesta: una columna `Tienda.es_prueba` (por defecto falso), marcada por el equipo, y todas las vistas filtran `NOT es_prueba`. Además, `Ventas.canal` ('web' o 'app', plan 07, sección 6) permite separar la adopción por canal.
+
 Dos definiciones deben quedar fijadas **antes** de publicar la convocatoria, para que la meta no se ajuste al resultado (así lo exige la sección 1.6 del documento de intervención). Ver las decisiones 3 y 4 de la sección 7.
 
 ### 3.4 Funciones liberables
@@ -196,11 +211,11 @@ Antes de la convocatoria, agregar a `/politica-datos` un párrafo como este:
 
 | Fase | Contenido | Cuándo |
 |---|---|---|
-| **I0** | Auditoría de autorización: egresos entre tiendas (P22-09), matriz de roles (P22-10), `requireAdmin` donde la matriz lo indique (incluidas las dos rutas de tienda del hallazgo 1.4) y pruebas de 403 | Antes que todo lo demás del plan |
-| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | Antes de la convocatoria |
-| **I2** | Vistas de métricas (3.3) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | Antes de la convocatoria |
-| **I3** | Funciones liberables (3.4) | Junto con el modo básico A y B |
-| **I4** | Pantalla de embudo, párrafo de la política (3.7) y campo de experiencia digital en el registro (plan 19, 3.5) | Antes de publicar la convocatoria |
+| **I0** | Auditoría de autorización: egresos entre tiendas (P22-09), matriz de roles (P22-10), `requireAdmin` donde la matriz lo indique (incluidas las dos rutas de tienda del hallazgo 1.4) y pruebas de 403 | **Hecha** (3-oct, en producción) |
+| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | Antes del arranque del piloto |
+| **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | Antes del arranque del piloto |
+| **I3** | Funciones liberables (3.4) | Después del piloto: con la app nativa, el modo básico web deja de ir antes del piloto |
+| **I4** | Pantalla de embudo, párrafo de la política (3.7) y campo de experiencia digital en el registro (plan 19, 3.5) | Antes del arranque del piloto |
 
 El código nuevo se escribe desde el inicio con el patrón del plan 21: controladores delgados y lógica en `services/interno/`. Así no se crea más deuda mientras se refactoriza la existente.
 
@@ -208,34 +223,48 @@ El código nuevo se escribe desde el inicio con el patrón del plan 21: controla
 
 ## 5. Orden general de ejecución (único vigente)
 
-Esta es la única lista de orden para los planes 19, 21 y 22; el plan 21 remite aquí y en su sección 6 solo guarda las dependencias entre sus fases. El estado de cada punto se lleva en `docs/seguimiento_planes.xlsx`. Reemplaza la versión anterior de esta sección (28-sep), que no incluía los hallazgos de R0.
+Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 remite aquí y en su sección 6 solo guarda las dependencias entre sus fases. El estado de cada punto se lleva en `docs/seguimiento_planes.xlsx`.
 
-**A. Antes del piloto**
-1. **Merge de R0** del plan 21 (P21-01). Es la red de seguridad de todo lo que sigue.
-2. **Seguridad y respaldos**, en paralelo (uno es código y el otro configuración de Render):
-   - Egresos entre tiendas (P22-09), primero.
-   - Decisión de la matriz de roles (P22-10) y luego I0 completo, que incluye la rama `fix/rutas-tienda-requireadmin`.
-   - Limitador en `/api/verify-reset-code` (P21-09), junto con el `skip` del limitador global (P21-13), porque es el mismo archivo.
-   - Copia externa de los respaldos, con verificación de `pg_dump` en Render y una restauración probada (plan 19, 3.1).
-3. **Correcciones pequeñas de integridad**, cada una en su commit y con su prueba:
-   - Apertura de caja con transacción y bloqueo (plan 21, punto 2.4; se adelanta de R2).
-   - Migración explícita en vez de la auto-migración (plan 21, punto 2.2; se adelanta de R4). Recomendado; es la decisión 4 del plan 21.
-   - Recepción de mercancía (P21-10), cuando se decida la regla (decisión 5 del plan 21).
-4. **R1** del plan 21: servicios de IA y cliente único. Va antes del Sprint 6.3, pero no bloquea el piloto; si el tiempo no alcanza, sigue en rama.
-5. **I1 e I2**: panel de solo lectura.
-6. **R3.1** del plan 21 (`DashboardPage`) y después **modo básico A y B, más I3**. R3.1 va primero porque el modo básico toca los mismos archivos.
-7. **Fase 4**: prueba de usabilidad con 5 tenderos y el prototipo del modo básico.
-8. **I4**, y después la convocatoria y el piloto (fase 5).
+**Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) porque la idea es llevarla a la visita a las tiendas piloto, prevista para la semana del 5 de octubre. La visita **no** es el arranque del piloto: el arranque se programa después con cada dueño. Con la app, el modo básico web (plan 19, 3.4), R3.1 e I3 dejan de ir antes del piloto.
 
-**B. Durante las 6 semanas del piloto**
-- **Se congela producción:** solo se despliegan correcciones de errores, cada una con su prueba. Si la aplicación cambia a mitad del piloto, no se sabe si un cambio en los indicadores se debe al tendero o al software.
-- **Congelar no es dejar de desarrollar.** En ramas pueden avanzar R2, T1 y T2 del plan 21, y T3 si el Sprint 6 de Bases de Datos Avanzadas cae en estas semanas (se muestra en Docker, sin desplegar).
+**Hecho (28-sep a 3-oct), todo en `main` y desplegado:**
+- R0 del plan 21 (P21-01) y el reinicio de limitadores en las pruebas (P21-11).
+- I0 completo: P22-09, matriz de roles (P22-10), la semilla en producción y C1, C2, C3, C6 y C7 (sección 1.4).
+- Respaldo externo: workflow diario de GitHub Actions, cifrado, con 14 días de retención (`docs/restaurar_respaldo.md`). Restauración verificada el 3-oct, según Luis.
 
-**C. Después del piloto**
-- Se despliega en este orden: R2 → T1 y T2 con sus pruebas (T4) → R3.2 a R3.4 → T3 con el worker del Sprint 6.2 → resto de R4.
-- Por qué R2 y el tiempo real esperan: tocan ventas, inventario y alertas, justo lo que mide el piloto, y para medir activación y adopción basta la consulta periódica actual (de 1 a 5 minutos).
+**A. Antes de la visita**
+1. **Backend para la app** (rama `feat/backend-app-tendero`), cada punto con su prueba:
+   - sesión por canal: una en la web y una en la app al mismo tiempo (plan 07, sección 6);
+   - `Ventas.canal` ('web' o 'app');
+   - limitador de `verify-reset-code` y `skip` del limitador global (P21-09 y P21-13);
+   - apertura de caja con transacción y bloqueo (plan 21, punto 2.4);
+   - `docs/contrato_api_app_tendero.md`, con la prueba de integración de cada endpoint.
+2. **Versión de prueba de la app para Android** (equipo, repositorio aparte), construida contra ese contrato.
+3. **Material de la visita:** guion de la fase 4 (tareas, qué se mide en cada una, cuestionario), autorización de tratamiento de datos y formato de línea base.
 
-**D. Sin fecha**
+**B. La visita**
+- Presentación, autorización de datos, línea base y **fase 4 (usabilidad) con la versión de prueba de la app**.
+- Render está en plan gratuito y se duerme tras 15 minutos sin tráfico: abrir la app o la web unos minutos antes de entrar a cada tienda.
+
+**C. Entre la visita y el arranque del piloto**
+1. Correcciones que salgan de la fase 4, en la app y en el backend.
+2. **I1 e I2:** panel de solo lectura, excluyendo las tiendas de prueba (sección 3.3).
+3. **I4:** preguntas del registro (días de apertura, experiencia digital) y párrafo de la política de datos.
+4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21).
+5. Decidir si se mantiene despierto el servidor en horario de tienda con un *ping* (cabe en las horas gratuitas de Render si es el único servicio gratuito).
+6. Arranque acordado con cada dueño.
+
+**D. Durante las 6 semanas del piloto**
+- **Se congelan producción y la app:** solo correcciones de errores, cada una con su prueba. Si la herramienta cambia a mitad del piloto, no se sabe si un cambio en los indicadores se debe al tendero o al software.
+- **Congelar no es dejar de desarrollar.** En ramas pueden avanzar R1, R2 y T3 si el Sprint 6 de Bases de Datos Avanzadas cae en estas semanas (se muestra en Docker, sin desplegar).
+
+**E. Después del piloto**
+- R1 (antes, si el Sprint 6.3 lo exige), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
+- Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
+- Modo básico web e I3, solo si el piloto muestra que hacen falta.
+- Distribución en iPhone (requiere un Mac y la membresía de pago de Apple).
+
+**F. Sin fecha**
 - Socket.io: solo si aparece una necesidad de comunicación bidireccional (plan 21, sección 5.2).
 
 ---
@@ -252,4 +281,4 @@ Esta es la única lista de orden para los planes 19, 21 y 22; el plan 21 remite 
 3. **Definición exacta de "activación": DECIDIDO (28-sep-2026).** Una tienda está activada si carga al menos 20 productos **y registra ventas en al menos 5 de sus primeros 7 días** desde `Tienda.fecha_creacion`. Se descartaron "una venta cualquiera en 7 días" (una venta de prueba bastaría) y "ventas los 7 días" (un día de cierre la invalidaría).
 4. **"Días de apertura" para la adopción: DECIDIDO (28-sep-2026).** Se pregunta en el registro cuántos días a la semana abre la tienda (campo `Tienda.dias_apertura_semana`, entero de 1 a 7, obligatorio en el registro nuevo; las tiendas existentes quedan en 7 hasta que el administrador lo edite en Mi Tienda). La adopción semanal es días con ventas ÷ `dias_apertura_semana`, con tope de 100 %. Se implementa en I4 junto con la pregunta de experiencia digital.
 5. ¿La función `ia` arranca apagada o encendida en las tiendas del piloto? Recomendado: encendida, porque es el diferenciador que se quiere medir, con un tope de consultas diarias por tienda.
-6. **Matriz de roles (P22-10).** Para cada endpoint de la ampliación de 1.4: ¿lo puede usar el Tendero, solo el Administrador, o el Tendero con aprobación posterior? Se decide antes de I0; las pruebas de `autorizacion_roles.test.js` se invierten a 403 solo donde la matriz lo indique.
+6. **Matriz de roles (P22-10): DECIDIDO (28-sep-2026).** D1: crear y editar productos, solo Administrador (el Tendero que escanea solo suma stock). D2: salida y ajuste de inventario, solo Administrador por ahora. D3: exportar ventas y aplicar estrategias de IA, solo Administrador, ocultando los controles sin flujo de solicitud. D4: clientes y abonos, solo Administrador por ahora; en la fase 4 se pregunta quién cobra los fiados en cada tienda. Detalle en `docs/propuesta_matriz_roles_P22-10.md`.
