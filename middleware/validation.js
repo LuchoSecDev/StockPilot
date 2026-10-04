@@ -126,6 +126,24 @@ function validateSale(req, res, next) {
     next();
 }
 
+/** Métodos de pago que acepta una venta, con esta escritura exacta (los mismos que usa la web). */
+const METODOS_PAGO_VENTA = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado'];
+
+/**
+ * Valida `metodo_pago` en las rutas que registran una venta. Ausente, `null` o vacío vale «Efectivo»
+ * (el controlador lo resuelve). Cualquier otro valor tiene que ser uno de METODOS_PAGO_VENTA, porque el
+ * arqueo de caja (models/CashRegister.js) y la cartera comparan el texto exacto: un «efectivo» en
+ * minúscula dejaba la venta fuera del cuadre sin avisar.
+ */
+function validateMetodoPago(req, res, next) {
+    const { metodo_pago } = req.body;
+    if (metodo_pago === undefined || metodo_pago === null || metodo_pago === '') return next();
+    if (!METODOS_PAGO_VENTA.includes(metodo_pago)) {
+        return res.status(400).json({ success: false, error: 'Método de pago no válido. Usa Efectivo, Tarjeta, Transferencia o Fiado.' });
+    }
+    next();
+}
+
 /* v8 ignore start -- sin pruebas todavía: ningún flujo del Nivel 2 ejercita la creación de
    reportes manuales. */
 /**
@@ -173,5 +191,6 @@ module.exports = {
     validateProduct,
     validateSale,
     validateCartSale,
+    validateMetodoPago,
     validateReport
 };

@@ -565,6 +565,33 @@ describe('[V2] POST /api/registrar-venta-carrito', () => {
     expect(Number((await db.getAsync("SELECT COUNT(*) AS n FROM MovimientosStock WHERE tipo_movimiento = 'Salida'")).n)).toBe(1);
   });
 
+  it('Idempotency-Key: reintentar la misma venta devuelve el mismo id_venta (200, cabecera Idempotent-Replayed) sin duplicar; otra carga con la misma clave da 422; una clave mal formada, 400', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA);
+    const clave = 'a1b2c3d4-0000-4000-8000-123456789abc';
+    const vender = (cuerpo, k = clave) => e.tenderoA.agente.post('/api/registrar-venta-carrito').set('X-CSRF-Token', e.tenderoA.csrfToken).set('Idempotency-Key', k).send(cuerpo);
+    const cuerpo = { items: [{ id_producto: e.producto, cantidad: 2 }], metodo_pago: 'Efectivo' };
+
+    const primera = await vender(cuerpo);
+    expect(primera.status).toBe(200);
+    expect(primera.headers['idempotent-replayed']).toBeUndefined();
+    const repetida = await vender(cuerpo);
+    expect(repetida.status).toBe(200);
+    expect(repetida.body).toEqual(primera.body);
+    expect(repetida.headers['idempotent-replayed']).toBe('true');
+    await esperarTrabajoEnSegundoPlano();
+    expect(Number((await db.getAsync('SELECT COUNT(*) AS n FROM Ventas')).n)).toBe(1);
+    expect(Number((await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [e.producto])).cantidad)).toBe(8);
+
+    const otra = await vender({ ...cuerpo, items: [{ id_producto: e.producto, cantidad: 3 }] });
+    expect(otra.status).toBe(422);
+    expect(otra.body).toEqual({ success: false, code: 'IDEMPOTENCY_KEY_REUSED', error: 'Esa Idempotency-Key ya se usó con una venta distinta. Genera una clave nueva para cada venta.' });
+
+    const mala = await vender(cuerpo, 'corta');
+    expect(mala.status).toBe(400);
+    expect(mala.body).toEqual({ success: false, error: 'La cabecera Idempotency-Key debe tener de 8 a 100 caracteres: letras, números, guion o guion bajo (por ejemplo, un UUID).' });
+  });
+
   it('fiado: con id_cliente de un cliente de la tienda queda en estado_deuda «Pendiente» y suma al saldo del cliente', async () => {
     const e = await escenario();
     await e.abrirCaja(e.tenderoA);
@@ -588,6 +615,7 @@ describe('[V2] POST /api/registrar-venta-carrito', () => {
       [{ items: [{ id_producto: e.producto, cantidad: -1 }] }, 'Las cantidades deben ser mayores a 0'],
       [{ items: [{ id_producto: e.producto }] }, 'Cada ítem debe tener producto y cantidad'],
       [{ items: [{ id_producto: e.producto, cantidad: 1 }], metodo_pago: 'Fiado' }, 'El cliente es obligatorio para ventas fiadas.'],
+      [{ items: [{ id_producto: e.producto, cantidad: 1 }], metodo_pago: 'efectivo' }, 'Método de pago no válido. Usa Efectivo, Tarjeta, Transferencia o Fiado.'],
       [{ items: [{ id_producto: e.producto, cantidad: 999 }] }, 'Stock insuficiente para el producto: Arroz Diana 1Kg']
     ];
     for (const [cuerpo, mensaje] of casos) {

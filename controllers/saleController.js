@@ -13,6 +13,7 @@ const db = require('../config/database');
 const Alert = require('../models/Alert');
 const Notification = require('../models/Notification');
 const { canalDeSesion } = require('../utils/canal');
+const crypto = require('crypto');
 
 /** Error de validación de negocio dentro de una transacción de venta: lleva su código HTTP. */
 class ErrorVenta extends Error {
@@ -59,6 +60,48 @@ async function validarClienteDeVenta(client, { id_cliente, id_tienda, esFiado, t
         throw new ErrorVenta(400,
             `Esta venta supera el cupo de crédito del cliente (cupo ${formatoPesos(cupo)}, ya debe ${formatoPesos(saldo)}, esta venta ${formatoPesos(totalVenta)}).`);
     }
+}
+
+const CLAVE_IDEMPOTENCIA = /^[A-Za-z0-9_-]{8,100}$/;
+
+/**
+ * Lee la cabecera `Idempotency-Key` de una venta del carrito (contrato [V2] de la app del Tendero).
+ * @returns {null | {clave: string, huella: string} | {invalida: true}} `null` si no viene (la web no la manda:
+ *   la venta se comporta como siempre); `{invalida}` si viene mal formada.
+ * La huella resume la carga (productos y cantidades en orden, método de pago, cliente y efectivo recibido)
+ * para detectar la misma clave usada con otra venta.
+ */
+function leerIdempotencia(req) {
+    const bruto = req.get('Idempotency-Key');
+    if (bruto === undefined) return null;
+    const clave = bruto.trim();
+    if (!CLAVE_IDEMPOTENCIA.test(clave)) return { invalida: true };
+    const { items, metodo_pago, efectivo_recibido, id_cliente } = req.body;
+    const huella = crypto.createHash('sha256').update(JSON.stringify({
+        items: items.map(i => [Number(i.id_producto), Number(i.cantidad)]),
+        metodo: metodo_pago || 'Efectivo',
+        cliente: id_cliente ? Number(id_cliente) : null,
+        recibido: efectivo_recibido === undefined || efectivo_recibido === null ? null : Number(efectivo_recibido)
+    })).digest('hex');
+    return { clave, huella };
+}
+
+const SQL_VENTA_POR_CLAVE = 'SELECT id_venta, idempotency_hash FROM Ventas WHERE id_vendedor = ? AND idempotency_key = ?';
+
+/**
+ * Responde a una petición cuya clave ya tiene una venta confirmada: la misma venta (200, sin tocar stock, Kardex
+ * ni caja) si la carga coincide, o 422 si la clave se reutilizó con otra venta.
+ */
+function responderRepeticion(res, previa, huella) {
+    if (previa.idempotency_hash !== huella) {
+        return res.status(422).json({
+            success: false,
+            code: 'IDEMPOTENCY_KEY_REUSED',
+            error: 'Esa Idempotency-Key ya se usó con una venta distinta. Genera una clave nueva para cada venta.'
+        });
+    }
+    res.set('Idempotent-Replayed', 'true');
+    return res.json({ success: true, message: 'Venta registrada correctamente', id_venta: previa.id_venta });
 }
 
 /**
@@ -275,6 +318,18 @@ class SaleController {
                 return res.status(400).json({ success: false, error: "El cliente es obligatorio para ventas fiadas." });
             }
 
+            // Idempotencia: ver leerIdempotencia. Una clave solo queda registrada con la venta confirmada.
+            const idem = leerIdempotencia(req);
+            if (idem && idem.invalida) {
+                return res.status(400).json({ success: false, error: "La cabecera Idempotency-Key debe tener de 8 a 100 caracteres: letras, números, guion o guion bajo (por ejemplo, un UUID)." });
+            }
+            if (idem) {
+                // Camino rápido, antes de pedir la caja: la repetición de una venta ya confirmada vale aunque la
+                // caja se haya cerrado entre medias.
+                const [previa] = await db.allAsync(SQL_VENTA_POR_CLAVE, [id_vendedor, idem.clave]);
+                if (previa) return responderRepeticion(res, previa, idem.huella);
+            }
+
             const CashRegister = require('../models/CashRegister');
             const activeSession = await CashRegister.getCurrentSession(id_tienda, id_vendedor);
             if (!activeSession) {
@@ -285,6 +340,19 @@ class SaleController {
 
             try {
                 await client.query('BEGIN');
+
+                if (idem) {
+                    // Dos peticiones simultáneas con la misma clave (el reintento llega antes de que termine la
+                    // primera): el candado de asesoría las serializa por (vendedor, clave). La segunda espera
+                    // aquí a que la primera confirme, y entonces encuentra su venta en vez de volver a vender.
+                    // Es de transacción: se libera solo con el COMMIT o el ROLLBACK.
+                    await client.query('SELECT pg_advisory_xact_lock(?::int, hashtext(?::text))', [id_vendedor, idem.clave]);
+                    const { rows: [previa] } = await client.query(SQL_VENTA_POR_CLAVE, [id_vendedor, idem.clave]);
+                    if (previa) {
+                        await client.query('ROLLBACK');
+                        return responderRepeticion(res, previa, idem.huella);
+                    }
+                }
 
                 let totalVenta = 0;
                 const productosProcesados = [];
@@ -327,9 +395,9 @@ class SaleController {
                 const id_cliente_val = id_cliente || null;
 
                 const saleInsert = await client.query(
-                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal) 
-                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
-                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session)]
+                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal, idempotency_key, idempotency_hash)
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
+                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session), idem ? idem.clave : null, idem ? idem.huella : null]
                 );
                 const id_venta = saleInsert.rows[0].id_venta;
 

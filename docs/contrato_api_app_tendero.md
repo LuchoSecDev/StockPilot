@@ -24,7 +24,7 @@ Todo lo de este documento se verificó ejecutando las peticiones contra el servi
 | **Forma del error** | Dos variantes, según el endpoint: `{ "error": "mensaje" }` o `{ "success": false, "error": "mensaje" }`. Mostrar `error` al usuario; decidir por el **código HTTP** y, cuando exista, por `code` (`SESSION_ACTIVE`, `CONCURRENT_SESSION`, `CSRF_INVALID`, `BARCODE_DUPLICADO`). |
 | **Límites de uso** | `429` con `{ "success": false, "error": "…" }` cuando se agota un límite (login, 2FA, código de recuperación). Cabeceras `RateLimit-Limit`, `RateLimit-Remaining` y `RateLimit-Reset` en esas rutas. El tope general es 600 peticiones por usuario cada 15 minutos. |
 | **Servidor dormido** | Render gratuito se duerme a los 15 minutos sin tráfico y tarda cerca de un minuto en responder la primera petición. Usar un tiempo de espera largo (≥ 60 s) en la primera, y mostrar «conectando…». |
-| **Idempotencia** | **No existe.** Una venta, un egreso o una entrada enviados dos veces **se registran dos veces**. Ante un tiempo de espera, la app no debe reintentar a ciegas una escritura: primero consulta el estado (por ejemplo `GET /api/ventas` o `GET /api/caja/sesion`) o pide confirmación al usuario. |
+| **Idempotencia** | **Solo existe en la venta del carrito `[V2]`**, con la cabecera `Idempotency-Key` (ver `[V2]`). Un egreso, una entrada de mercancía, la apertura o el cierre de caja enviados dos veces **se registran dos veces**: ante un tiempo de espera, la app no debe reintentar a ciegas esas escrituras; primero consulta el estado (por ejemplo `GET /api/caja/sesion`) o pide confirmación al usuario. |
 
 ## 2. Flujo de sesión paso a paso
 
@@ -118,7 +118,7 @@ Cambiar la contraseña en cualquier otro momento (`PUT /api/perfil/password`) no
 | **403** | `{ "success": false, "code": "CSRF_INVALID", "error": "Token CSRF inválido o ausente. …" }` | Falta el token CSRF en una escritura, o es inválido o de otra sesión. Pedir uno nuevo (`[S1]`) y **reintentar una vez**. Se distingue del 403 de rol por el `code` (el de rol no lo trae). *(Antes respondía 500, y en producción con un texto genérico: hallazgo C4, corregido.)* |
 | **400** | `{ "success": false, "error": "Solicitud inválida: el cuerpo no es un JSON válido." }` | El cuerpo no es JSON. |
 | **413** | `{ "success": false, "error": "La petición es demasiado grande." }` | Cuerpo de más de 1 MB (p. ej. una foto de egreso enorme). |
-| **500** | `{ "success": false, "error": "…" }` | Fallo real del servidor (en producción, un mensaje genérico). Se puede reintentar una **lectura**; una escritura, solo tras comprobar su estado (no hay idempotencia). |
+| **500** | `{ "success": false, "error": "…" }` | Fallo real del servidor (en producción, un mensaje genérico). Se puede reintentar una **lectura** y una **venta con `Idempotency-Key`** (`[V2]`); las demás escrituras, solo tras comprobar su estado (no tienen idempotencia). |
 | **429** | `{ "success": false, "error": "…" }` | Esperar; `RateLimit-Reset` indica cuándo. |
 
 **Pruebas:** `contrato_app_tendero.test.js › [S6]`; los 403 de cada ruta del Administrador, en `autorizacion_roles.test.js`.
@@ -217,7 +217,7 @@ Con CSRF. **Esta es la ruta de venta que usa la app** (`POST /api/registrar-vent
   "id_cliente": 3
 }
 ```
-`metodo_pago`: `"Efectivo"` (por defecto), `"Tarjeta"`, `"Transferencia"` o `"Fiado"` — los mismos textos que usa la web. **El servidor no valida el valor** (guarda cualquier texto) y el arqueo de caja solo suma las ventas cuyo método es exactamente `"Efectivo"`: un texto distinto (p. ej. `"efectivo"`) deja la venta fuera del cuadre. `efectivo_recibido` opcional (por defecto, el total; el cambio se calcula). `id_cliente` **obligatorio si es `"Fiado"`**.
+`metodo_pago`: `"Efectivo"` (por defecto), `"Tarjeta"`, `"Transferencia"` o `"Fiado"` — los mismos textos que usa la web, **con esa escritura exacta** (se ignoran los espacios al principio y al final). Cualquier otro valor da **400** `Método de pago no válido. Usa Efectivo, Tarjeta, Transferencia o Fiado.` y no se registra nada; ausente, `null` o vacío vale `"Efectivo"`. (Antes el servidor guardaba cualquier texto y el arqueo de caja, que solo suma `"Efectivo"`, dejaba la venta fuera del cuadre.) `efectivo_recibido` opcional (por defecto, el total; el cambio se calcula). `id_cliente` **obligatorio si es `"Fiado"`**.
 
 | Código | Cuerpo | Cuándo |
 |---|---|---|
@@ -226,14 +226,23 @@ Con CSRF. **Esta es la ruta de venta que usa la app** (`POST /api/registrar-vent
 | **400** | `{ "success": false, "error": "El carrito debe contener al menos un producto" }` | `items` vacío o ausente. |
 | **400** | `… "Cada ítem debe tener producto y cantidad"` · `… "Las cantidades deben ser mayores a 0"` | Ítem mal formado. |
 | **400** | `… "El cliente es obligatorio para ventas fiadas."` | Fiado sin `id_cliente`. |
+| **400** | `… "Método de pago no válido. Usa Efectivo, Tarjeta, Transferencia o Fiado."` | `metodo_pago` distinto de los cuatro valores. |
 | **400** | `… "Stock insuficiente para el producto: <nombre>"` | No alcanza el stock; no se descuenta nada. |
 | **404** | `{ "success": false, "error": "Producto no encontrado o no pertenece a tu tienda" }` | Un `id_producto` del carrito no existe o es de otra tienda; no se vende nada del carrito. |
 | **404** | `{ "success": false, "error": "Cliente no encontrado" }` | `id_cliente` inexistente, no numérico o **de otra tienda** (también si la venta no es fiada). |
 | **400** | `{ "success": false, "error": "Esta venta supera el cupo de crédito del cliente (cupo $5.000, ya debe $4.000, esta venta $2.000)." }` | Venta **fiada** que deja el saldo del cliente por encima de su `limite_credito`. Un cupo de **0 significa «sin tope»**. El saldo es ventas fiadas menos abonos (el `saldo_pendiente` de `[V1]`); estar justo en el cupo es válido. |
 
+**Idempotencia: cabecera `Idempotency-Key` (la app debe mandarla siempre).** Resuelve el caso del celular que pierde la señal justo al vender: la app no sabe si la venta quedó registrada y reintentar a ciegas la duplicaría.
+- **Qué mandar:** una clave nueva (un UUID v4) **por cada venta**, generada cuando el Tendero pulsa «cobrar», y **la misma clave en todos los reintentos de esa venta**. 8 a 100 caracteres: letras, números, guion o guion bajo. Si no cumple → **400** `La cabecera Idempotency-Key debe tener de 8 a 100 caracteres: …`. Sin la cabecera la venta funciona como siempre (la web no la manda), pero sin protección.
+- **Reintento de una venta ya registrada** (misma clave, misma carga: productos y cantidades en el mismo orden, `metodo_pago`, `id_cliente`, `efectivo_recibido`) → **200** con **la misma respuesta** (`id_venta` incluido) y la cabecera `Idempotent-Replayed: true`. No toca stock, Kardex ni caja, y vale aunque entre medias se haya cerrado la caja o el stock ya no alcance para una venta nueva. Dos reintentos simultáneos tampoco duplican: el servidor los serializa.
+- **Misma clave, otra carga** → **422** `{ "success": false, "code": "IDEMPOTENCY_KEY_REUSED", "error": "Esa Idempotency-Key ya se usó con una venta distinta. …" }`. Es un error de la app (reutilizó una clave): no se registra nada.
+- **Una venta que falla no consume la clave** (400 por stock, 403 sin caja, 404…): al corregir el problema, la misma clave vale. La clave solo queda registrada cuando la venta se confirma.
+- **Alcance:** la clave es por vendedor (dos vendedores pueden usar la misma sin chocar) y **no caduca**. Solo cubre la venta del carrito; el resto de escrituras no tienen idempotencia (sección 1).
+- **Qué hace la app ante un tiempo de espera:** reintentar la venta **con la misma clave** (con retroceso: 2 s, 5 s…). No hace falta consultar antes `GET /api/ventas`. Si la respuesta es 200 con `Idempotent-Replayed: true`, mostrar «Venta registrada» igual que si fuera la primera vez.
+
 El canal **no** se puede elegir en la venta: se toma de la sesión.
 Para evitar el 400 por cupo, la app puede avisar antes comparando `saldo_pendiente + total` con `limite_credito` de `[V1]`; el servidor es quien decide, y dos ventas fiadas simultáneas al mismo cliente se serializan (no pueden pasarse del cupo entre las dos). Un cupo de 0 como «sin tope» es una decisión de negocio pendiente de confirmar.
-**Pruebas:** `contrato_app_tendero.test.js › [V2]`; las validaciones de cliente, cupo y producto con su concurrencia, `ventas_fiado_validaciones.test.js`; el canal, `ventas_canal.test.js`; la concurrencia sobre el mismo producto, `venta_concurrencia.test.js`.
+**Pruebas:** `contrato_app_tendero.test.js › [V2]`; la idempotencia (incluida la carrera de dos reintentos dentro de la transacción), `ventas_idempotencia.test.js`; el método de pago, `ventas_metodo_pago.test.js`; las validaciones de cliente, cupo y producto con su concurrencia, `ventas_fiado_validaciones.test.js`; el canal, `ventas_canal.test.js`; la concurrencia sobre el mismo producto, `venta_concurrencia.test.js`.
 
 ### [V3] `GET /api/ventas`
 `?limit=` (por defecto 100), `?offset=` y `?turno=actual`. **200** `{ "data": [ { "id_venta", "fecha_salida", "canal": "web" o "app", "cantidad", "nombre_producto", "categoria", "precio_unitario", "precio_total", "nombre_vendedor" } ], "total", "limit", "offset", "hasMore" }`. Una fila **por producto vendido**.
