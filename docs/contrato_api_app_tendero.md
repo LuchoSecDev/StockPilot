@@ -133,7 +133,7 @@ Al **Tendero** no se le devuelven `costo_compra` ni `clasificacion_abc` (datos d
 **Pruebas:** `contrato_app_tendero.test.js › [C1]`; `datos_de_margen.test.js`.
 
 ### [C2] `GET /api/productos/barcode/:code`
-**200** `{ "success": true, "data": { …producto } }` · **404** `{ "success": false, "error": "Producto no encontrado" }` (no existe, o es de otra tienda). Es la consulta del escáner al vender.
+**200** `{ "success": true, "data": { …producto } }` · **404** `{ "success": false, "error": "Producto no encontrado" }` (no existe, o es de otra tienda). Es la consulta del escáner al vender. **Busca por `codigo_barras` y también por `codigo`** (el código interno o SKU del producto): un producto sin código de barras comercial puede llevar una etiqueta propia con su `codigo` (Code 128 o QR) y el escáner lo encuentra igual. Si dos productos de la tienda compartieran el mismo valor devolvería solo uno, sin orden garantizado; `[C3]` impide esa duplicidad al vincular códigos.
 **Prueba:** `contrato_app_tendero.test.js › [C2]`.
 
 ### [C3] `PUT /api/productos/:id/link-barcode`

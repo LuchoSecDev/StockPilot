@@ -373,6 +373,16 @@ describe('[C2] GET /api/productos/barcode/:code', () => {
     const ajeno = await e.get(e.tenderoB, '/api/productos/barcode/7701234000011');
     expect(ajeno.status).toBe(404);
   });
+
+  it('también encuentra el producto por su código interno (codigo / SKU): sirve para productos sin código de barras comercial, con una etiqueta propia', async () => {
+    const e = await escenario();
+    const sinBarras = await crearProducto({ id_tienda: e.adminA.id_tienda, codigo: 'PAP-001', codigo_barras: null, nombre_producto: 'Cuaderno 100 hojas', precio: 6500, cantidad: 4 });
+    const r = await e.get(e.tenderoA, '/api/productos/barcode/PAP-001');
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ id_producto: sinBarras, nombre_producto: 'Cuaderno 100 hojas', codigo: 'PAP-001', codigo_barras: null });
+    // El SKU de otra tienda no se encuentra.
+    expect((await e.get(e.tenderoB, '/api/productos/barcode/PAP-001')).status).toBe(404);
+  });
 });
 
 describe('[C3] PUT /api/productos/:id/link-barcode', () => {
