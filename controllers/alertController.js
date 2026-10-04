@@ -59,7 +59,12 @@ const alertController = {
     try {
       const tiendaId = req.session.tiendaId;
       const alertaId = req.params.id;
-      await Alert.resolve(alertaId, tiendaId);
+      // Un id que no es numérico, o que no existe en ESTA tienda, es un 404 (antes respondía 200 sin
+      // haber hecho nada, y con texto daba un 500 de la base).
+      const resultado = /^\d+$/.test(alertaId) ? await Alert.resolve(alertaId, tiendaId) : null;
+      if (!resultado || !resultado.changes) {
+        return res.status(404).json({ success: false, error: 'Alerta no encontrada' });
+      }
       res.json({ success: true, message: 'Alerta archivada.' });
     } catch {
       res.status(500).json({ success: false, error: 'Error al archivar la alerta.' });

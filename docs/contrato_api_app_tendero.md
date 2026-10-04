@@ -254,7 +254,7 @@ Regenerar alertas (`POST /api/alertas/generate`) es del Administrador (403).
 
 ### [A2] `PATCH /api/alertas/:id/resolve`
 Con CSRF, cuerpo `{}`. **200** `{ "success": true, "message": "Alerta archivada." }`. El Tendero puede.
-**COMPORTAMIENTO ACTUAL:** un id inexistente o de otra tienda también da 200 (sin 404), y no toca la alerta ajena.
+**404** `{ "success": false, "error": "Alerta no encontrada" }` si el id no existe, no es numérico o es de **otra tienda** (no se toca la alerta ajena). Archivar de nuevo una alerta que ya estaba archivada sigue dando 200.
 **Prueba:** `contrato_app_tendero.test.js › [A2]`.
 
 ---
@@ -291,7 +291,6 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| — | `PATCH /api/alertas/:id/resolve` responde 200 con un id inexistente | La app no se entera de un error | 404 si no hubo ninguna fila |
 | — | `POST /api/forgot-password` no tiene límite (responde 200 siempre y el `authLimiter` solo cuenta fallos) | Se pueden enviar correos sin límite a una víctima | Limitador por correo e IP |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |
 

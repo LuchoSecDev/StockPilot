@@ -668,15 +668,21 @@ describe('[A2] PATCH /api/alertas/:id/resolve', () => {
     expect((await e.get(e.tenderoA, '/api/alertas')).body.alerts).toEqual([]);
   });
 
-  it('COMPORTAMIENTO ACTUAL: un id inexistente o de otra tienda también responde 200 (no hay 404), y no toca la alerta ajena', async () => {
+  it('404 { success:false, error:"Alerta no encontrada" } si el id no existe, no es numérico o es de otra tienda (y no toca la alerta ajena); volver a archivar una real sigue dando 200', async () => {
     const e = await escenario();
     await crearProducto({ id_tienda: e.adminA.id_tienda, nombre_producto: 'Leche', cantidad: 0, stock_minimo: 5, stock_seguridad: 5 });
     await (await import('../../models/Alert.js')).default.generate(e.adminA.id_tienda);
     const [alerta] = (await e.get(e.tenderoA, '/api/alertas')).body.alerts;
 
-    expect((await e.patch(e.tenderoA, '/api/alertas/99999/resolve')).status).toBe(200);
-    expect((await e.patch(e.tenderoB, `/api/alertas/${alerta.id_alerta}/resolve`)).status).toBe(200);
+    for (const id of ['99999', 'abc']) {
+      const r = await e.patch(e.tenderoA, `/api/alertas/${id}/resolve`);
+      expect(r.status, id).toBe(404);
+      expect(r.body).toEqual({ success: false, error: 'Alerta no encontrada' });
+    }
+    expect((await e.patch(e.tenderoB, `/api/alertas/${alerta.id_alerta}/resolve`)).status).toBe(404);
     expect((await e.get(e.tenderoA, '/api/alertas')).body.alerts).toHaveLength(1);
+    expect((await e.patch(e.tenderoA, `/api/alertas/${alerta.id_alerta}/resolve`)).status).toBe(200);
+    expect((await e.patch(e.tenderoA, `/api/alertas/${alerta.id_alerta}/resolve`)).status).toBe(200);
   });
 });
 
