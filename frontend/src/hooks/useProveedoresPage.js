@@ -360,23 +360,34 @@ export const useProveedoresPage = () => {
   const [completandoOrden, setCompletandoOrden] = useState(false);
 
   /**
-   * Confirma la recepción de mercancía (plan 13, Fase E): cierra la orden y suma el stock recibido.
-   * `onDone` limpia el formulario de recepción del componente al terminar (con éxito o sin él).
+   * Confirma la recepción de mercancía (plan 13, Fase E; regla P21-10 del plan 21): suma al inventario lo
+   * recibido. `cuerpo` es { items: [{ id_producto, cantidad_recibida }], confirmar_exceso?, motivo?,
+   * cerrar_con_faltante? }; la cantidad de cada línea es el TOTAL recibido hasta ahora.
+   * Devuelve { ok: true } si se registró, { requiereConfirmacion: true, excesos } si el servidor pide
+   * confirmar que se recibió más de lo pedido (no se guardó nada), o { ok: false } si falló.
    */
-  const handleCompletarRecepcion = async (idOrden, items, onDone) => {
+  const handleCompletarRecepcion = async (idOrden, cuerpo) => {
     setCompletandoOrden(true);
     try {
-      const res = await axios.post(`/api/ordenes/${idOrden}/completar`, { items });
-      if (res.data.success) {
-        toast.success('Recepción confirmada: el inventario ya se actualizó.');
-        setShowHistoryDetail(null);
-        fetchHistory();
+      const res = await axios.post(`/api/ordenes/${idOrden}/completar`, cuerpo);
+      if (!res.data.success) return { ok: false };
+      const faltan = res.data.pendientes?.length || 0;
+      if (res.data.estado === 'Parcial') {
+        toast.success(`Recepción parcial registrada: el inventario ya se actualizó y ${faltan === 1 ? 'falta 1 producto' : `faltan ${faltan} productos`} por llegar.`);
+      } else {
+        toast.success('Recepción completa: el inventario ya se actualizó.');
       }
+      setShowHistoryDetail(null);
+      fetchHistory();
+      return { ok: true };
     } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.requiere_confirmacion) {
+        return { requiereConfirmacion: true, excesos: e.response.data.excesos || [] };
+      }
       toast.error(e.response?.data?.error || 'No se pudo confirmar la recepción.');
+      return { ok: false };
     } finally {
       setCompletandoOrden(false);
-      onDone?.();
     }
   };
 

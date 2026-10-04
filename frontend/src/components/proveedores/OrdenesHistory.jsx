@@ -32,14 +32,25 @@ const OrdenesHistory = ({
   const [qtyDraft, setQtyDraft] = useState({});
   const [mostrarRecepcion, setMostrarRecepcion] = useState(false);
   const [recepcionDraft, setRecepcionDraft] = useState({});
+  const [cerrarConFaltante, setCerrarConFaltante] = useState(false);
+  // Exceso pendiente de confirmar (lista que devuelve el servidor) y el motivo que escribe el administrador.
+  const [excesos, setExcesos] = useState(null);
+  const [motivoExceso, setMotivoExceso] = useState('');
   const esBorrador = showHistoryDetail?.estado === 'Borrador';
-  const sePuedeRecibir = showHistoryDetail?.estado === 'Aprobada' || showHistoryDetail?.estado === 'Enviada';
+  const sePuedeRecibir = ['Aprobada', 'Enviada', 'Parcial'].includes(showHistoryDetail?.estado);
+
+  const reiniciarRecepcion = () => {
+    setMostrarRecepcion(false);
+    setRecepcionDraft({});
+    setCerrarConFaltante(false);
+    setExcesos(null);
+    setMotivoExceso('');
+  };
 
   const cerrarDetalle = () => {
     setShowHistoryDetail(null);
     setQtyDraft({});
-    setMostrarRecepcion(false);
-    setRecepcionDraft({});
+    reiniciarRecepcion();
   };
 
   const copiarPedido = async () => {
@@ -51,12 +62,25 @@ const OrdenesHistory = ({
     }
   };
 
-  const confirmarRecepcion = () => {
-    const items = ordenDetail.map((det) => ({
-      id_producto: det.id_producto,
-      cantidad_recibida: Number(recepcionDraft[det.id_producto] ?? det.cantidad_final),
-    }));
-    onCompletarRecepcion(showHistoryDetail.id_orden, items, () => { setMostrarRecepcion(false); setRecepcionDraft({}); });
+  /**
+   * Envía el TOTAL recibido de cada producto. Si el servidor pide confirmar que se recibió más de lo
+   * pedido (no guardó nada), se muestra el panel del motivo; con `confirmando` se reenvía con el motivo.
+   */
+  const confirmarRecepcion = async (confirmando = false) => {
+    const cuerpo = {
+      items: ordenDetail.map((det) => ({
+        id_producto: det.id_producto,
+        cantidad_recibida: Number(recepcionDraft[det.id_producto] ?? det.cantidad_final),
+      })),
+      cerrar_con_faltante: cerrarConFaltante,
+    };
+    if (confirmando) {
+      cuerpo.confirmar_exceso = true;
+      cuerpo.motivo = motivoExceso.trim();
+    }
+    const resultado = await onCompletarRecepcion(showHistoryDetail.id_orden, cuerpo);
+    if (resultado?.requiereConfirmacion) setExcesos(resultado.excesos);
+    else if (resultado?.ok) reiniciarRecepcion();
   };
   return (
     <div className="relative z-10 pt-10 border-t border-slate-100">
@@ -189,15 +213,17 @@ const OrdenesHistory = ({
                         )}
                       </p>
                       {!esBorrador && !mostrarRecepcion && <p className="text-xs font-bold text-slate-500">Base: {det.cantidad_sugerida ?? det.cantidad_final} ud → Final: <span className="text-exito">{det.cantidad_final} ud</span></p>}
+                      {mostrarRecepcion && <p className="text-xs font-bold text-slate-500">Pedido: {det.cantidad_final} ud</p>}
                       {det.cantidad_recibida !== null && det.cantidad_recibida !== undefined && (
-                        <p className="text-xs font-bold text-slate-500">Recibido: <span className={Number(det.cantidad_recibida) < det.cantidad_final ? 'text-aviso' : 'text-exito'}>{det.cantidad_recibida} ud</span></p>
+                        <p className="text-xs font-bold text-slate-500">Recibido{mostrarRecepcion ? ' hasta ahora' : ''}: <span className={Number(det.cantidad_recibida) < det.cantidad_final ? 'text-aviso' : Number(det.cantidad_recibida) > det.cantidad_final ? 'text-azul' : 'text-exito'}>{det.cantidad_recibida} ud</span></p>
                       )}
                     </div>
                     {mostrarRecepcion ? (
                       <input
                         type="number"
-                        min="0"
-                        aria-label={`Cantidad recibida de ${det.nombre_producto}`}
+                        min={Number(det.cantidad_recibida) || 0}
+                        disabled={!!excesos}
+                        aria-label={`Total recibido de ${det.nombre_producto}`}
                         value={recepcionDraft[det.id_producto] ?? det.cantidad_final}
                         onChange={(e) => setRecepcionDraft((prev) => ({ ...prev, [det.id_producto]: e.target.value }))}
                         className="w-20 p-2 text-sm font-bold text-tinta text-center bg-white border border-slate-200 rounded-lg outline-none focus:border-azul"
@@ -341,25 +367,72 @@ const OrdenesHistory = ({
                 </button>
               </div>
             )}
-            {sePuedeRecibir && mostrarRecepcion && (
+            {sePuedeRecibir && mostrarRecepcion && !excesos && (
               <div className="p-5 border-t border-slate-100 bg-slate-50 space-y-3">
                 <p className="text-xs font-bold text-tinta flex items-center gap-2">
-                  <PackageCheck size={14} /> Confirma cuánto llegó de cada producto (ya viene con la cantidad pedida).
+                  <PackageCheck size={14} /> Escribe el total recibido de cada producto, contando lo que ya registraste (ya viene con la cantidad pedida).
                 </p>
-                <p className="text-xs text-slate-500">Si algo no llegó, pon 0 o la cantidad real: se sumará al inventario y lo que falte lo volverá a sugerir el Consejero.</p>
+                <p className="text-xs text-slate-500">Si llega menos, la orden queda «Parcial»: lo recibido se suma al inventario y lo que falte sigue pendiente para registrarlo cuando llegue.</p>
+                <label className="flex items-start gap-2 text-xs text-tinta-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={cerrarConFaltante}
+                    onChange={(e) => setCerrarConFaltante(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>Cerrar la orden aunque falte mercancía (doy por perdido lo que no llegó).</span>
+                </label>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setMostrarRecepcion(false)}
+                    onClick={reiniciarRecepcion}
                     className="flex-1 py-3 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-500 hover:text-tinta transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
-                    onClick={confirmarRecepcion}
+                    onClick={() => confirmarRecepcion(false)}
                     disabled={completandoOrden}
                     className="flex-1 py-3 rounded-lg text-xs font-bold bg-exito text-white hover:bg-emerald-700 shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {completandoOrden ? (<><Loader2 size={14} className="animate-spin" /> Confirmando...</>) : (<><Check size={14} /> Confirmar recepción</>)}
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* El servidor no guardó nada: se recibió más de lo pedido y hay que confirmarlo con un motivo. */}
+            {sePuedeRecibir && mostrarRecepcion && excesos && (
+              <div className="p-5 border-t border-aviso/30 bg-aviso-suave space-y-3" role="alertdialog" aria-label="Confirmar que se recibió más de lo pedido">
+                <p className="text-xs font-bold text-aviso flex items-center gap-2">
+                  <AlertTriangle size={14} /> Recibiste más de lo pedido. Todavía no se guardó nada.
+                </p>
+                <ul className="text-xs text-tinta-2 space-y-1">
+                  {excesos.map((x) => (
+                    <li key={x.id_producto}><span className="font-bold">{x.nombre}</span>: pedido {x.pedido} ud, recibido {x.recibido} ud (+{x.exceso})</li>
+                  ))}
+                </ul>
+                <label className="block text-xs font-bold text-tinta" htmlFor="motivo-exceso">Motivo (obligatorio, mínimo 5 caracteres)</label>
+                <textarea
+                  id="motivo-exceso"
+                  value={motivoExceso}
+                  onChange={(e) => setMotivoExceso(e.target.value)}
+                  maxLength={200}
+                  rows={2}
+                  placeholder="Ej: El proveedor mandó una caja extra de regalo."
+                  className="w-full p-3 bg-white border border-aviso/30 rounded-lg text-sm text-tinta-2 outline-none focus:border-azul resize-none placeholder:text-slate-500"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setExcesos(null); setMotivoExceso(''); }}
+                    className="flex-1 py-3 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-500 hover:text-tinta transition-colors"
+                  >
+                    Volver a corregir
+                  </button>
+                  <button
+                    onClick={() => confirmarRecepcion(true)}
+                    disabled={completandoOrden || motivoExceso.trim().length < 5}
+                    className="flex-1 py-3 rounded-lg text-xs font-bold bg-exito text-white hover:bg-emerald-700 shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {completandoOrden ? (<><Loader2 size={14} className="animate-spin" /> Confirmando...</>) : (<><Check size={14} /> Registrar el exceso</>)}
                   </button>
                 </div>
               </div>

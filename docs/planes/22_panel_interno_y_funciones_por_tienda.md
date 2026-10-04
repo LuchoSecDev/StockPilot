@@ -252,7 +252,7 @@ Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 rem
 1. Correcciones que salgan de la fase 4, en la app y en el backend.
 2. **I1 e I2:** panel de solo lectura, excluyendo las tiendas de prueba (sección 3.3).
 3. **I4:** preguntas del registro (días de apertura, experiencia digital) y párrafo de la política de datos.
-4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21; **decidida el 4-oct: opción B, pedir confirmación**).
+4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21; **decidida e implementada el 4-oct: opción B, pedir confirmación con motivo, y el faltante queda pendiente en una orden «Parcial»**).
    - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base).
 5. Decidir si se mantiene despierto el servidor en horario de tienda con un *ping* (cabe en las horas gratuitas de Render si es el único servicio gratuito).
 6. Arranque acordado con cada dueño.

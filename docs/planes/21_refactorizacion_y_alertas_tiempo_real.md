@@ -164,7 +164,7 @@ esos internos.
 **Comportamientos raros encontrados** (caracterizados, NO corregidos):
 
 - **P21-09** `/api/verify-reset-code` no tiene limitador propio: se pueden probar códigos de 6 dígitos sin límite.
-- **P21-10** `suppliersController.completarRecepcion` no valida `cantidad_recibida` contra lo pedido (pedir 5, recibir 500 se acepta).
+- **P21-10** `suppliersController.completarRecepcion` no valida `cantidad_recibida` contra lo pedido (pedir 5, recibir 500 se acepta). **Resuelto el 4-oct-2026** en la rama `feat/recepcion-con-confirmacion`: `cantidad_recibida` es el total acumulado de la línea (reenviar el mismo total no vuelve a sumar stock); más de lo pedido → 409 `RECEPCION_EXCEDE_PEDIDO` y solo se registra con `confirmar_exceso` y un motivo (queda en el Kardex); menos → la orden queda «Parcial» y se puede seguir recibiendo; `cerrar_con_faltante` la cierra como «Completada» dando el resto por perdido. Pruebas: `recepcion_mercancia.test.js`.
 - **P21-11** Contadores de los limitadores compartidos entre pruebas — **resuelto** en esta rama (ver arriba).
 - **P21-12** `bulkUpload`: el `if (!req.file)` es código muerto, `validateFileType` ya responde 400 antes.
 - **P21-13** El `skip` de `globalLimiter` es inerte: está montado en `/api/` y Express entrega `req.path` sin ese prefijo (`/login`, no `/api/login`), así que `/login`, `/registro` y `/2fa/verify` sí gastan el presupuesto global. Comprobado: un `POST /api/login` y un `POST /api/2fa/verify` suman 1 golpe cada uno en el contador global.

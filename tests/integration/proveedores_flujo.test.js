@@ -78,7 +78,7 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     expect(producto.cantidad).toBe(20); // 10 iniciales + 10 recibidas
   });
 
-  it('completarRecepcion: recibir MENOS de lo pedido se acepta sin objeción (cierre total, lo faltante no queda "pendiente")', async () => {
+  it('completarRecepcion: recibir MENOS de lo pedido se acepta y la orden queda «Parcial» con el faltante pendiente (P21-10; el detalle está en recepcion_mercancia.test.js)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Administrador' });
     const idProveedor = await crearProveedor(agente, csrfToken);
     const idProducto = await crearProducto({ id_tienda, id_proveedor: idProveedor, cantidad: 10 });
@@ -94,12 +94,12 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     await esperarTrabajoEnSegundoPlano();
 
     const orden = await db.getAsync('SELECT estado FROM Ordenes_Compra WHERE id_orden = ?', [ordenId]);
-    expect(orden.estado).toBe('Completada');
+    expect(orden.estado).toBe('Parcial');
     const producto = await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto]);
-    expect(producto.cantidad).toBe(14); // 10 + 4, no vuelve a sugerir "6 pendientes" aquí
+    expect(producto.cantidad).toBe(14); // 10 + 4; los 6 que faltan quedan pendientes en la misma orden
   });
 
-  it('COMPORTAMIENTO ACTUAL, posible bug: recibir MÁS de lo pedido se acepta sin tope (recepción sin validar contra lo pedido)', async () => {
+  it('recibir MÁS de lo pedido ya no se acepta sin más: pide confirmación (409) y no toca el stock (P21-10; el detalle está en recepcion_mercancia.test.js)', async () => {
     const { agente, csrfToken, id_tienda } = await agenteLogueado({ rol: 'Administrador' });
     const idProveedor = await crearProveedor(agente, csrfToken);
     const idProducto = await crearProducto({ id_tienda, id_proveedor: idProveedor, cantidad: 10 });
@@ -109,15 +109,15 @@ describe('Proveedores: orden inteligente (copiloto IA, aprobar, recibir)', () =>
     const ordenId = crear.body.orden_id;
     await agente.patch(`/api/ordenes/${ordenId}/estado`).set('X-CSRF-Token', csrfToken).send({ estado: 'Aprobada' });
 
-    // Se pidieron 5, pero se registran 500 recibidas: hoy no hay ningún tope contra lo pedido
-    // (completarRecepcion solo valida 0 <= cantidad_recibida <= 100000). Ver plan 21, R0.
+    // Se pidieron 5 y se intentan registrar 500 (antes de P21-10 se aceptaba sin tope).
     const recibir = await agente.post(`/api/ordenes/${ordenId}/completar`).set('X-CSRF-Token', csrfToken)
       .send({ items: [{ id_producto: idProducto, cantidad_recibida: 500 }] });
-    expect(recibir.status).toBe(200);
+    expect(recibir.status).toBe(409);
+    expect(recibir.body.code).toBe('RECEPCION_EXCEDE_PEDIDO');
     await esperarTrabajoEnSegundoPlano();
 
     const producto = await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [idProducto]);
-    expect(producto.cantidad).toBe(510); // 10 + 500, sin ninguna objeción
+    expect(producto.cantidad).toBe(10); // sin cambios
   });
 
   it('completarRecepcion: un producto que no pertenece a la orden da 400 y no toca nada', async () => {
