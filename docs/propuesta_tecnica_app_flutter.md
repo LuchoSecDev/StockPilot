@@ -34,11 +34,20 @@ La app es un **cliente delgado**: las reglas (stock, cupo de crédito, tope de e
 1. **Escáner, como prueba aparte desde el primer día.** Es el mayor riesgo (plan 22): se prueba en celulares reales con etiquetas difíciles, antes de construir lo demás sobre él.
 2. **Sesión:** login con `X-Canal: app`, CSRF, cookie persistente, pantalla del código 2FA y primer cambio de contraseña (`[S7]`).
 3. **Abrir caja** (`[K2]`) y consultar su estado.
-4. **Venta:** escáner, carrito, método de pago y fiado, con `Idempotency-Key`.
+4. **Venta:** escáner, **búsqueda manual por nombre** (ver la sección «Productos sin código de barras»), carrito, método de pago y fiado, con `Idempotency-Key`.
 5. **Cierre de caja** (`[K3]`) con el arqueo.
 6. **Después:** egresos (foto de **menos de ~750 KB**: comprimir antes de enviar), entrada de mercancía, alertas, solicitud de producto.
 
 Cada paso se da por terminado cuando funciona contra los ejemplos simulados **y** contra el servidor de pruebas.
+
+## Productos sin código de barras
+Muchos productos (en una papelería, casi todos los sueltos) no traen código comercial. Cómo se resuelve con lo que ya existe:
+1. **El escáner también encuentra por `codigo`** (el código interno o SKU del producto): VERIFICADO leyendo `Product.findByBarcode`, y fijado con una prueba (`[C2]`). Un producto sin código comercial puede llevar una **etiqueta propia** impresa con su `codigo` (Code 128 o QR).
+2. **Código comercial que el sistema aún no conoce** (`[C2]` responde 404): la app ofrece buscar el producto por nombre y, una vez elegido, **vincularle ese código** (`[C3]`) para que la próxima vez lo reconozca. Es lo que el plan 07 prevé para el arranque: «al principio muchos productos no tendrán el código asociado».
+3. **Búsqueda manual por nombre:** la lista de `[C1]` llega completa (sin paginación) y se filtra en el celular. Es imprescindible desde la primera versión de la venta, no un extra. SIN VERIFICAR el rendimiento con un catálogo muy grande.
+4. **El producto tiene que existir en el catálogo.** Crearlo es del Administrador (decisión D1): el Tendero no crea productos desde la app.
+
+**Límite que hay que conocer:** el stock y las cantidades vendidas son **números enteros** (VERIFICADO en el esquema: `Productos.cantidad` y `VentasProductos.cantidad` son `INTEGER`). No se puede vender por peso ni por fracciones (media libra, medio metro). Cómo venden esos productos las tiendas del piloto es una pregunta para la visita (por ejemplo, venderlos por unidades de un tamaño fijo); la primera versión de la app asume unidades enteras.
 
 ## 4. Riesgos que ya conocemos (con su fuente en el contrato)
 - Solo la venta tiene idempotencia: **no reintentar a ciegas** egresos, entradas ni apertura o cierre de caja.
