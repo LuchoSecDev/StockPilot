@@ -1,0 +1,35 @@
+{
+  "descripcion": "Ventas de la caja abierta del usuario (?turno=actual). Una fila por producto vendido.",
+  "peticion": {
+    "metodo": "GET",
+    "ruta": "/api/ventas?turno=actual",
+    "headers": {
+      "Accept": "application/json"
+    }
+  },
+  "respuesta": {
+    "estado": 200,
+    "headers": {
+      "Set-Cookie": "connect.sid=<valor opaco>; Path=/; Expires=<30 minutos después de la última petición>; HttpOnly; SameSite=Strict"
+    },
+    "body": {
+      "data": [
+        {
+          "id_venta": 1,
+          "fecha_salida": "2026-10-04T15:30:00.000Z",
+          "canal": "app",
+          "cantidad": 2,
+          "nombre_producto": "Arroz Diana 1Kg",
+          "categoria": "Granos",
+          "precio_unitario": "4500.00",
+          "precio_total": "9000.00",
+          "nombre_vendedor": "Carlos Pérez"
+        }
+      ],
+      "total": 1,
+      "limit": 100,
+      "offset": 0,
+      "hasMore": false
+    }
+  }
+}

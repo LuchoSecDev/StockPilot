@@ -520,6 +520,23 @@ describe('[K4] POST /api/caja/egreso', () => {
     expect((await e.post(e.tenderoA, '/api/caja/egreso', { monto: 150000, motivo: 'Justo en el tope' })).status).toBe(200);
   });
 
+  it('COMPORTAMIENTO ACTUAL: foto_soporte cabe hasta ~1 MB de base64 (≈ 750 KB de imagen), no 2 MB; por encima, 413 antes de llegar al controlador', async () => {
+    // El controlador acepta hasta ~2,8 millones de caracteres, pero express.json limita TODO el cuerpo a 1 MB
+    // (app.js), así que ese tope nunca se alcanza. La app debe redimensionar y comprimir la foto.
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA);
+    const foto = (caracteres) => 'data:image/jpeg;base64,' + 'A'.repeat(caracteres);
+
+    const cabe = await e.post(e.tenderoA, '/api/caja/egreso', { monto: 1000, motivo: 'Gasto con foto', foto_soporte: foto(1000000) });
+    expect(cabe.status).toBe(200);
+    expect(cabe.body.id_egreso).toEqual(expect.any(Number));
+
+    const sobra = await e.post(e.tenderoA, '/api/caja/egreso', { monto: 1000, motivo: 'Gasto con foto grande', foto_soporte: foto(1100000) });
+    expect(sobra.status).toBe(413);
+    expect(sobra.body).toEqual({ success: false, error: 'La petición es demasiado grande.' });
+    expect(Number((await db.getAsync('SELECT COUNT(*) AS n FROM EgresosCaja')).n)).toBe(1);
+  });
+
   it('el Tendero NO aprueba ni rechaza egresos (PUT /api/caja/egreso/:id/aprobar|rechazar → 403): eso es del Administrador', async () => {
     const e = await escenario();
     await e.abrirCaja(e.tenderoA);

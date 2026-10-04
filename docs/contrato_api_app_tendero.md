@@ -4,7 +4,7 @@
 **Dónde vive y por qué:** en el repositorio del backend, porque la app está en otro repositorio y sus commits no deben disparar despliegues. Cualquier cambio de la API que afecte a la app se acuerda primero aquí.
 **Cómo se garantiza que no miente:** cada endpoint tiene un ID (`[S1]`, `[K2]`…) y sus respuestas están fijadas por `tests/integration/contrato_app_tendero.test.js`. Si esa prueba falla, el contrato cambió: se acuerda con quien construye la app y se actualiza este documento. Los casos marcados **COMPORTAMIENTO ACTUAL** son hallazgos conocidos: se describen tal cual funcionan hoy y su prueba fallará a propósito cuando se corrijan.
 
-Todo lo de este documento se verificó ejecutando las peticiones contra el servidor real (`stockpilot_test`); las respuestas son las reales, con datos de ejemplo.
+Todo lo de este documento se verificó ejecutando las peticiones contra el servidor real (`stockpilot_test`); las respuestas son las reales, con datos de ejemplo. **Ejemplos completos de petición y respuesta**, listos para simular el servidor en las pruebas de la app: `docs/ejemplos_app_tendero/` (los vigila `tests/integration/ejemplos_app_tendero.test.js`).
 
 ---
 
@@ -183,7 +183,7 @@ Con CSRF. **Cuerpo:** `{ "monto_cierre_declarado": 60000 }` (lo que el Tendero c
 **Prueba:** `contrato_app_tendero.test.js › [K3]`.
 
 ### [K4] `POST /api/caja/egreso`
-Con CSRF. **Cuerpo:** `{ "monto": 10000, "motivo": "Bolsas y hielo", "categoria": "Otro", "foto_soporte": "data:image/jpeg;base64,…"? }`. `categoria` por defecto `"Otro"`. `foto_soporte` opcional: solo JPEG o PNG en base64 (`data:image/jpeg;base64,` o `data:image/png;base64,`), máximo ~2 MB.
+Con CSRF. **Cuerpo:** `{ "monto": 10000, "motivo": "Bolsas y hielo", "categoria": "Otro", "foto_soporte": "data:image/jpeg;base64,…"? }`. `categoria` por defecto `"Otro"`. `foto_soporte` opcional: solo JPEG o PNG en base64 (`data:image/jpeg;base64,` o `data:image/png;base64,`). **Tope real: 1 MB de cuerpo en total, unos 1.000.000 de caracteres de base64 (≈ 750 KB de imagen).** Una foto de celular (varios MB) **no cabe**: la app debe redimensionarla y comprimirla antes de enviarla (por ejemplo, JPEG de 1280 px de lado mayor y calidad media) y comprobar que el resultado queda bajo ~700 KB. Por encima del tope responde **413** `{ "success": false, "error": "La petición es demasiado grande." }` y no se registra el egreso. El controlador también declara un tope de 2 MB, pero nunca se alcanza porque el límite del cuerpo corta antes.
 
 | Código | Cuerpo |
 |---|---|
@@ -192,7 +192,7 @@ Con CSRF. **Cuerpo:** `{ "monto": 10000, "motivo": "Bolsas y hielo", "categoria"
 | **400** | `{ "error": "El monto debe ser mayor a 0." }` |
 | **400** | `{ "error": "Debes proporcionar un motivo válido (mínimo 5 caracteres)." }` |
 | **400** | `{ "error": "Por seguridad, tu rol no permite registrar gastos mayores a $150.000. Consulta al administrador." }` (el tope sale de `limiteEgresoTendero` en `[S4]`; el monto igual al tope es válido) |
-| **400** | `{ "error": "Formato de imagen no permitido. Solo se acepta JPG o PNG." }` / `"La imagen supera el tamaño máximo permitido de 2MB."` |
+| **400** | `{ "error": "Formato de imagen no permitido. Solo se acepta JPG o PNG." }` / `"La imagen supera el tamaño máximo permitido de 2MB."` (en la práctica no llega a salir: antes responde el 413) |
 
 El Tendero **no** aprueba ni rechaza egresos: `PUT /api/caja/egreso/:id/aprobar|rechazar` → 403.
 **Pruebas:** `contrato_app_tendero.test.js › [K4]`; aprobación y 409 en `autorizacion_roles.test.js`.
@@ -321,5 +321,5 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 ## 12. Cómo cambiar este contrato
 1. Proponer el cambio en este documento (rama del backend), indicando si rompe a la app.
 2. Cambiar el código **y** `contrato_app_tendero.test.js` en el mismo commit.
-3. Avisar a quien construye la app antes de desplegar. Los cambios compatibles (campos nuevos en las respuestas) no rompen; renombrar o quitar campos, cambiar códigos de estado o hacer obligatorio un campo sí.
+3. Regenerar los ejemplos de `docs/ejemplos_app_tendero/` (su prueba falla si no se hace; el comando está en su README). Avisar a quien construye la app antes de desplegar. Los cambios compatibles (campos nuevos en las respuestas) no rompen; renombrar o quitar campos, cambiar códigos de estado o hacer obligatorio un campo sí.
 4. Durante las seis semanas del piloto solo se despliegan correcciones de errores (plan 22, sección 5).

@@ -1,0 +1,35 @@
+{
+  "descripcion": "Recepción de mercancía: suma el stock y deja el movimiento en el Kardex.",
+  "peticion": {
+    "metodo": "POST",
+    "ruta": "/api/inventario/entrada",
+    "headers": {
+      "Accept": "application/json",
+      "X-CSRF-Token": "<valor de GET /api/csrf-token>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id_producto": 1,
+      "cantidad": 6,
+      "observacion": "Pedido del lunes"
+    }
+  },
+  "respuesta": {
+    "estado": 200,
+    "headers": {
+      "Set-Cookie": "connect.sid=<valor opaco>; Path=/; Expires=<30 minutos después de la última petición>; HttpOnly; SameSite=Strict"
+    },
+    "body": {
+      "success": true,
+      "message": "Entrada registrada",
+      "data": {
+        "id": 2,
+        "producto": "Arroz Diana 1Kg",
+        "tipo": "Entrada",
+        "cantidad": 6,
+        "stockAnterior": 8,
+        "stockNuevo": 14
+      }
+    }
+  }
+}
