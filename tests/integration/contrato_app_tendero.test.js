@@ -538,30 +538,34 @@ describe('[V2] POST /api/registrar-venta-carrito', () => {
     expect(Number((await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [e.producto])).cantidad)).toBe(10);
   });
 
-  it('COMPORTAMIENTO ACTUAL: un producto inexistente (o de otra tienda) da 400 «Error interno procesando la venta», no 404', async () => {
+  it('404 { success:false, error } si un producto del carrito no existe o es de otra tienda (no se vende nada)', async () => {
     const e = await escenario();
     await e.abrirCaja(e.tenderoA);
-    const r = await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: 99999, cantidad: 1 }] });
-    expect(r.status).toBe(400);
-    expect(r.body).toEqual({ success: false, error: 'Error interno procesando la venta' });
+    const ajeno = await crearProducto({ id_tienda: e.adminB.id_tienda, nombre_producto: 'De B' });
+    for (const id of [99999, ajeno]) {
+      const r = await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }, { id_producto: id, cantidad: 1 }] });
+      expect(r.status).toBe(404);
+      expect(r.body).toEqual({ success: false, error: 'Producto no encontrado o no pertenece a tu tienda' });
+    }
+    expect(Number((await db.getAsync('SELECT COUNT(*) AS n FROM Ventas')).n)).toBe(0);
   });
 
-  it('COMPORTAMIENTO ACTUAL (hallazgo): el límite de crédito del cliente NO se aplica en las ventas fiadas', async () => {
-    const e = await escenario();
-    await e.abrirCaja(e.tenderoA);
-    const cli = await db.runAsync("INSERT INTO Clientes (id_tienda, nombre, limite_credito) VALUES (?, 'Sin cupo', 1000) RETURNING id_cliente", [e.adminA.id_tienda]);
-    const r = await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 5 }], metodo_pago: 'Fiado', id_cliente: cli.lastID }); // 22.500 sobre un cupo de 1.000
-    expect(r.status).toBe(200);
-  });
-
-  it('COMPORTAMIENTO ACTUAL (hallazgo): acepta como id_cliente un cliente de OTRA tienda (la deuda queda ligada a él)', async () => {
+  it('fiado: 404 «Cliente no encontrado» si el cliente no existe o es de OTRA tienda; 400 si la venta supera el cupo de crédito (limite_credito > 0)', async () => {
     const e = await escenario();
     await e.abrirCaja(e.tenderoA);
     const ajeno = await db.runAsync("INSERT INTO Clientes (id_tienda, nombre, limite_credito) VALUES (?, 'Cliente de B', 100000) RETURNING id_cliente", [e.adminB.id_tienda]);
-    const r = await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }], metodo_pago: 'Fiado', id_cliente: ajeno.lastID });
-    expect(r.status).toBe(200);
-    await esperarTrabajoEnSegundoPlano();
-    expect((await db.getAsync('SELECT id_cliente FROM Ventas WHERE id_venta = ?', [r.body.id_venta])).id_cliente).toBe(ajeno.lastID);
+    const propio = await db.runAsync("INSERT INTO Clientes (id_tienda, nombre, limite_credito) VALUES (?, 'Con cupo', 1000) RETURNING id_cliente", [e.adminA.id_tienda]);
+    const fiar = (id_cliente, cantidad = 1) => e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad }], metodo_pago: 'Fiado', id_cliente });
+
+    for (const id of [ajeno.lastID, 99999, 'abc']) {
+      const r = await fiar(id);
+      expect(r.status, String(id)).toBe(404);
+      expect(r.body).toEqual({ success: false, error: 'Cliente no encontrado' });
+    }
+    const sobreCupo = await fiar(propio.lastID, 5); // 22.500 sobre un cupo de 1.000
+    expect(sobreCupo.status).toBe(400);
+    expect(sobreCupo.body).toEqual({ success: false, error: expect.stringMatching(/^Esta venta supera el cupo de crédito del cliente \(cupo \$1\.000, ya debe \$0, esta venta \$22\.500\)\.$/) });
+    expect(Number((await db.getAsync('SELECT COUNT(*) AS n FROM Ventas')).n)).toBe(0);
   });
 });
 

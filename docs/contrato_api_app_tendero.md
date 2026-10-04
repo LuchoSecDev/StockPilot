@@ -207,13 +207,13 @@ Con CSRF. **Esta es la ruta de venta que usa la app** (`POST /api/registrar-vent
 | **400** | `… "Cada ítem debe tener producto y cantidad"` · `… "Las cantidades deben ser mayores a 0"` | Ítem mal formado. |
 | **400** | `… "El cliente es obligatorio para ventas fiadas."` | Fiado sin `id_cliente`. |
 | **400** | `… "Stock insuficiente para el producto: <nombre>"` | No alcanza el stock; no se descuenta nada. |
-| **400** | `… "Error interno procesando la venta"` | **COMPORTAMIENTO ACTUAL:** también es lo que devuelve un `id_producto` inexistente o de otra tienda (debería ser 404). |
+| **404** | `{ "success": false, "error": "Producto no encontrado o no pertenece a tu tienda" }` | Un `id_producto` del carrito no existe o es de otra tienda; no se vende nada del carrito. |
+| **404** | `{ "success": false, "error": "Cliente no encontrado" }` | `id_cliente` inexistente, no numérico o **de otra tienda** (también si la venta no es fiada). |
+| **400** | `{ "success": false, "error": "Esta venta supera el cupo de crédito del cliente (cupo $5.000, ya debe $4.000, esta venta $2.000)." }` | Venta **fiada** que deja el saldo del cliente por encima de su `limite_credito`. Un cupo de **0 significa «sin tope»**. El saldo es ventas fiadas menos abonos (el `saldo_pendiente` de `[V1]`); estar justo en el cupo es válido. |
 
 El canal **no** se puede elegir en la venta: se toma de la sesión.
-**COMPORTAMIENTO ACTUAL (hallazgos que afectan a la app):**
-- **El límite de crédito del cliente no se aplica:** una venta fiada por más que el `limite_credito` se acepta. La app puede avisar al usuario comparando `saldo_pendiente + total` con `limite_credito` de `[V1]`, pero el servidor no lo impide.
-- **El `id_cliente` no se valida contra la tienda:** se acepta un cliente de otra tienda. La app solo debe ofrecer los clientes de `[V1]`.
-**Pruebas:** `contrato_app_tendero.test.js › [V2]`; el canal, `ventas_canal.test.js`; la concurrencia sobre el mismo producto, `venta_concurrencia.test.js`.
+Para evitar el 400 por cupo, la app puede avisar antes comparando `saldo_pendiente + total` con `limite_credito` de `[V1]`; el servidor es quien decide, y dos ventas fiadas simultáneas al mismo cliente se serializan (no pueden pasarse del cupo entre las dos). Un cupo de 0 como «sin tope» es una decisión de negocio pendiente de confirmar.
+**Pruebas:** `contrato_app_tendero.test.js › [V2]`; las validaciones de cliente, cupo y producto con su concurrencia, `ventas_fiado_validaciones.test.js`; el canal, `ventas_canal.test.js`; la concurrencia sobre el mismo producto, `venta_concurrencia.test.js`.
 
 ### [V3] `GET /api/ventas`
 `?limit=` (por defecto 100) y `?offset=`. **200** `{ "data": [ { "id_venta", "fecha_salida", "cantidad", "nombre_producto", "categoria", "precio_unitario", "precio_total", "nombre_vendedor" } ], "total", "limit", "offset", "hasMore" }`. Una fila **por producto vendido**, de **toda la tienda** (no solo del vendedor ni del turno) y **sin** `canal`.
@@ -284,8 +284,6 @@ La lista completa y su prueba (Tendero → 403, la base no cambia) están en `au
 |---|---|---|---|
 | C4 | CSRF inválido responde 500, no 403 | La app no distingue un error real de un token vencido | Que el manejador global respete `err.status` (≈5 líneas) |
 | — | `link-barcode` permite códigos duplicados | Dos productos con el mismo código; `[C2]` ambiguo | Responder 409 si otro producto de la tienda ya lo tiene |
-| — | Ventas fiadas sin límite de crédito y con `id_cliente` sin validar contra la tienda | Se puede fiar sobre el cupo y ligar una venta a un cliente ajeno | Validar cliente y cupo dentro de la transacción de la venta |
-| — | Producto inexistente en el carrito da 400 «Error interno…» | Mensaje poco claro | 404 con «Producto no encontrado» |
 | — | `GET /api/productos` expone `costo_compra` al Tendero | Dato de margen visible en el dispositivo | Quitar esos campos para el rol Tendero |
 | — | No hay endpoint de «ventas del turno» ni `canal` en `GET /api/ventas` | Brecha de la función opcional | Filtro por vendedor/sesión de caja |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |
