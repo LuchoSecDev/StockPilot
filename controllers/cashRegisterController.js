@@ -29,17 +29,17 @@ class CashRegisterController {
             const id_vendedor = req.session.userId;
             const { monto_apertura } = req.body;
 
-            // Verificar que no haya una caja abierta ya
-            const activeSession = await CashRegister.getCurrentSession(id_tienda, id_vendedor);
-            if (activeSession) {
-                return res.status(400).json({ error: 'Ya tienes una sesión de caja abierta.' });
-            }
-
-            if (monto_apertura === undefined || monto_apertura < 0) {
+            // El monto tiene que ser un número finito >= 0 (antes un texto como «abc» llegaba a la base y daba 500).
+            const monto = typeof monto_apertura === 'number' || typeof monto_apertura === 'string' ? Number(monto_apertura) : NaN;
+            if (monto_apertura === '' || !Number.isFinite(monto) || monto < 0) {
                 return res.status(400).json({ error: 'El monto de apertura no es válido.' });
             }
 
-            const result = await CashRegister.openSession(id_tienda, id_vendedor, monto_apertura);
+            // La comprobación «¿ya hay una abierta?» y la apertura son una sola operación atómica por vendedor.
+            const result = await CashRegister.openSession(id_tienda, id_vendedor, monto);
+            if (!result.creada) {
+                return res.status(400).json({ error: 'Ya tienes una sesión de caja abierta.' });
+            }
             res.json({ success: true, message: 'Caja abierta exitosamente', id_sesion: result.id_sesion });
         } catch (error) {
             console.error('Error opening cash register session:', error);

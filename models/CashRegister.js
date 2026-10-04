@@ -14,14 +14,47 @@ class CashRegister {
     }
 
     /**
-     * Abre una nueva sesión de caja
+     * Abre una nueva sesión de caja de forma ATÓMICA por vendedor: la comprobación «¿ya tiene una abierta?»
+     * y el INSERT van en una transacción protegida por un bloqueo asesor (pg_advisory_xact_lock) sobre el
+     * vendedor. Antes eran un SELECT y un INSERT sueltos: doce aperturas simultáneas abrían doce cajas
+     * (reproducido en caja_apertura_concurrencia.test.js) y el arqueo quedaba descuadrado.
+     *
+     * El bloqueo es por vendedor, no por tienda: dos vendedores de la misma tienda abren sin esperarse.
+     * Su espacio de claves (hashtext('apertura_caja'), id_vendedor) no choca con el de los borradores de
+     * orden, que usa (id_tienda, id_proveedor).
+     *
+     * @returns {Promise<{creada: boolean, id_sesion: number}>} Si ya había una abierta: creada=false y su id.
      */
     static async openSession(id_tienda, id_vendedor, monto_apertura) {
-        return await db.runAsync(
-            `INSERT INTO SesionCaja (id_tienda, id_vendedor, monto_apertura, estado) 
-             VALUES (?, ?, ?, 'Abierta') RETURNING id_sesion`,
-            [id_tienda, id_vendedor, monto_apertura]
-        );
+        const client = await db.getClient();
+        try {
+            await client.query('BEGIN');
+            await client.query("SELECT pg_advisory_xact_lock(hashtext('apertura_caja'), $1)", [id_vendedor]);
+
+            const existente = await client.query(
+                `SELECT id_sesion FROM SesionCaja
+                 WHERE id_tienda = ? AND id_vendedor = ? AND LOWER(estado) = 'abierta'
+                 ORDER BY fecha_apertura DESC LIMIT 1`,
+                [id_tienda, id_vendedor]
+            );
+            if (existente.rows.length) {
+                await client.query('ROLLBACK');
+                return { creada: false, id_sesion: existente.rows[0].id_sesion };
+            }
+
+            const nueva = await client.query(
+                `INSERT INTO SesionCaja (id_tienda, id_vendedor, monto_apertura, estado)
+                 VALUES (?, ?, ?, 'Abierta') RETURNING id_sesion`,
+                [id_tienda, id_vendedor, monto_apertura]
+            );
+            await client.query('COMMIT');
+            return { creada: true, id_sesion: nueva.rows[0].id_sesion };
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     /**
