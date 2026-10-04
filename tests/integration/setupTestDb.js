@@ -19,6 +19,8 @@
  * @module tests/integration/setupTestDb
  */
 
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -28,6 +30,12 @@ import { reiniciarLimitadores } from './helpers/limitadores.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test'), override: true });
+
+// Los exports (ventas/reportes) se escriben en una carpeta temporal, no en exports/ del proyecto:
+// antes cada corrida dejaba decenas de .xlsx en el repositorio. Debe fijarse ANTES de cargar la app.
+if (!process.env.EXPORTS_DIR) {
+  process.env.EXPORTS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'stockpilot-exports-'));
+}
 
 const dbUrl = process.env.DATABASE_URL || '';
 

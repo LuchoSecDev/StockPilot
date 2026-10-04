@@ -5,7 +5,37 @@ const excel = require('exceljs');
 const Sale = require('../models/Sale');
 const Report = require('../models/Report');
 
-const EXPORTS_DIR = path.join(__dirname, '..', 'exports');
+// Carpeta de trabajo de los archivos exportados. Es TEMPORAL: cada archivo se borra apenas se descarga
+// (y los que nadie descargó, pasada una hora) porque en producción el disco es efímero y porque cada
+// archivo contiene datos de UNA tienda. `EXPORTS_DIR` permite a las pruebas usar una carpeta temporal.
+const EXPORTS_DIR = process.env.EXPORTS_DIR || path.join(__dirname, '..', 'exports');
+const EDAD_MAXIMA_MS = 60 * 60 * 1000;
+
+// ventas_t<id_tienda>_<fecha>_<hora>_<sufijo>.xlsx | reportes_t<id_tienda>_...csv
+// El id de la tienda va DENTRO del nombre para poder comprobarlo al descargar (hallazgo C6: antes todas
+// las tiendas compartían la carpeta y cualquier usuario listaba y descargaba los archivos de las demás).
+const PATRON_ARCHIVO = /^(ventas|reportes)_t(\d+)_[0-9A-Za-z_-]+\.(xlsx|csv)$/;
+
+function nombreExport(tipo, id_tienda, extension) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+    const sufijo = Math.random().toString(36).substring(2, 8);
+    return `${tipo}_t${id_tienda}_${timestamp[0]}_${timestamp[1].substring(0, 8)}_${sufijo}.${extension}`;
+}
+
+// Borra los exports (con el formato nuevo) que nadie descargó en la última hora. Los archivos con
+// nombre antiguo o ajenos a este formato NO se tocan.
+function limpiarExportsViejos() {
+    try {
+        const limite = Date.now() - EDAD_MAXIMA_MS;
+        for (const f of fs.readdirSync(EXPORTS_DIR)) {
+            if (!PATRON_ARCHIVO.test(f)) continue;
+            const ruta = path.join(EXPORTS_DIR, f);
+            if (fs.statSync(ruta).mtimeMs < limite) fs.unlinkSync(ruta);
+        }
+    } catch (error) {
+        console.warn('No se pudo limpiar la carpeta de exports:', error.message);
+    }
+}
 
 // Asegurar que la carpeta exports existe
 if (!fs.existsSync(EXPORTS_DIR)) {
@@ -53,11 +83,8 @@ class ExportController {
                 });
             });
 
-            // Generar nombre de archivo con fecha, hora y un sufijo aleatorio único
-            const now = new Date();
-            const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T');
-            const uniqueSuffix = Math.random().toString(36).substring(2, 8);
-            const filename = `ventas_${timestamp[0]}_${timestamp[1].substring(0, 8)}_${uniqueSuffix}.xlsx`;
+            limpiarExportsViejos();
+            const filename = nombreExport('ventas', id_tienda, 'xlsx');
             const filePath = path.join(EXPORTS_DIR, filename);
 
             // Guardar archivo
@@ -101,11 +128,8 @@ class ExportController {
 
             const csvContent = headers + rows;
 
-            // Generar nombre de archivo con fecha, hora y un sufijo aleatorio único
-            const now = new Date();
-            const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T');
-            const uniqueSuffix = Math.random().toString(36).substring(2, 8);
-            const filename = `reportes_${timestamp[0]}_${timestamp[1].substring(0, 8)}_${uniqueSuffix}.csv`;
+            limpiarExportsViejos();
+            const filename = nombreExport('reportes', id_tienda, 'csv');
             const filePath = path.join(EXPORTS_DIR, filename);
 
             // Guardar archivo
@@ -125,49 +149,31 @@ class ExportController {
     }
 
     /**
-     * Lista todos los archivos exportados
-     */
-    static async listExports(req, res) {
-        try {
-            const files = [];
-            for (const f of fs.readdirSync(EXPORTS_DIR)) {
-                if (f.endsWith('.csv') || f.endsWith('.xlsx')) {
-                    const stats = fs.statSync(path.join(EXPORTS_DIR, f));
-                    files.push({
-                        filename: f,
-                        size: (stats.size / 1024).toFixed(1) + ' KB',
-                        createdAt: stats.mtime.toISOString()
-                    });
-                }
-            }
-            files.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-            res.json({ success: true, files });
-        } catch (error) {
-            console.error('Error listando archivos:', error);
-            res.status(500).json({ success: false, error: 'Error listando archivos exportados' });
-        }
-    }
-
-    /**
-     * Descargar un archivo exportado
+     * Descarga un archivo exportado y lo borra en cuanto termina de enviarse.
+     * Solo se sirve si el nombre tiene el formato esperado Y su id de tienda es el de la sesión;
+     * en cualquier otro caso (formato antiguo, otra tienda, inexistente) responde 404 sin distinguirlos.
      */
     static async downloadExport(req, res) {
         try {
             const filename = req.params.filename;
-
-            // Prevenir path traversal
-            if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-                return res.status(400).json({ success: false, error: 'Nombre de archivo inválido' });
+            const coincide = PATRON_ARCHIVO.exec(filename);
+            if (!coincide || Number(coincide[2]) !== Number(req.session.tiendaId)) {
+                return res.status(404).json({ success: false, error: 'Archivo no encontrado' });
             }
 
             const filePath = path.join(EXPORTS_DIR, filename);
-
             if (!fs.existsSync(filePath)) {
                 return res.status(404).json({ success: false, error: 'Archivo no encontrado' });
             }
 
-            res.download(filePath, filename);
+            res.download(filePath, filename, (err) => {
+                if (err) {
+                    // Si la descarga se cortó, el archivo queda y lo barre limpiarExportsViejos() más tarde.
+                    console.error('Error enviando archivo exportado:', err.message);
+                    return;
+                }
+                fs.unlink(filePath, () => {});
+            });
         } catch (error) {
             console.error('Error descargando archivo:', error);
             res.status(500).json({ success: false, error: 'Error descargando archivo' });
