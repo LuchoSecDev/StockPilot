@@ -286,12 +286,11 @@ La lista completa y su prueba (Tendero → 403, la base no cambia) están en `au
 
 ## 11. Hallazgos abiertos que tocan a la app (resumen)
 
-Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 403), `link-barcode` con códigos duplicados, `costo_compra` visible al Tendero, ventas fiadas sin límite de crédito ni validación de cliente, producto inexistente en el carrito, y falta de «ventas del turno» y de `canal` en el listado.
+Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 403), `link-barcode` con códigos duplicados, `costo_compra` visible al Tendero, ventas fiadas sin límite de crédito ni validación de cliente, producto inexistente en el carrito, falta de «ventas del turno» y de `canal` en el listado, importes del historial con el precio actual, resolver alertas inexistentes con 200, y `forgot-password` sin límite.
 
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| — | `POST /api/forgot-password` no tiene límite (responde 200 siempre y el `authLimiter` solo cuenta fallos) | Se pueden enviar correos sin límite a una víctima | Limitador por correo e IP |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |
 
 ## 12. Cómo cambiar este contrato

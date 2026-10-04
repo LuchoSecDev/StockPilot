@@ -121,4 +121,37 @@ const resetCodeLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, resetCodeLimiter };
+// Limitadores de «olvidé mi contraseña» (POST /api/forgot-password). Esta ruta responde 200 siempre (para no
+// revelar si el correo existe), así que el authLimiter, que solo cuenta intentos FALLIDOS, nunca la
+// limitaba: se podían enviar correos sin tope a un tercero, y cada petición pisaba su código vigente
+// (invalidándolo). Estos dos cuentan TODAS las peticiones (también las 200, y por igual si el correo
+// existe o no, para no abrir una vía de enumeración):
+//   - por correo: 3 cada 15 min (basta para reintentar si el correo tarda o se pierde);
+//   - por IP: 10 cada 15 min (frena el envío masivo a muchos correos desde un mismo origen).
+const MENSAJE_OLVIDO = {
+    success: false,
+    error: "Has pedido demasiados códigos de recuperación. Espera 15 minutos antes de volver a intentarlo."
+};
+const forgotEmailLimiter = rateLimit({
+    store: getStore('rl_forgot_email:'),
+    windowMs: 15 * 60 * 1000,
+    max: 3,
+    keyGenerator: (req) => {
+        const correo = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+        return correo ? `forgot_${correo.slice(0, 254)}` : `ip_${ipKeyGenerator(req.ip)}`;
+    },
+    message: MENSAJE_OLVIDO,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+const forgotIpLimiter = rateLimit({
+    store: getStore('rl_forgot_ip:'),
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req) => `ip_${ipKeyGenerator(req.ip)}`,
+    message: MENSAJE_OLVIDO,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter };
