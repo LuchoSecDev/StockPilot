@@ -19,7 +19,7 @@ La app es un **cliente delgado**: las reglas (stock, cupo de crédito, tope de e
 | **Versión mínima de Android** | **SIN VERIFICAR**: la documentación de `mobile_scanner` no la indica. Se averigua al compilar. | — | — |
 | **Carrito** | Guardarlo en almacenamiento local mientras se arma. | Plan 07: «no perder el carrito si falla la red». También cubre el 401 por sesión caducada. | — |
 | **Configuración** | La URL del servidor en configuración **fuera del repositorio** (`--dart-define` o un archivo ignorado en `.gitignore`). Nada de contraseñas, claves ni cookies en el código. | El repositorio de la app es público. | — |
-| **Plataforma y entrega** | Solo Android al inicio, APK firmado (plan 07, 6.3). La llave de firma **fuera del repositorio** y con una persona responsable de custodiarla. | Una app firmada con otra llave no puede actualizar a la ya instalada (comportamiento estándar de Android, no verificado aquí): perderla obliga a desinstalar en cada celular. | — |
+| **Plataforma y entrega** | Solo Android al inicio, APK firmado (plan 07, 6.3). La llave de firma **fuera del repositorio**. **Custodia: Luis (decidido el 4-oct-2026).** Las contraseñas y la ruta de la llave no se escriben en ningún documento del repositorio. | Una app firmada con otra llave no puede actualizar a la ya instalada (comportamiento estándar de Android, no verificado aquí): perderla obliga a desinstalar en cada celular. | — |
 | **Identificador del paquete** (`applicationId`) | **Decidido (4-oct-2026): `com.lem.stockpilot`.** Ver la nota debajo de la tabla. | Cambiarlo después equivale a publicar otra app. | — |
 
 ### Por qué `com.lem.stockpilot`
