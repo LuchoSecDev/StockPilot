@@ -37,8 +37,10 @@ class Sale {
                 vp.cantidad,
                 p.nombre_producto,
                 p.categoria,
-                p.precio AS precio_unitario,
-                (p.precio * vp.cantidad) AS precio_total,
+                -- Precio al que se VENDIÓ (VentasProductos.precio_unitario). Las filas antiguas que no lo
+                -- guardaron caen al precio actual del producto.
+                COALESCE(vp.precio_unitario, p.precio) AS precio_unitario,
+                (COALESCE(vp.precio_unitario, p.precio) * vp.cantidad) AS precio_total,
                 COALESCE(NULLIF(u.nombres, ''), u.usuario, 'Admin') AS nombre_vendedor
             FROM Ventas v
             JOIN VentasProductos vp ON vp.id_venta = v.id_venta
@@ -73,9 +75,9 @@ class Sale {
     static async getSalesStats(storeId) {
         const query = `
             SELECT 
-                COALESCE(SUM(p.precio * vp.cantidad), 0) AS totalVentas,
+                COALESCE(SUM(COALESCE(vp.precio_unitario, p.precio) * vp.cantidad), 0) AS totalVentas,
                 COALESCE(SUM(vp.cantidad), 0) AS totalProductos,
-                COALESCE(SUM(p.precio * vp.cantidad) / NULLIF(COUNT(DISTINCT v.id_venta), 0), 0) AS ventaPromedio,
+                COALESCE(SUM(COALESCE(vp.precio_unitario, p.precio) * vp.cantidad) / NULLIF(COUNT(DISTINCT v.id_venta), 0), 0) AS ventaPromedio,
                 COUNT(DISTINCT p.id_producto) AS productosUnicos
             FROM Ventas v
             JOIN VentasProductos vp ON vp.id_venta = v.id_venta

@@ -223,8 +223,8 @@ Para evitar el 400 por cupo, la app puede avisar antes comparando `saldo_pendien
 `?limit=` (por defecto 100), `?offset=` y `?turno=actual`. **200** `{ "data": [ { "id_venta", "fecha_salida", "canal": "web" o "app", "cantidad", "nombre_producto", "categoria", "precio_unitario", "precio_total", "nombre_vendedor" } ], "total", "limit", "offset", "hasMore" }`. Una fila **por producto vendido**.
 - Sin `turno`: las ventas de **toda la tienda**.
 - **`?turno=actual`**: solo las ventas de **la caja abierta del usuario** (las «ventas del turno»). Sin caja abierta devuelve `{ "data": [], "total": 0, … }`. Cualquier otro valor de `turno` da **400** `{ "success": false, "error": "El parámetro turno solo admite el valor «actual»." }`.
-- **Ojo con los importes:** `precio_unitario` y `precio_total` se calculan con el precio **actual** del producto, no con el precio al que se vendió; si el precio cambia, el historial cambia. No usar este listado para cuadrar caja: para eso está el arqueo de `[K3]`.
-**Pruebas:** `contrato_app_tendero.test.js › [V3]`; `ventas_turno.test.js`.
+- **Importes:** `precio_unitario` es el precio **al que se vendió** (no cambia si el producto cambia de precio después) y `precio_total = precio_unitario × cantidad`. Solo las ventas **anteriores a esta corrección** hechas con `POST /api/registrar-venta` (un producto) no guardaron su precio y siguen mostrando el precio actual del producto. Para cuadrar caja sigue siendo el arqueo de `[K3]`.
+**Pruebas:** `contrato_app_tendero.test.js › [V3]`; `ventas_turno.test.js`; `ventas_precio_historico.test.js`.
 
 ---
 
@@ -291,7 +291,6 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| — | `GET /api/ventas` calcula los importes con el precio **actual** del producto | El historial de ventas cambia si cambia el precio | Usar `VentasProductos.precio_unitario` (que ya guarda la venta de carrito) |
 | — | `PATCH /api/alertas/:id/resolve` responde 200 con un id inexistente | La app no se entera de un error | 404 si no hubo ninguna fila |
 | — | `POST /api/forgot-password` no tiene límite (responde 200 siempre y el `authLimiter` solo cuenta fallos) | Se pueden enviar correos sin límite a una víctima | Limitador por correo e IP |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |

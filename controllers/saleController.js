@@ -209,8 +209,8 @@ class SaleController {
 
                 // 3. Registrar detalle de venta
                 await client.query(
-                    `INSERT INTO VentasProductos (id_venta, id_producto, cantidad) VALUES (?, ?, ?)`,
-                    [id_venta, id_producto, cantidad]
+                    `INSERT INTO VentasProductos (id_venta, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)`,
+                    [id_venta, id_producto, cantidad, producto.precio]
                 );
 
                 // 4. Descontar stock Y registrar movimiento
