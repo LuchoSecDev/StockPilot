@@ -239,6 +239,8 @@ Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 rem
    - limitador de `verify-reset-code` y `skip` del limitador global (P21-09 y P21-13);
    - apertura de caja con transacción y bloqueo (plan 21, punto 2.4);
    - `docs/contrato_api_app_tendero.md`, con la prueba de integración de cada endpoint.
+   - **Añadido el 4-oct-2026**, antes de que la app empiece a construirse: idempotencia de la venta del carrito (cabecera `Idempotency-Key`, para reintentar sin duplicar cuando se pierde la señal) y validación de `metodo_pago` (un «efectivo» en minúscula dejaba la venta fuera del arqueo). Ambas en el contrato `[V2]`, con sus pruebas.
+   - **Entorno de desarrollo de la app (4-oct-2026):** mientras no haya tiendas reales, el equipo desarrolla contra el servidor desplegado (`docs/guia_entorno_app.md`). Desde el arranque del piloto eso deja de ser posible: hará falta un entorno aparte (ver C).
 2. **Versión de prueba de la app para Android** (equipo, repositorio aparte), construida contra ese contrato.
 3. **Material de la visita:** guion de la fase 4 (tareas, qué se mide en cada una, cuestionario), autorización de tratamiento de datos y formato de línea base.
 
@@ -250,7 +252,8 @@ Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 rem
 1. Correcciones que salgan de la fase 4, en la app y en el backend.
 2. **I1 e I2:** panel de solo lectura, excluyendo las tiendas de prueba (sección 3.3).
 3. **I4:** preguntas del registro (días de apertura, experiencia digital) y párrafo de la política de datos.
-4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21).
+4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21; **decidida el 4-oct: opción B, pedir confirmación**).
+   - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base).
 5. Decidir si se mantiene despierto el servidor en horario de tienda con un *ping* (cabe en las horas gratuitas de Render si es el único servicio gratuito).
 6. Arranque acordado con cada dueño.
 
