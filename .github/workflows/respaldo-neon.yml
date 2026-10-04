@@ -23,7 +23,9 @@ permissions:
 
 jobs:
   respaldo:
-    runs-on: ubuntu-latest
+    # Fijado en 24.04 a propósito: "ubuntu-latest" pasa a 26.04 entre el 19-oct y el 19-nov-2026.
+    # Subir a ubuntu-26.04 solo después de probarlo con "Run workflow" (workflow_dispatch).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # postgres:18 trae pg_dump/psql 18. El servidor de Neon de este proyecto es Postgres 18 (lo
     # detectó la primera corrida, que falló a propósito con la imagen 17). Es el cliente, no el
@@ -101,7 +103,7 @@ jobs:
         run: echo "valor=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Subir el respaldo cifrado como artefacto
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: respaldo-neon-${{ steps.fecha.outputs.valor }}
           path: respaldo.dump.gz.gpg
