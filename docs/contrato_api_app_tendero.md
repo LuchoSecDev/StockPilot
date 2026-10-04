@@ -264,7 +264,7 @@ Con CSRF. **Cuerpo:** `{ "id_producto": 1, "cantidad": 6, "observacion": "Pedido
 | **400** | `{ "success": false, "error": "Producto y cantidad (positiva) son requeridos" }` |
 | **404** | `{ "success": false, "error": "Producto no encontrado" }` (no existe o es de otra tienda) |
 
-No hay tope contra lo pedido en una orden de compra (hallazgo P21-10): la app solo registra cantidades recibidas.
+`[M1]` es una entrada libre: no está ligada a una orden de compra, así que no hay tope contra lo pedido. La regla de recibir una orden de compra (P21-10: recibir más de lo pedido pide confirmación y motivo, recibir menos deja la orden «Parcial») vive en `POST /api/ordenes/:ordenId/completar`, que es del Administrador en la web y la app no usa (prueba: `recepcion_mercancia.test.js`).
 **Prueba:** `contrato_app_tendero.test.js › [M1]`.
 
 ---
@@ -316,7 +316,7 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |
+| P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre) ni a la app | **Resuelto (4-oct-2026):** confirmación con motivo si se recibe más de lo pedido; menos de lo pedido deja la orden «Parcial» |
 
 ## 12. Cómo cambiar este contrato
 1. Proponer el cambio en este documento (rama del backend), indicando si rompe a la app.

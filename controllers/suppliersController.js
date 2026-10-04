@@ -297,10 +297,19 @@ const suppliersController = {
 
   /**
    * POST /api/ordenes/:ordenId/completar — Fase E del plan 13 (recepción de mercancía).
-   * Body: { items: [{ id_producto, cantidad_recibida }] }.
-   * Se puede completar desde 'Aprobada' o 'Enviada' (una orden puede pagarse/recogerse en persona
-   * sin pasar por el envío formal de correo). Cierre total y de una sola vez: lo que no llegó
-   * no se marca "pendiente", el Consejero lo volverá a sugerir si sigue haciendo falta.
+   * Body: { items: [{ id_producto, cantidad_recibida }], confirmar_exceso?, motivo?, cerrar_con_faltante? }.
+   * Se puede recibir desde 'Aprobada', 'Enviada' o 'Parcial' (una orden puede pagarse/recogerse en
+   * persona sin pasar por el envío formal de correo).
+   *
+   * Regla P21-10 (plan 21, decisión 5, decidida el 4-oct-2026):
+   *  - `cantidad_recibida` es el TOTAL recibido de esa línea hasta ahora, no «lo de hoy»: se suma al
+   *    stock solo la diferencia contra lo ya registrado. Así reenviar el mismo total (doble clic,
+   *    reintento por mala señal) no vuelve a sumar nada.
+   *  - Menos de lo pedido: la orden queda 'Parcial' y el faltante sigue pendiente; se puede seguir
+   *    recibiendo. Con `cerrar_con_faltante: true` el administrador da el resto por perdido y se cierra
+   *    como 'Completada'.
+   *  - Más de lo pedido (en total): 409 RECEPCION_EXCEDE_PEDIDO sin escribir nada. Solo se registra con
+   *    `confirmar_exceso: true` y un `motivo` (5 a 200 caracteres), que queda en el Kardex.
    * El total de la orden se recalcula con lo realmente recibido (no con lo pedido), para que el
    * saldo pendiente de Pagos refleje la realidad.
    */
@@ -323,45 +332,97 @@ const suppliersController = {
         }
         limpios.push({ id_producto: idProducto, cantidad_recibida: cantidad });
       }
+      if (new Set(limpios.map((it) => it.id_producto)).size !== limpios.length) {
+        return res.status(400).json({ success: false, error: 'Hay un producto repetido en la recepción.' });
+      }
+      const confirmarExceso = req.body.confirmar_exceso === true;
+      const cerrarConFaltante = req.body.cerrar_con_faltante === true;
+      const motivo = typeof req.body.motivo === 'string' ? req.body.motivo.trim() : '';
 
       await client.query('BEGIN');
       const { rows: ordenRows } = await client.query(
         'SELECT estado FROM Ordenes_Compra WHERE id_orden = $1 AND id_tienda = $2 FOR UPDATE', [ordenId, tiendaId]
       );
       if (!ordenRows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Orden no encontrada.' }); }
-      if (!['Aprobada', 'Enviada'].includes(ordenRows[0].estado)) {
+      if (!['Aprobada', 'Enviada', 'Parcial'].includes(ordenRows[0].estado)) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ success: false, error: 'Solo se puede recibir una orden Aprobada o Enviada.' });
+        return res.status(400).json({ success: false, error: 'Solo se puede recibir una orden Aprobada, Enviada o Parcial.' });
       }
 
-      const { rows: lineas } = await client.query('SELECT id_producto, costo_unitario FROM Ordenes_Detalle WHERE id_orden = $1', [ordenId]);
-      const costoPorProducto = new Map(lineas.map((l) => [l.id_producto, Number(l.costo_unitario) || 0]));
+      const { rows: lineas } = await client.query(
+        `SELECT d.id_producto, d.costo_unitario, d.cantidad_final, d.cantidad_recibida, p.nombre_producto
+           FROM Ordenes_Detalle d LEFT JOIN Productos p ON p.id_producto = d.id_producto
+          WHERE d.id_orden = $1`, [ordenId]
+      );
+      const lineaPorProducto = new Map(lineas.map((l) => [l.id_producto, l]));
       for (const it of limpios) {
-        if (!costoPorProducto.has(it.id_producto)) {
+        if (!lineaPorProducto.has(it.id_producto)) {
           await client.query('ROLLBACK');
           return res.status(400).json({ success: false, error: 'Uno de los productos no pertenece a esta orden.' });
         }
       }
 
-      const totalReal = totalOrden(limpios.map((it) => ({ cantidad: it.cantidad_recibida, costo_unitario: costoPorProducto.get(it.id_producto) })));
+      // Todas las validaciones van ANTES de escribir: un rechazo (400/409) no deja nada a medias.
+      const excesos = [];
+      for (const it of limpios) {
+        const l = lineaPorProducto.get(it.id_producto);
+        const pedido = Number(l.cantidad_final) || 0;
+        it.previo = Number(l.cantidad_recibida) || 0;
+        if (it.cantidad_recibida < it.previo) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            error: `No puedes registrar menos de lo que ya registraste de «${l.nombre_producto || 'un producto'}» (${it.previo}). Indica el total recibido hasta ahora.`
+          });
+        }
+        if (it.cantidad_recibida > pedido) {
+          it.esExceso = true;
+          excesos.push({ id_producto: it.id_producto, nombre: l.nombre_producto, pedido, recibido: it.cantidad_recibida, exceso: it.cantidad_recibida - pedido });
+        }
+      }
+      if (excesos.length && !confirmarExceso) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          success: false,
+          code: 'RECEPCION_EXCEDE_PEDIDO',
+          requiere_confirmacion: true,
+          error: `Recibiste más de lo pedido en ${excesos.length} ${excesos.length === 1 ? 'producto' : 'productos'}. Confirma e indica el motivo para registrarlo.`,
+          excesos
+        });
+      }
+      if (excesos.length && (motivo.length < 5 || motivo.length > 200)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, code: 'MOTIVO_REQUERIDO', error: 'Para registrar más de lo pedido indica el motivo (de 5 a 200 caracteres).' });
+      }
+
       for (const it of limpios) {
         await client.query('UPDATE Ordenes_Detalle SET cantidad_recibida = $1 WHERE id_orden = $2 AND id_producto = $3', [it.cantidad_recibida, ordenId, it.id_producto]);
-        if (it.cantidad_recibida > 0) {
+        lineaPorProducto.get(it.id_producto).cantidad_recibida = it.cantidad_recibida;
+        const entra = it.cantidad_recibida - it.previo; // solo lo nuevo: reenviar el mismo total no suma nada
+        if (entra > 0) {
           const { rows: prodRows } = await client.query('SELECT cantidad FROM Productos WHERE id_producto = $1 AND id_tienda = $2 FOR UPDATE', [it.id_producto, tiendaId]);
           if (!prodRows.length) continue; // producto borrado mientras tanto: no hay dónde sumar el stock
-          const nuevoStock = Number(prodRows[0].cantidad) + it.cantidad_recibida;
+          const nuevoStock = Number(prodRows[0].cantidad) + entra;
           await client.query('UPDATE Productos SET cantidad = $1 WHERE id_producto = $2', [nuevoStock, it.id_producto]);
+          const observacion = `Orden de Compra #${ordenId}` + (it.esExceso ? ` (exceso confirmado: ${motivo})` : '');
           await client.query(
             `INSERT INTO MovimientosStock (id_producto, tipo_movimiento, cantidad, stock_final, fecha_movimiento, observacion, id_usuario, id_tienda)
              VALUES ($1, 'Entrada', $2, $3, CURRENT_TIMESTAMP, $4, $5, $6)`,
-            [it.id_producto, it.cantidad_recibida, nuevoStock, `Orden de Compra #${ordenId}`, userId, tiendaId]
+            [it.id_producto, entra, nuevoStock, observacion, userId, tiendaId]
           );
         }
       }
 
+      // Estado y total con TODAS las líneas de la orden (no solo las enviadas): una línea sin recibir cuenta
+      // como pendiente. El total es lo realmente recibido, no lo pedido.
+      const pendientes = lineas
+        .map((l) => ({ id_producto: l.id_producto, nombre: l.nombre_producto, pendiente: (Number(l.cantidad_final) || 0) - (Number(l.cantidad_recibida) || 0) }))
+        .filter((l) => l.pendiente > 0);
+      const nuevoEstado = cerrarConFaltante || pendientes.length === 0 ? 'Completada' : 'Parcial';
+      const totalReal = totalOrden(lineas.map((l) => ({ cantidad: Number(l.cantidad_recibida) || 0, costo_unitario: Number(l.costo_unitario) || 0 })));
       await client.query(
-        "UPDATE Ordenes_Compra SET estado = 'Completada', presupuesto_total = $1, total_estimado = $1 WHERE id_orden = $2",
-        [totalReal, ordenId]
+        'UPDATE Ordenes_Compra SET estado = $1, presupuesto_total = $2, total_estimado = $2 WHERE id_orden = $3',
+        [nuevoEstado, totalReal, ordenId]
       );
       await client.query('COMMIT');
 
@@ -374,13 +435,15 @@ const suppliersController = {
       try {
         await db.runAsync(
           'INSERT INTO Auditoria_IA (id_tienda, id_orden, prompt_utilizado, datos_base_json, sugerencia_ia_json, impacto_decision, razon_ia, fecha_auditoria) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-          [tiendaId, ordenId, 'Recepción de mercancía', JSON.stringify(lineas), JSON.stringify(limpios), `Orden #${ordenId} recibida — total real $${totalReal.toLocaleString('es-CO')}`, 'El administrador confirmó qué llegó realmente']
+          [tiendaId, ordenId, 'Recepción de mercancía', JSON.stringify(lineas), JSON.stringify(limpios),
+            `Orden #${ordenId} ${nuevoEstado === 'Completada' ? 'recibida' : 'recibida parcialmente'} — total real $${totalReal.toLocaleString('es-CO')}`,
+            excesos.length ? `El administrador confirmó un exceso. Motivo: ${motivo}` : 'El administrador confirmó qué llegó realmente']
         );
       } catch (auditErr) {
         console.error('⚠️ Auditoría de recepción omitida:', auditErr.message);
       }
 
-      res.json({ success: true, presupuesto_total: totalReal });
+      res.json({ success: true, presupuesto_total: totalReal, estado: nuevoEstado, pendientes });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       console.error('❌ completarRecepcion:', e.message);
