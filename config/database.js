@@ -212,7 +212,9 @@ db.migrationReady = (async function autoMigrate() {
                 ADD COLUMN IF NOT EXISTS cambio_clave_forzoso BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS reset_expires VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE;
+                ADD COLUMN IF NOT EXISTS fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE,
+                -- Candado de sesión del canal «app» (app nativa del Tendero). session_id sigue siendo el del canal web.
+                ADD COLUMN IF NOT EXISTS session_id_app VARCHAR(255);
             `);
 
             // 5. Asegurar esquema para Arqueo de Caja y Facturación POS (Fase 1 y 2)
@@ -252,7 +254,10 @@ db.migrationReady = (async function autoMigrate() {
                 ADD COLUMN IF NOT EXISTS efectivo_recibido DECIMAL(12, 2),
                 ADD COLUMN IF NOT EXISTS cambio_devuelto DECIMAL(12, 2),
                 ADD COLUMN IF NOT EXISTS id_cliente INTEGER REFERENCES Clientes(id_cliente) ON DELETE SET NULL,
-                ADD COLUMN IF NOT EXISTS estado_deuda VARCHAR(50) DEFAULT 'Pagado';
+                ADD COLUMN IF NOT EXISTS estado_deuda VARCHAR(50) DEFAULT 'Pagado',
+                -- Canal desde el que se registró la venta: 'web' (navegador) o 'app' (app nativa del Tendero).
+                -- Las ventas anteriores quedan en 'web'. Se toma de la sesión, nunca del cuerpo de la petición.
+                ADD COLUMN IF NOT EXISTS canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app'));
 
                 CREATE INDEX IF NOT EXISTS idx_ventas_sesion_caja ON Ventas(id_sesion_caja);
             `);

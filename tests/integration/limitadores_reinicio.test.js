@@ -11,8 +11,8 @@ import app from '../../app.js';
 import { contadoresActuales, reiniciarLimitadores } from './helpers/limitadores.js';
 
 describe('reinicio de los contadores de los limitadores', () => {
-  it('registra los 4 limitadores de middleware/rateLimiter.js', () => {
-    expect(Object.keys(contadoresActuales())).toEqual(['global', 'ia', 'auth', '2fa']);
+  it('registra los 7 limitadores de middleware/rateLimiter.js', () => {
+    expect(Object.keys(contadoresActuales())).toEqual(['global', 'ia', 'auth', '2fa', 'codigo-reset', 'olvido-correo', 'olvido-ip']);
   });
 
   it('reiniciarLimitadores() devuelve el límite global a su valor inicial', async () => {

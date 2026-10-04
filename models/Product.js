@@ -123,10 +123,43 @@ class Product {
         return await db.getAsync(query, [storeId, barcode, barcode]);
     }
 
-    static async linkBarcode(productId, barcode) {
-        const query = `UPDATE Productos SET codigo_barras = ? WHERE id_producto = ?`;
-        const result = await db.runAsync(query, [barcode, productId]);
-        return result.changes > 0;
+    /**
+     * Asigna un código de barras a un producto, sin duplicar: en una tienda un código identifica a UN
+     * solo producto (findByBarcode busca por codigo_barras o por codigo/SKU, así que se comprueban las
+     * dos columnas). La comprobación y el UPDATE van en una transacción con un bloqueo por tienda
+     * (pg_advisory_xact_lock): dos vínculos simultáneos del mismo código no pueden ganar los dos.
+     * Vincular de nuevo el mismo código al mismo producto es válido (idempotente).
+     * @returns {Promise<{estado: 'ok'|'no_encontrado'|'duplicado', conflicto?: {id_producto:number, nombre_producto:string}}>}
+     */
+    static async linkBarcode(productId, storeId, barcode) {
+        const client = await db.getClient();
+        try {
+            await client.query('BEGIN');
+            await client.query("SELECT pg_advisory_xact_lock(hashtext('codigo_barras'), $1)", [storeId]);
+
+            const otro = await client.query(
+                `SELECT id_producto, nombre_producto FROM Productos
+                 WHERE id_tienda = ? AND id_producto <> ? AND (codigo_barras = ? OR codigo = ?)
+                 LIMIT 1`,
+                [storeId, productId, barcode, barcode]
+            );
+            if (otro.rows.length) {
+                await client.query('ROLLBACK');
+                return { estado: 'duplicado', conflicto: otro.rows[0] };
+            }
+
+            const res = await client.query(
+                'UPDATE Productos SET codigo_barras = ? WHERE id_producto = ? AND id_tienda = ?',
+                [barcode, productId, storeId]
+            );
+            await client.query('COMMIT');
+            return { estado: res.rowCount > 0 ? 'ok' : 'no_encontrado' };
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     /**

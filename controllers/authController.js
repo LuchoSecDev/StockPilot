@@ -4,6 +4,7 @@ const Store = require('../models/Store');
 const crypto = require('crypto'); // Para generar tokens aleatorios
 const Mailer = require('../utils/mailer'); // Servicio de envíos de correo
 const { safeError } = require('../utils/securityUtils');
+const { canalDesdeCabecera, canalDeSesion } = require('../utils/canal');
 const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 
@@ -20,6 +21,9 @@ class AuthController {
                     error: 'Faltan campos obligatorios' 
                 });
             }
+
+            // Canal de la sesión (web por defecto; la app nativa manda X-Canal: app). Se lee SOLO aquí.
+            const canal = canalDesdeCabecera(req);
 
             console.log('Buscando usuario en BD...');
             const user = await User.findByCredentials(login, password);
@@ -50,9 +54,11 @@ class AuthController {
                 });
             }
 
-            // Bloquear segundo login (solo para Tenderos)
+            // Bloquear segundo login (solo para Tenderos), DENTRO del mismo canal: una sesión web y una
+            // sesión app del mismo Tendero pueden convivir; `force` solo invalida la de este canal.
             const { force } = req.body;
-            if (user.rol !== 'Administrador' && user.session_id && !force) {
+            const sesionActivaDelCanal = canal === 'app' ? user.session_id_app : user.session_id;
+            if (user.rol !== 'Administrador' && sesionActivaDelCanal && !force) {
                 return res.status(409).json({
                     success: false,
                     error: 'Ya hay una sesión activa para este usuario en otro dispositivo.',
@@ -73,6 +79,7 @@ class AuthController {
                 const isCambioForzoso = Boolean(user.cambio_clave_forzoso && user.cambio_clave_forzoso !== '0' && user.cambio_clave_forzoso !== 'false');
                 req.session.pending2FA_nombres = user.nombres;
                 req.session.pending2FA_cambio_clave = isCambioForzoso;
+                req.session.pending2FA_canal = canal; // el canal se fija en el paso de contraseña, no en el del código
 
                 return res.json({
                     success: true,
@@ -91,9 +98,10 @@ class AuthController {
             req.session.rol = user.rol;
             req.session.nombres = user.nombres;
             req.session.cambio_clave_forzoso = isCambioForzoso;
+            req.session.canal = canal;
 
-            // Registrar la sesión activa en la BD
-            await User.setCurrentSession(user.id_usuario, req.sessionID);
+            // Registrar la sesión activa en la BD (candado del canal correspondiente)
+            await User.setCurrentSession(user.id_usuario, req.sessionID, canal);
 
             console.log('Sesión establecida correctamente. Enviando respuesta...');
 
@@ -442,8 +450,9 @@ class AuthController {
     static async logout(req, res) {
         if (req.session && req.session.userId) {
             try {
-                // Limpiar el candado de sesión en la DB al salir voluntariamente
-                await User.setCurrentSession(req.session.userId, null);
+                // Limpiar el candado del canal de ESTA sesión al salir voluntariamente (y solo si todavía
+                // es el suyo: una sesión vieja invalidada por `force` no debe borrar el de la nueva).
+                await User.releaseCurrentSession(req.session.userId, req.sessionID, canalDeSesion(req.session));
             } catch (error) {
                 console.error('Error limpiando session_id en logout:', error);
             }
@@ -511,6 +520,7 @@ class AuthController {
                 req.session.rol = req.session.pending2FA_rol;
                 req.session.nombres = req.session.pending2FA_nombres;
                 req.session.cambio_clave_forzoso = req.session.pending2FA_cambio_clave;
+                req.session.canal = req.session.pending2FA_canal === 'app' ? 'app' : 'web';
 
                 // Limpiar temporales
                 delete req.session.pending2FA_userId;
@@ -518,8 +528,9 @@ class AuthController {
                 delete req.session.pending2FA_rol;
                 delete req.session.pending2FA_nombres;
                 delete req.session.pending2FA_cambio_clave;
+                delete req.session.pending2FA_canal;
 
-                await User.setCurrentSession(userId, req.sessionID);
+                await User.setCurrentSession(userId, req.sessionID, req.session.canal);
 
                 return res.json({ 
                     success: true, 

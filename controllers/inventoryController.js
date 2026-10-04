@@ -3,6 +3,7 @@ const InventoryMovement = require('../models/InventoryMovement');
 const Product = require('../models/Product');
 const Alert = require('../models/Alert');
 const { safeError, verifyProductOwnership } = require('../utils/securityUtils');
+const { ocultarDatosDeMargen } = require('../utils/datosDeMargen');
 
 class InventoryController {
     /**
@@ -181,7 +182,7 @@ class InventoryController {
         try {
             const tiendaId = req.session.tiendaId;
             const productos = await Product.findByStore(tiendaId);
-            res.json({ success: true, data: productos });
+            res.json({ success: true, data: ocultarDatosDeMargen(productos, req.session.rol) });
         } catch (error) {
             console.error('Error obteniendo productos:', error);
             res.status(500).json({ success: false, error: 'Error obteniendo productos' });

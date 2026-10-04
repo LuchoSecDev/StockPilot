@@ -12,6 +12,54 @@ const Product = require('../models/Product');
 const db = require('../config/database');
 const Alert = require('../models/Alert');
 const Notification = require('../models/Notification');
+const { canalDeSesion } = require('../utils/canal');
+
+/** Error de validación de negocio dentro de una transacción de venta: lleva su código HTTP. */
+class ErrorVenta extends Error {
+    constructor(status, mensaje) {
+        super(mensaje);
+        this.status = status;
+    }
+}
+
+const formatoPesos = (n) => `$${Math.round(Number(n)).toLocaleString('es-CO')}`;
+
+/**
+ * Valida, DENTRO de la transacción de la venta, el cliente al que se le asocia (o fía):
+ *  - Tiene que ser un cliente de la tienda de la sesión (antes se aceptaba el de cualquier tienda).
+ *  - Si la venta es fiada y el cliente tiene un cupo (limite_credito > 0), el saldo que ya debe más esta
+ *    venta no puede superarlo. Un cupo de 0 es el valor por defecto al crear un cliente y significa
+ *    «sin tope» (decisión de negocio pendiente: la web nunca lo trató como «sin crédito»).
+ * Bloquea la fila del cliente (FOR UPDATE): dos ventas fiadas simultáneas al mismo cliente se serializan,
+ * así que no pueden pasarse del cupo entre las dos. El saldo se calcula igual que en la cartera
+ * (clienteController.getClientes): ventas fiadas menos abonos.
+ * @throws {ErrorVenta} 404 si el cliente no existe o es de otra tienda; 400 si supera el cupo.
+ */
+async function validarClienteDeVenta(client, { id_cliente, id_tienda, esFiado, totalVenta }) {
+    if (!id_cliente) return;
+    const idNumerico = Number(id_cliente);
+    if (!Number.isInteger(idNumerico) || idNumerico <= 0) throw new ErrorVenta(404, 'Cliente no encontrado');
+
+    const { rows } = await client.query(
+        'SELECT limite_credito FROM Clientes WHERE id_cliente = ? AND id_tienda = ? FOR UPDATE',
+        [idNumerico, id_tienda]
+    );
+    if (!rows.length) throw new ErrorVenta(404, 'Cliente no encontrado');
+
+    const cupo = Number(rows[0].limite_credito) || 0;
+    if (!esFiado || cupo <= 0) return;
+
+    const { rows: saldoRows } = await client.query(
+        `SELECT COALESCE((SELECT SUM(precio_total) FROM Ventas WHERE id_cliente = ? AND metodo_pago = 'Fiado'), 0)
+              - COALESCE((SELECT SUM(monto) FROM Abonos WHERE id_cliente = ?), 0) AS saldo`,
+        [idNumerico, idNumerico]
+    );
+    const saldo = Number(saldoRows[0].saldo);
+    if (saldo + totalVenta > cupo) {
+        throw new ErrorVenta(400,
+            `Esta venta supera el cupo de crédito del cliente (cupo ${formatoPesos(cupo)}, ya debe ${formatoPesos(saldo)}, esta venta ${formatoPesos(totalVenta)}).`);
+    }
+}
 
 /**
  * Sale Controller
@@ -32,9 +80,24 @@ class SaleController {
             const limit = parseInt(req.query.limit) || 100;
             const offset = parseInt(req.query.offset) || 0;
 
+            // ?turno=actual: solo las ventas de la caja abierta del usuario (para la app del Tendero).
+            // Sin caja abierta, la lista queda vacía. Cualquier otro valor es un error del cliente.
+            const filtros = {};
+            if (req.query.turno !== undefined) {
+                if (req.query.turno !== 'actual') {
+                    return res.status(400).json({ success: false, error: 'El parámetro turno solo admite el valor «actual».' });
+                }
+                const CashRegister = require('../models/CashRegister');
+                const caja = await CashRegister.getCurrentSession(id_tienda, req.session.userId);
+                if (!caja) {
+                    return res.json({ data: [], total: 0, limit, offset, hasMore: false });
+                }
+                filtros.idSesionCaja = caja.id_sesion;
+            }
+
             const [ventas, total] = await Promise.all([
-                Sale.findByStore(id_tienda, limit, offset),
-                Sale.countByStore(id_tienda)
+                Sale.findByStore(id_tienda, limit, offset, filtros),
+                Sale.countByStore(id_tienda, filtros)
             ]);
 
             res.json({
@@ -125,21 +188,29 @@ class SaleController {
                 const recibido = efectivo_recibido || total;
                 const cambio = recibido >= total ? recibido - total : 0;
 
+                try {
+                    await validarClienteDeVenta(client, { id_cliente, id_tienda, esFiado: metodo === 'Fiado', totalVenta: total });
+                } catch (errorCliente) {
+                    if (!(errorCliente instanceof ErrorVenta)) throw errorCliente;
+                    await client.query('ROLLBACK');
+                    return res.status(errorCliente.status).json({ success: false, error: errorCliente.message });
+                }
+
                 // 2. Registrar la venta principal
                 const estado_deuda = metodo === 'Fiado' ? 'Pendiente' : 'Pagado';
                 const id_cliente_val = id_cliente || null;
 
                 const saleInsert = await client.query(
-                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda) 
-                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
-                    [id_vendedor, id_tienda, total, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda]
+                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal) 
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
+                    [id_vendedor, id_tienda, total, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session)]
                 );
                 const id_venta = saleInsert.rows[0].id_venta;
 
                 // 3. Registrar detalle de venta
                 await client.query(
-                    `INSERT INTO VentasProductos (id_venta, id_producto, cantidad) VALUES (?, ?, ?)`,
-                    [id_venta, id_producto, cantidad]
+                    `INSERT INTO VentasProductos (id_venta, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)`,
+                    [id_venta, id_producto, cantidad, producto.precio]
                 );
 
                 // 4. Descontar stock Y registrar movimiento
@@ -228,8 +299,9 @@ class SaleController {
                     const producto = prodResult.rows[0];
 
                     if (!producto) {
-                        // 🛡️ Ocultamos el ID en el error para no permitir escaneo
-                        throw new Error(`Un producto del carrito no fue encontrado o no pertenece a tu tienda`);
+                        // 🛡️ Ocultamos el ID en el error para no permitir escaneo. Mismo mensaje y código (404)
+                        // que la venta de un solo producto.
+                        throw new ErrorVenta(404, 'Producto no encontrado o no pertenece a tu tienda');
                     }
                     if (producto.cantidad < item.cantidad) {
                         // Exponemos el nombre (que es público para el tendero) pero no su ID
@@ -248,15 +320,16 @@ class SaleController {
 
                 // 2. Registrar Venta principal
                 const metodo = metodo_pago || 'Efectivo';
+                await validarClienteDeVenta(client, { id_cliente, id_tienda, esFiado: metodo === 'Fiado', totalVenta });
                 const recibido = efectivo_recibido || totalVenta;
                 const cambio = recibido >= totalVenta ? recibido - totalVenta : 0;
                 const estado_deuda = metodo === 'Fiado' ? 'Pendiente' : 'Pagado';
                 const id_cliente_val = id_cliente || null;
 
                 const saleInsert = await client.query(
-                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda) 
-                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
-                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda]
+                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal) 
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
+                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session)]
                 );
                 const id_venta = saleInsert.rows[0].id_venta;
 
@@ -291,6 +364,10 @@ class SaleController {
 
             } catch (txError) {
                 await client.query('ROLLBACK');
+                // Errores de validación de negocio (producto/cliente no encontrado, cupo): llevan su código.
+                if (txError instanceof ErrorVenta) {
+                    return res.status(txError.status).json({ success: false, error: txError.message });
+                }
                 console.error('TX ERROR EN REGISTRAR VENTA:', txError);
                 // Errores de validación controlados vs errores SQL
                 const msg = txError.message.includes('Stock') || txError.message.includes('Producto') 

@@ -24,41 +24,48 @@ class Sale {
     }
 
     /**
-     * Buscar ventas con paginación y límite
+     * Buscar ventas con paginación y límite.
+     * @param {{idSesionCaja?: number}} [filtros] idSesionCaja: solo las ventas de esa sesión de caja (turno).
      */
-    static async findByStore(storeId, limit = 100, offset = 0) {
+    static async findByStore(storeId, limit = 100, offset = 0, { idSesionCaja } = {}) {
+        const filtroTurno = idSesionCaja ? 'AND v.id_sesion_caja = ?' : '';
         const query = `
             SELECT 
                 v.id_venta,
                 v.fecha_salida,
+                v.canal,
                 vp.cantidad,
                 p.nombre_producto,
                 p.categoria,
-                p.precio AS precio_unitario,
-                (p.precio * vp.cantidad) AS precio_total,
+                -- Precio al que se VENDIÓ (VentasProductos.precio_unitario). Las filas antiguas que no lo
+                -- guardaron caen al precio actual del producto.
+                COALESCE(vp.precio_unitario, p.precio) AS precio_unitario,
+                (COALESCE(vp.precio_unitario, p.precio) * vp.cantidad) AS precio_total,
                 COALESCE(NULLIF(u.nombres, ''), u.usuario, 'Admin') AS nombre_vendedor
             FROM Ventas v
             JOIN VentasProductos vp ON vp.id_venta = v.id_venta
             JOIN Productos p ON p.id_producto = vp.id_producto
             LEFT JOIN Usuarios u ON u.id_usuario = v.id_vendedor
-            WHERE v.id_tienda = ?
+            WHERE v.id_tienda = ? ${filtroTurno}
             ORDER BY v.fecha_salida DESC
             LIMIT ? OFFSET ?
         `;
-        return await db.allAsync(query, [storeId, limit, offset]);
+        const params = idSesionCaja ? [storeId, idSesionCaja, limit, offset] : [storeId, limit, offset];
+        return await db.allAsync(query, params);
     }
 
     /**
      * Contar total de registros de ventas (para paginación)
      */
-    static async countByStore(storeId) {
+    static async countByStore(storeId, { idSesionCaja } = {}) {
+        const filtroTurno = idSesionCaja ? 'AND v.id_sesion_caja = ?' : '';
         const query = `
             SELECT COUNT(*) AS total
             FROM Ventas v
             JOIN VentasProductos vp ON vp.id_venta = v.id_venta
-            WHERE v.id_tienda = ?
+            WHERE v.id_tienda = ? ${filtroTurno}
         `;
-        const row = await db.getAsync(query, [storeId]);
+        const row = await db.getAsync(query, idSesionCaja ? [storeId, idSesionCaja] : [storeId]);
         return parseInt(row.total || 0, 10);
     }
 
@@ -68,9 +75,9 @@ class Sale {
     static async getSalesStats(storeId) {
         const query = `
             SELECT 
-                COALESCE(SUM(p.precio * vp.cantidad), 0) AS totalVentas,
+                COALESCE(SUM(COALESCE(vp.precio_unitario, p.precio) * vp.cantidad), 0) AS totalVentas,
                 COALESCE(SUM(vp.cantidad), 0) AS totalProductos,
-                COALESCE(SUM(p.precio * vp.cantidad) / NULLIF(COUNT(DISTINCT v.id_venta), 0), 0) AS ventaPromedio,
+                COALESCE(SUM(COALESCE(vp.precio_unitario, p.precio) * vp.cantidad) / NULLIF(COUNT(DISTINCT v.id_venta), 0), 0) AS ventaPromedio,
                 COUNT(DISTINCT p.id_producto) AS productosUnicos
             FROM Ventas v
             JOIN VentasProductos vp ON vp.id_venta = v.id_venta
