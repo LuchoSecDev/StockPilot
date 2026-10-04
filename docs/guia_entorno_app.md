@@ -3,6 +3,8 @@
 **Para quién:** Luis y los compañeros que construyen la app Flutter. Su repositorio es aparte: <https://github.com/luchoTeso/AppNativaFlutter> (público, vacío al 4-oct-2026). **No subas ahí contraseñas, cookies, claves ni la URL de un entorno con datos reales**; la URL del servidor de pruebas va en un archivo de configuración fuera del control de versiones.
 **Qué contiene:** contra qué backend desarrollar, qué cuentas usar, cómo levantar el backend en local y qué reglas no se pueden romper. La referencia de la API es `docs/contrato_api_app_tendero.md`: léelo primero, cada endpoint tiene una prueba que lo respalda. Para ver cada llamada completa y simular el servidor en tus pruebas, usa los ejemplos de `docs/ejemplos_app_tendero/`. Las decisiones técnicas mínimas para empezar el proyecto Flutter están en `docs/propuesta_tecnica_app_flutter.md`.
 
+> **Punto de partida para construir la app: `docs/guia_construccion_app.md`** (qué leer, orden de construcción y cuándo se da cada paso por terminado).
+
 > Estado de esta guía (4-oct-2026): lo marcado **VERIFICADO** se comprobó contra el servidor real; lo marcado **SIN VERIFICAR** se dedujo leyendo el código y no se ha probado en una máquina limpia.
 
 ---
