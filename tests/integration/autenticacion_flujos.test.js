@@ -11,8 +11,9 @@
  * - `/api/2fa/verify` cae bajo `twoFactorLimiter` (5/15min), pero se llevó la cuenta por
  *   `user_<id>` cuando hay sesión (que es como se prueba aquí) — cada prueba usa un usuario nuevo,
  *   así que ni siquiera comparten presupuesto entre sí.
- * - `/api/verify-reset-code` NO tiene limitador propio (hallazgo anotado más abajo y en el plan
- *   21): las pruebas fallidas aquí no consumen ningún presupuesto porque no hay ninguno que consumir.
+ * - `/api/verify-reset-code` y `/api/reset-password` comparten `resetCodeLimiter` (5 fallos por correo
+ *   cada 15 min; P21-09, corregido en feat/backend-app-tendero y probado a fondo en
+ *   limitadores_recuperacion.test.js). Aquí cada prueba usa un correo nuevo y falla como mucho una vez.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -150,7 +151,7 @@ describe('Restablecer contraseña por correo', () => {
     expect(loginNuevo.status).toBe(200);
   });
 
-  it('verify-reset-code con un código incorrecto: 400 — endpoint SIN limitador propio (posible hallazgo, ver plan 21 R0)', async () => {
+  it('verify-reset-code con un código incorrecto: 400 (el limitador por correo se prueba en limitadores_recuperacion.test.js)', async () => {
     const datos = await crearUsuario();
     const { agente, csrfToken } = await agenteAnonimo();
     await agente.post('/api/forgot-password').set('X-CSRF-Token', csrfToken).send({ email: datos.correo });

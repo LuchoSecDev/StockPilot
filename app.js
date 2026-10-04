@@ -20,7 +20,7 @@ const { csrfSynchronisedProtection, generateToken } = csrfSync({
   getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.headers['X-CSRF-Token']
 });
 const { logger, requestLogger } = require('./utils/logger');
-const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter } = require('./middleware/rateLimiter');
+const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, resetCodeLimiter } = require('./middleware/rateLimiter');
 
 // Importar rutas
 const authRoutes = require('./routes/authRoutes');
@@ -165,6 +165,9 @@ app.use('/api/login', authLimiter);
 app.use('/api/registro', authLimiter);
 app.use('/api/forgot-password', authLimiter);
 app.use('/api/reset-password', authLimiter);
+// Código de recuperación: 5 intentos fallidos por correo en 15 min, compartidos entre los dos endpoints que lo comprueban.
+app.use('/api/verify-reset-code', resetCodeLimiter);
+app.use('/api/reset-password', resetCodeLimiter);
 app.use('/api/2fa/verify', twoFactorLimiter);
 
 // Usar rutas
