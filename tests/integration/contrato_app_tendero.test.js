@@ -61,7 +61,8 @@ describe('[S1] GET /api/csrf-token', () => {
     expect((await agente.post('/api/login').send({ login: u.usuario, password: u.password })).status).toBe(200);
 
     const conViejo = await agente.post('/api/caja/abrir').set('X-CSRF-Token', antes).send({ monto_apertura: 1000 });
-    expect(conViejo.status).toBe(500); // COMPORTAMIENTO ACTUAL (C4): un CSRF inválido responde 500, no 403
+    expect(conViejo.status).toBe(403);
+    expect(conViejo.body.code).toBe('CSRF_INVALID');
     const nuevo = (await agente.get('/api/csrf-token').set(JSON_ACCEPT)).body.csrfToken;
     expect((await agente.post('/api/caja/abrir').set('X-CSRF-Token', nuevo).send({ monto_apertura: 1000 })).status).toBe(200);
   });
@@ -245,14 +246,14 @@ describe('[S6] Errores transversales (valen para todos los endpoints protegidos)
     expect(r.body).toEqual({ error: 'Se requieren permisos de administrador' });
   });
 
-  it('COMPORTAMIENTO ACTUAL (C4): una escritura sin token CSRF, o con uno inválido, responde 500 { success:false, error:"Error interno: invalid csrf token" }', async () => {
+  it('una escritura sin token CSRF, o con uno inválido, responde 403 { success:false, code:"CSRF_INVALID", error } (C4, corregido)', async () => {
     const { tenderoA } = await dosTiendas(app);
     for (const cabecera of [undefined, 'token-falso']) {
       let p = tenderoA.agente.post('/api/caja/abrir');
       if (cabecera) p = p.set('X-CSRF-Token', cabecera);
       const r = await p.send({ monto_apertura: 1000 });
-      expect(r.status).toBe(500);
-      expect(r.body.error).toMatch(/invalid csrf token/);
+      expect(r.status).toBe(403);
+      expect(r.body).toEqual({ success: false, code: 'CSRF_INVALID', error: expect.stringMatching(/csrf-token/) });
     }
   });
 
@@ -264,7 +265,7 @@ describe('[S6] Errores transversales (valen para todos los endpoints protegidos)
       await e.tenderoA.agente.put(`/api/productos/${e.producto}/link-barcode`).send({ codigo_barras: '1' }),
       await e.tenderoA.agente.patch('/api/alertas/1/resolve').send({})
     ];
-    expect(sinToken.map((r) => r.status)).toEqual([500, 500, 500]); // COMPORTAMIENTO ACTUAL (C4)
+    expect(sinToken.map((r) => r.status)).toEqual([403, 403, 403]);
     expect(Number((await db.getAsync('SELECT cantidad FROM Productos WHERE id_producto = ?', [e.producto])).cantidad)).toBe(10);
   });
 });
@@ -291,11 +292,11 @@ describe('[C1] GET /api/productos', () => {
     });
   });
 
-  it('COMPORTAMIENTO ACTUAL: la respuesta al Tendero incluye costo_compra y clasificacion_abc (datos de margen del negocio)', async () => {
+  it('la respuesta al Tendero NO incluye costo_compra ni clasificacion_abc (datos de margen: solo el Administrador); detalle en datos_de_margen.test.js', async () => {
     const e = await escenario();
     const r = await e.get(e.tenderoA, '/api/productos');
-    expect(r.body[0]).toHaveProperty('costo_compra');
-    expect(r.body[0]).toHaveProperty('clasificacion_abc');
+    expect(r.body[0]).not.toHaveProperty('costo_compra');
+    expect(r.body[0]).not.toHaveProperty('clasificacion_abc');
   });
 });
 
@@ -333,13 +334,14 @@ describe('[C3] PUT /api/productos/:id/link-barcode', () => {
     expect(ajeno.status).toBe(404);
   });
 
-  it('COMPORTAMIENTO ACTUAL (hallazgo): permite asignar un código que ya tiene OTRO producto de la tienda (queda duplicado)', async () => {
+  it('409 { success:false, code:"BARCODE_DUPLICADO", error } si el código ya lo tiene OTRO producto de la tienda (también contra su SKU); el mismo producto puede repetirlo; detalle en link_barcode.test.js', async () => {
     const e = await escenario();
     const otro = await crearProducto({ id_tienda: e.adminA.id_tienda, nombre_producto: 'Leche' });
     const r = await e.put(e.tenderoA, `/api/productos/${otro}/link-barcode`, { codigo_barras: '7701234000011' }); // el del Arroz
-    expect(r.status).toBe(200);
-    const duplicados = await db.allAsync("SELECT id_producto FROM Productos WHERE codigo_barras = '7701234000011'");
-    expect(duplicados).toHaveLength(2);
+    expect(r.status).toBe(409);
+    expect(r.body).toEqual({ success: false, code: 'BARCODE_DUPLICADO', error: 'Ese código ya pertenece a «Arroz Diana 1Kg».' });
+    expect(await db.allAsync("SELECT id_producto FROM Productos WHERE codigo_barras = '7701234000011'")).toHaveLength(1);
+    expect((await e.put(e.tenderoA, `/api/productos/${e.producto}/link-barcode`, { codigo_barras: '7701234000011' })).status).toBe(200);
   });
 });
 
@@ -581,7 +583,17 @@ describe('[V3] GET /api/ventas', () => {
     expect(r.body).toMatchObject({ total: 3, limit: 2, offset: 0, hasMore: true });
     expect(r.body.data).toHaveLength(2);
     expect(r.body.data[0]).toMatchObject({ nombre_producto: 'Arroz Diana 1Kg', cantidad: 1, precio_total: '4500.00', nombre_vendedor: ERROR });
-    expect(r.body.data[0]).not.toHaveProperty('canal'); // COMPORTAMIENTO ACTUAL: el listado no expone Ventas.canal
+    expect(r.body.data[0]).toMatchObject({ canal: 'web' });
+  });
+
+  it('?turno=actual devuelve solo las ventas de la caja abierta del usuario; un valor distinto de «actual» es 400; detalle en ventas_turno.test.js', async () => {
+    const e = await escenario();
+    expect((await e.get(e.tenderoA, '/api/ventas?turno=actual')).body).toEqual({ data: [], total: 0, limit: 100, offset: 0, hasMore: false });
+    await e.abrirCaja(e.tenderoA);
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }] });
+    await esperarTrabajoEnSegundoPlano();
+    expect((await e.get(e.tenderoA, '/api/ventas?turno=actual')).body.total).toBe(1);
+    expect((await e.get(e.tenderoA, '/api/ventas?turno=todos')).status).toBe(400);
   });
 });
 

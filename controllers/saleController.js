@@ -80,9 +80,24 @@ class SaleController {
             const limit = parseInt(req.query.limit) || 100;
             const offset = parseInt(req.query.offset) || 0;
 
+            // ?turno=actual: solo las ventas de la caja abierta del usuario (para la app del Tendero).
+            // Sin caja abierta, la lista queda vacía. Cualquier otro valor es un error del cliente.
+            const filtros = {};
+            if (req.query.turno !== undefined) {
+                if (req.query.turno !== 'actual') {
+                    return res.status(400).json({ success: false, error: 'El parámetro turno solo admite el valor «actual».' });
+                }
+                const CashRegister = require('../models/CashRegister');
+                const caja = await CashRegister.getCurrentSession(id_tienda, req.session.userId);
+                if (!caja) {
+                    return res.json({ data: [], total: 0, limit, offset, hasMore: false });
+                }
+                filtros.idSesionCaja = caja.id_sesion;
+            }
+
             const [ventas, total] = await Promise.all([
-                Sale.findByStore(id_tienda, limit, offset),
-                Sale.countByStore(id_tienda)
+                Sale.findByStore(id_tienda, limit, offset, filtros),
+                Sale.countByStore(id_tienda, filtros)
             ]);
 
             res.json({

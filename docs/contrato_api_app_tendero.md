@@ -21,7 +21,7 @@ Todo lo de este documento se verificó ejecutando las peticiones contra el servi
 | **CSRF** | Toda escritura (`POST`, `PUT`, `PATCH`, `DELETE`) necesita la cabecera **`X-CSRF-Token`**. Las lecturas (`GET`) no. Ver sección 2. |
 | **Importes** | Llegan como **texto con dos decimales** (`"4500.00"`). Las cantidades de stock, como número. Convertir con `Decimal`/`double.parse`, no sumar texto. |
 | **Fechas** | ISO 8601 en UTC (`"2026-10-04T03:37:18.249Z"`). |
-| **Forma del error** | Dos variantes, según el endpoint: `{ "error": "mensaje" }` o `{ "success": false, "error": "mensaje" }`. Mostrar `error` al usuario; decidir por el **código HTTP** y, cuando exista, por `code`. |
+| **Forma del error** | Dos variantes, según el endpoint: `{ "error": "mensaje" }` o `{ "success": false, "error": "mensaje" }`. Mostrar `error` al usuario; decidir por el **código HTTP** y, cuando exista, por `code` (`SESSION_ACTIVE`, `CONCURRENT_SESSION`, `CSRF_INVALID`, `BARCODE_DUPLICADO`). |
 | **Límites de uso** | `429` con `{ "success": false, "error": "…" }` cuando se agota un límite (login, 2FA, código de recuperación). Cabeceras `RateLimit-Limit`, `RateLimit-Remaining` y `RateLimit-Reset` en esas rutas. El tope general es 600 peticiones por usuario cada 15 minutos. |
 | **Servidor dormido** | Render gratuito se duerme a los 15 minutos sin tráfico y tarda cerca de un minuto en responder la primera petición. Usar un tiempo de espera largo (≥ 60 s) en la primera, y mostrar «conectando…». |
 | **Idempotencia** | **No existe.** Una venta, un egreso o una entrada enviados dos veces **se registran dos veces**. Ante un tiempo de espera, la app no debe reintentar a ciegas una escritura: primero consulta el estado (por ejemplo `GET /api/ventas` o `GET /api/caja/sesion`) o pide confirmación al usuario. |
@@ -41,7 +41,7 @@ Reglas del token CSRF:
 - Se **pide después** de iniciar sesión (paso 2). El login regenera la sesión, así que **un token pedido antes del login deja de valer**.
 - Con 2FA, se pide después del paso 1 (la sesión «a medias» ya tiene cookie) y **sigue valiendo** después del paso 3.
 - El token es el mismo mientras dure la sesión: no hace falta pedir uno nuevo por cada escritura.
-- Ante un `500` con el mensaje `Error interno: invalid csrf token`, volver a pedir el token y reintentar **una vez** (ver la nota C4 más abajo).
+- Ante un `403` con `code: "CSRF_INVALID"`, volver a pedir el token y reintentar **una vez**.
 
 **Una sesión por canal.** Un Tendero puede tener a la vez una sesión `web` y una `app`. Un segundo login en el mismo canal recibe `409 SESSION_ACTIVE`; la app puede ofrecer «cerrar la otra sesión» y repetir el login con `"force": true`, lo que invalida solo la sesión de la app anterior. El Administrador no tiene este candado.
 
@@ -99,7 +99,10 @@ Con `X-CSRF-Token`. **200** `{ "success": true, "message": "Sesión cerrada" }`.
 | **401** | `{ "error": "Sesión cerrada", "message": "…", "code": "CONCURRENT_SESSION" }` | Otra sesión del mismo canal la reemplazó (login con `force`). Avisar y volver al login. |
 | **302** a `/` | HTML | Faltó `Accept: application/json`. Es un error de la app, no del servidor. |
 | **403** | `{ "error": "Se requieren permisos de administrador" }` | La acción es solo del Administrador. Ocultar el control. |
-| **500** | `{ "success": false, "error": "Error interno: invalid csrf token" }` | **COMPORTAMIENTO ACTUAL (C4):** un CSRF faltante o inválido responde 500 en vez de 403. Pedir un token nuevo (`[S1]`) y reintentar una vez. Si el 500 persiste con un token fresco, es un error real. |
+| **403** | `{ "success": false, "code": "CSRF_INVALID", "error": "Token CSRF inválido o ausente. …" }` | Falta el token CSRF en una escritura, o es inválido o de otra sesión. Pedir uno nuevo (`[S1]`) y **reintentar una vez**. Se distingue del 403 de rol por el `code` (el de rol no lo trae). *(Antes respondía 500, y en producción con un texto genérico: hallazgo C4, corregido.)* |
+| **400** | `{ "success": false, "error": "Solicitud inválida: el cuerpo no es un JSON válido." }` | El cuerpo no es JSON. |
+| **413** | `{ "success": false, "error": "La petición es demasiado grande." }` | Cuerpo de más de 1 MB (p. ej. una foto de egreso enorme). |
+| **500** | `{ "success": false, "error": "…" }` | Fallo real del servidor (en producción, un mensaje genérico). Se puede reintentar una **lectura**; una escritura, solo tras comprobar su estado (no hay idempotencia). |
 | **429** | `{ "success": false, "error": "…" }` | Esperar; `RateLimit-Reset` indica cuándo. |
 
 **Pruebas:** `contrato_app_tendero.test.js › [S6]`; los 403 de cada ruta del Administrador, en `autorizacion_roles.test.js`.
@@ -110,8 +113,8 @@ Con `X-CSRF-Token`. **200** `{ "success": true, "message": "Sesión cerrada" }`.
 
 ### [C1] `GET /api/productos`
 **200** un **arreglo** (sin paginación) con todos los productos de la tienda de la sesión. Campos que usa la app: `id_producto`, `codigo`, `codigo_barras` (puede ser `null`), `nombre_producto`, `categoria`, `precio` (texto), `cantidad` (número), `stock_minimo`, `estado` (`"Disponible"`/`"Inactivo"`), `nivel_stock` (`"agotado"`, `"critico"`, `"reponer"` u `"ok"`), `fecha_vencimiento`.
-**COMPORTAMIENTO ACTUAL:** la respuesta al Tendero incluye también `costo_compra` y `clasificacion_abc` (datos del margen del negocio). La app no debe mostrarlos.
-**Prueba:** `contrato_app_tendero.test.js › [C1]`.
+Al **Tendero** no se le devuelven `costo_compra` ni `clasificacion_abc` (datos del margen del negocio): solo el Administrador los recibe. Lo mismo vale para `GET /api/productos/:id`, `[C2]` y `GET /api/inventario/productos`.
+**Pruebas:** `contrato_app_tendero.test.js › [C1]`; `datos_de_margen.test.js`.
 
 ### [C2] `GET /api/productos/barcode/:code`
 **200** `{ "success": true, "data": { …producto } }` · **404** `{ "success": false, "error": "Producto no encontrado" }` (no existe, o es de otra tienda). Es la consulta del escáner al vender.
@@ -123,11 +126,12 @@ Con CSRF. **Cuerpo:** `{ "codigo_barras": "7701234000099" }`. El Tendero puede (
 | Código | Cuerpo |
 |---|---|
 | **200** | `{ "success": true, "message": "Código vinculado correctamente" }` |
-| **400** | `{ "success": false, "error": "Código de barras es requerido" }` |
+| **400** | `{ "success": false, "error": "Código de barras es requerido" }` (ausente, vacío, solo espacios o de otro tipo) · `… "El código de barras no puede tener más de 50 caracteres"` |
 | **404** | `{ "success": false, "error": "Producto no encontrado" }` (no existe o es de otra tienda) |
+| **409** | `{ "success": false, "code": "BARCODE_DUPLICADO", "error": "Ese código ya pertenece a «Arroz»." }` — otro producto **de la tienda** ya tiene ese código (también se compara con su SKU, `codigo`). El mismo producto puede repetir su propio código (200), y el mismo código en otra tienda es válido. |
 
-**COMPORTAMIENTO ACTUAL (hallazgo):** no se comprueba que el código no lo tenga ya otro producto de la tienda: se puede dejar el mismo código en dos productos y `[C2]` devolvería uno cualquiera. Hasta corregirlo, la app debe consultar `[C2]` antes de vincular y avisar al usuario si el código ya existe.
-**Prueba:** `contrato_app_tendero.test.js › [C3]`.
+El código se recorta de espacios y acepta texto o número. La comprobación es atómica por tienda: dos vínculos simultáneos del mismo código no pueden ganar los dos. La app puede ofrecer «ir al producto que ya lo tiene» con el nombre del `error` y `[C2]`.
+**Pruebas:** `contrato_app_tendero.test.js › [C3]`; `link_barcode.test.js`.
 
 ---
 
@@ -216,9 +220,11 @@ Para evitar el 400 por cupo, la app puede avisar antes comparando `saldo_pendien
 **Pruebas:** `contrato_app_tendero.test.js › [V2]`; las validaciones de cliente, cupo y producto con su concurrencia, `ventas_fiado_validaciones.test.js`; el canal, `ventas_canal.test.js`; la concurrencia sobre el mismo producto, `venta_concurrencia.test.js`.
 
 ### [V3] `GET /api/ventas`
-`?limit=` (por defecto 100) y `?offset=`. **200** `{ "data": [ { "id_venta", "fecha_salida", "cantidad", "nombre_producto", "categoria", "precio_unitario", "precio_total", "nombre_vendedor" } ], "total", "limit", "offset", "hasMore" }`. Una fila **por producto vendido**, de **toda la tienda** (no solo del vendedor ni del turno) y **sin** `canal`.
-Para «ventas del turno» no hay hoy un endpoint propio: es una **brecha** de esta versión (plan 07, 6.2, «si alcanza el tiempo»).
-**Prueba:** `contrato_app_tendero.test.js › [V3]`.
+`?limit=` (por defecto 100), `?offset=` y `?turno=actual`. **200** `{ "data": [ { "id_venta", "fecha_salida", "canal": "web" o "app", "cantidad", "nombre_producto", "categoria", "precio_unitario", "precio_total", "nombre_vendedor" } ], "total", "limit", "offset", "hasMore" }`. Una fila **por producto vendido**.
+- Sin `turno`: las ventas de **toda la tienda**.
+- **`?turno=actual`**: solo las ventas de **la caja abierta del usuario** (las «ventas del turno»). Sin caja abierta devuelve `{ "data": [], "total": 0, … }`. Cualquier otro valor de `turno` da **400** `{ "success": false, "error": "El parámetro turno solo admite el valor «actual»." }`.
+- **Ojo con los importes:** `precio_unitario` y `precio_total` se calculan con el precio **actual** del producto, no con el precio al que se vendió; si el precio cambia, el historial cambia. No usar este listado para cuadrar caja: para eso está el arqueo de `[K3]`.
+**Pruebas:** `contrato_app_tendero.test.js › [V3]`; `ventas_turno.test.js`.
 
 ---
 
@@ -280,12 +286,14 @@ La lista completa y su prueba (Tendero → 403, la base no cambia) están en `au
 
 ## 11. Hallazgos abiertos que tocan a la app (resumen)
 
+Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 403), `link-barcode` con códigos duplicados, `costo_compra` visible al Tendero, ventas fiadas sin límite de crédito ni validación de cliente, producto inexistente en el carrito, y falta de «ventas del turno» y de `canal` en el listado.
+
+
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| C4 | CSRF inválido responde 500, no 403 | La app no distingue un error real de un token vencido | Que el manejador global respete `err.status` (≈5 líneas) |
-| — | `link-barcode` permite códigos duplicados | Dos productos con el mismo código; `[C2]` ambiguo | Responder 409 si otro producto de la tienda ya lo tiene |
-| — | `GET /api/productos` expone `costo_compra` al Tendero | Dato de margen visible en el dispositivo | Quitar esos campos para el rol Tendero |
-| — | No hay endpoint de «ventas del turno» ni `canal` en `GET /api/ventas` | Brecha de la función opcional | Filtro por vendedor/sesión de caja |
+| — | `GET /api/ventas` calcula los importes con el precio **actual** del producto | El historial de ventas cambia si cambia el precio | Usar `VentasProductos.precio_unitario` (que ya guarda la venta de carrito) |
+| — | `PATCH /api/alertas/:id/resolve` responde 200 con un id inexistente | La app no se entera de un error | 404 si no hubo ninguna fila |
+| — | `POST /api/forgot-password` no tiene límite (responde 200 siempre y el `authLimiter` solo cuenta fallos) | Se pueden enviar correos sin límite a una víctima | Limitador por correo e IP |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre), sí a la recepción de órdenes en la web | Decisión de negocio pendiente |
 
 ## 12. Cómo cambiar este contrato

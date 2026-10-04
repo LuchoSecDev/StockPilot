@@ -14,7 +14,7 @@ const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression'); // 🚀 Nuevo: Compresión para Producción
-const multer = require('multer'); // Importado para el manejo global de errores de subida
+const { manejadorErrores } = require('./middleware/errorHandler');
 const { csrfSync } = require('csrf-sync');
 const { csrfSynchronisedProtection, generateToken } = csrfSync({
   getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.headers['X-CSRF-Token']
@@ -208,41 +208,8 @@ app.use((req, res) => {
     res.status(404).json({ success: false, error: 'Ruta no encontrada' });
 });
 
-// Manejo de errores global
-// Express identifica los manejadores de error por aridad (4 args): `_next` debe quedarse aunque no se use.
-app.use((err, req, res, _next) => {
-    // 🛡️ Manejo de errores generalizado para subida de archivos (Multer)
-    if (err instanceof multer.MulterError) {
-        // LIMIT_FILE_SIZE amerita un 413, otros problemas (ej: LIMIT_FIELD_KEY) un 400
-        const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        logger.warn({ err, url: req.originalUrl, method: req.method }, '⚠️ Rechazo por validación de subida de archivo (Multer)');
-        
-        return res.status(status).json({
-            success: false,
-            error: err.code === 'LIMIT_FILE_SIZE' 
-                ? 'El archivo subido supera el límite máximo permitido de 5MB.' 
-                : `Error en la subida del archivo: ${err.message}`
-        });
-    }
-
-    // Logging estructurado del error
-    logger.error({ err, url: req.originalUrl, method: req.method }, '❌ ERROR GLOBAL');
-
-    // Validación de tipo de archivo (fileFilter de Multer lanza Error normal)
-    if (err.message && err.message.includes('Tipo de archivo no permitido')) {
-        return res.status(400).json({ success: false, error: err.message });
-    }
-
-    // En producción, silenciamos detalles técnicos peligrosos
-    const isProd = process.env.NODE_ENV === 'production';
-    
-    res.status(500).json({ 
-        success: false, 
-        error: isProd 
-            ? 'Lo sentimos, ha ocurrido un error interno. Intenta de nuevo más tarde.' 
-            : `Error interno: ${err.message}` 
-    });
-});
+// Manejo de errores global (middleware/errorHandler.js)
+app.use(manejadorErrores);
 
 // Manejo de rechazos no controlados
 process.on('unhandledRejection', (reason) => {

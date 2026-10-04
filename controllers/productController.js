@@ -8,6 +8,7 @@ const Alert = require('../models/Alert');
 const db = require('../config/database');
 const { calcularReposicion } = require('../utils/reposicion');
 const { leerEntradasMotor } = require('../utils/entradasMotor');
+const { ocultarDatosDeMargen } = require('../utils/datosDeMargen');
 
 class ProductController {
     static async bulkUpload(req, res) {
@@ -161,7 +162,7 @@ class ProductController {
                 return { ...p, nivel_stock: rep.nivel, urgencia: rep.urgencia };
             });
 
-            res.json(productosConNivel);
+            res.json(ocultarDatosDeMargen(productosConNivel, req.session.rol));
         } catch (error) {
             console.error('Error obteniendo productos:', error);
             res.status(500).json({ success: false, error: 'Error al obtener productos' });
@@ -178,7 +179,7 @@ class ProductController {
                 return res.status(404).json({ success: false, error: 'Producto no encontrado' });
             }
             
-            res.json(producto);
+            res.json(ocultarDatosDeMargen(producto, req.session.rol));
         } catch (error) {
             console.error('Error obteniendo producto:', error);
             res.status(500).json({ success: false, error: safeError(error, 'Error al obtener producto') });
@@ -357,7 +358,7 @@ class ProductController {
                 return res.status(404).json({ success: false, error: 'Producto no encontrado' });
             }
             
-            res.json({ success: true, data: producto });
+            res.json({ success: true, data: ocultarDatosDeMargen(producto, req.session.rol) });
         } catch (error) {
             console.error('Error buscando por código de barras:', error);
             res.status(500).json({ success: false, error: safeError(error, 'Error al buscar producto') });
@@ -367,11 +368,17 @@ class ProductController {
     static async linkBarcode(req, res) {
         try {
             const productId = req.params.id;
-            const { codigo_barras } = req.body;
             const tiendaId = req.session.tiendaId;
 
+            // El código llega como texto (o número, si el escáner lo entrega así): se normaliza y se acota
+            // al tamaño de la columna (VARCHAR(50)); antes uno más largo daba un 500 de la base.
+            const crudo = req.body.codigo_barras;
+            const codigo_barras = typeof crudo === 'string' || typeof crudo === 'number' ? String(crudo).trim() : '';
             if (!codigo_barras) {
                 return res.status(400).json({ success: false, error: 'Código de barras es requerido' });
+            }
+            if (codigo_barras.length > 50) {
+                return res.status(400).json({ success: false, error: 'El código de barras no puede tener más de 50 caracteres' });
             }
 
             // 🛡️ IDOR: Verificar propiedad
@@ -380,9 +387,16 @@ class ProductController {
                 return res.status(404).json({ success: false, error: 'Producto no encontrado' });
             }
 
-            const success = await Product.linkBarcode(productId, codigo_barras);
-            
-            if (!success) {
+            const resultado = await Product.linkBarcode(productId, tiendaId, codigo_barras);
+
+            if (resultado.estado === 'duplicado') {
+                return res.status(409).json({
+                    success: false,
+                    code: 'BARCODE_DUPLICADO',
+                    error: `Ese código ya pertenece a «${resultado.conflicto.nombre_producto}».`
+                });
+            }
+            if (resultado.estado !== 'ok') {
                 return res.status(404).json({ success: false, error: 'Error al vincular el código' });
             }
 
