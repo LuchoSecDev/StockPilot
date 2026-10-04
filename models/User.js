@@ -139,15 +139,29 @@ class User {
         await db.runAsync(query, [userId]);
     }
 
-    static async setCurrentSession(userId, sessionId) {
-        const query = `UPDATE Usuarios SET session_id = ? WHERE id_usuario = ?`;
+    // Candado de sesión concurrente por canal: 'web' usa Usuarios.session_id (como siempre) y 'app'
+    // usa Usuarios.session_id_app. Cualquier otro valor cuenta como 'web'. El nombre de la columna sale
+    // de esta lista fija, nunca de la entrada del usuario.
+    static columnaSesion(canal) {
+        return canal === 'app' ? 'session_id_app' : 'session_id';
+    }
+
+    static async setCurrentSession(userId, sessionId, canal = 'web') {
+        const query = `UPDATE Usuarios SET ${User.columnaSesion(canal)} = ? WHERE id_usuario = ?`;
         await db.runAsync(query, [sessionId, userId]);
     }
 
-    static async verifyCurrentSession(userId, sessionId) {
-        const query = `SELECT session_id FROM Usuarios WHERE id_usuario = ?`;
-        const user = await db.getAsync(query, [userId]);
-        return user && user.session_id === sessionId;
+    static async verifyCurrentSession(userId, sessionId, canal = 'web') {
+        const columna = User.columnaSesion(canal);
+        const user = await db.getAsync(`SELECT ${columna} AS sesion FROM Usuarios WHERE id_usuario = ?`, [userId]);
+        return !!user && user.sesion === sessionId;
+    }
+
+    // Libera el candado SOLO si todavía pertenece a esta sesión. Una sesión vieja (invalidada por un
+    // login con force) que hace logout no debe borrar el candado de la sesión nueva.
+    static async releaseCurrentSession(userId, sessionId, canal = 'web') {
+        const columna = User.columnaSesion(canal);
+        await db.runAsync(`UPDATE Usuarios SET ${columna} = NULL WHERE id_usuario = ? AND ${columna} = ?`, [userId, sessionId]);
     }
 
     static async get2FASecret(userId) {

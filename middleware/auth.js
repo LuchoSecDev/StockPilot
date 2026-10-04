@@ -1,5 +1,6 @@
 // middleware/auth.js
 const User = require('../models/User');
+const { canalDeSesion } = require('../utils/canal');
 
 function evaluarAcceso(session, isSessionValid) {
   if (!session || !session.userId) return 'no_auth';
@@ -29,7 +30,7 @@ async function requireLogin(req, res, next) {
 
     // VALIDACIÓN DE SESIÓN CONCURRENTE
     try {
-        const isSessionValid = await User.verifyCurrentSession(req.session.userId, req.sessionID);
+        const isSessionValid = await User.verifyCurrentSession(req.session.userId, req.sessionID, canalDeSesion(req.session));
         const status = evaluarAcceso(req.session, isSessionValid);
         
         if (status === 'concurrent') {

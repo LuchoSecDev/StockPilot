@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS Usuarios (
     fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     id_tienda INTEGER NOT NULL REFERENCES Tienda(id_tienda) ON DELETE CASCADE,
     session_id VARCHAR(255),
+    session_id_app VARCHAR(255), -- candado de sesión del canal «app»; session_id es el del canal web
     foto_url TEXT,
     cambio_clave_forzoso BOOLEAN DEFAULT FALSE,
     reset_token VARCHAR(255),

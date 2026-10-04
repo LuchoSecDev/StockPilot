@@ -212,7 +212,9 @@ db.migrationReady = (async function autoMigrate() {
                 ADD COLUMN IF NOT EXISTS cambio_clave_forzoso BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
                 ADD COLUMN IF NOT EXISTS reset_expires VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE;
+                ADD COLUMN IF NOT EXISTS fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE,
+                -- Candado de sesión del canal «app» (app nativa del Tendero). session_id sigue siendo el del canal web.
+                ADD COLUMN IF NOT EXISTS session_id_app VARCHAR(255);
             `);
 
             // 5. Asegurar esquema para Arqueo de Caja y Facturación POS (Fase 1 y 2)
