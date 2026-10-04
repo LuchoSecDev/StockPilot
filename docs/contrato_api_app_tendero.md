@@ -317,6 +317,7 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre) ni a la app | **Resuelto (4-oct-2026):** confirmación con motivo si se recibe más de lo pedido; menos de lo pedido deja la orden «Parcial» |
+| Pagos | El sistema no verifica que el pago de una venta con Tarjeta o Transferencia se haya recibido (solo el efectivo se contrasta, en el cierre de caja) | La app solo registra lo que declara el Tendero | **Decisión (4-oct-2026): por ahora se confía en lo registrado.** Propuesta en `docs/propuesta_verificacion_de_pagos.md` |
 
 ## 12. Cómo cambiar este contrato
 1. Proponer el cambio en este documento (rama del backend), indicando si rompe a la app.
