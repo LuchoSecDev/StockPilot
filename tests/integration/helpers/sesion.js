@@ -9,9 +9,12 @@
 /**
  * @param {import('supertest').Agent} agente
  * @param {{usuario:string, password:string}} credenciales - Lo que devuelve crearUsuario().
+ * @param {{canal?: 'web'|'app'}} [opciones] - 'app' manda X-Canal: app (como la app nativa del Tendero).
  */
-async function iniciarSesion(agente, { usuario, password }) {
-  const res = await agente.post('/api/login').send({ login: usuario, password });
+async function iniciarSesion(agente, { usuario, password }, { canal } = {}) {
+  let peticion = agente.post('/api/login');
+  if (canal === 'app') peticion = peticion.set('X-Canal', 'app');
+  const res = await peticion.send({ login: usuario, password });
   if (res.status !== 200) {
     throw new Error(`iniciarSesion(): login falló (${res.status}): ${JSON.stringify(res.body)}`);
   }

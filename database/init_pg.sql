@@ -202,7 +202,8 @@ CREATE TABLE IF NOT EXISTS Ventas (
     metodo_pago VARCHAR(50) DEFAULT 'Efectivo', -- 'Efectivo', 'Tarjeta', 'Transferencia', 'Fiado'
     estado_deuda VARCHAR(50) DEFAULT 'Pagado', -- 'Pagado', 'Pendiente'
     efectivo_recibido NUMERIC(15, 2) DEFAULT 0,
-    cambio_devuelto NUMERIC(15, 2) DEFAULT 0
+    cambio_devuelto NUMERIC(15, 2) DEFAULT 0,
+    canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app')) -- de la sesión: 'web' o 'app'
 );
 
 -- 7. TABLA VENTAS-PRODUCTOS

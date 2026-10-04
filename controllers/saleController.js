@@ -12,6 +12,7 @@ const Product = require('../models/Product');
 const db = require('../config/database');
 const Alert = require('../models/Alert');
 const Notification = require('../models/Notification');
+const { canalDeSesion } = require('../utils/canal');
 
 /**
  * Sale Controller
@@ -130,9 +131,9 @@ class SaleController {
                 const id_cliente_val = id_cliente || null;
 
                 const saleInsert = await client.query(
-                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda) 
-                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
-                    [id_vendedor, id_tienda, total, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda]
+                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal) 
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
+                    [id_vendedor, id_tienda, total, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session)]
                 );
                 const id_venta = saleInsert.rows[0].id_venta;
 
@@ -254,9 +255,9 @@ class SaleController {
                 const id_cliente_val = id_cliente || null;
 
                 const saleInsert = await client.query(
-                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda) 
-                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
-                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda]
+                    `INSERT INTO Ventas (id_vendedor, id_tienda, precio_total, fecha_salida, id_sesion_caja, metodo_pago, efectivo_recibido, cambio_devuelto, id_cliente, estado_deuda, canal) 
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?) RETURNING id_venta`,
+                    [id_vendedor, id_tienda, totalVenta, activeSession.id_sesion, metodo, recibido, cambio, id_cliente_val, estado_deuda, canalDeSesion(req.session)]
                 );
                 const id_venta = saleInsert.rows[0].id_venta;
 
