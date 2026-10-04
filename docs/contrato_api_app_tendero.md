@@ -66,7 +66,9 @@ Sin CSRF. Cabecera opcional `X-Canal: app` (mayúsculas y espacios se toleran; c
 | **409** | `{ "success": false, "error": "…", "code": "SESSION_ACTIVE" }` | Un **Tendero** ya tiene sesión **en ese canal**. Repetir con `"force": true` la reemplaza. |
 | **429** | `{ "success": false, "error": "…" }` | 10 intentos fallidos por IP cada 15 min (un 409 también cuenta como fallido). |
 
-Notas para la app: si `cambioClaveForzoso` es `true`, la cuenta debe cambiar la contraseña antes de usarla (en la web: `PUT /api/perfil/first-password`; **no forma parte de esta versión de la app**). Si `needs2FASetup` es `true` (Administrador sin 2FA configurado), la configuración inicial se hace en la web.
+Notas para la app:
+- **`cambioClaveForzoso: true` es el caso normal del primer inicio de sesión de un Tendero:** las cuentas que crea el Administrador nacen con una contraseña temporal. La app debe mostrar la pantalla de «elige tu contraseña» (`[S7]`) **antes** de dejar operar. El servidor **no** lo impone en las demás rutas (la web lo hace desde la interfaz): si la app lo omite, el Tendero se queda con la contraseña temporal.
+- Si `needs2FASetup` es `true` (Administrador sin 2FA configurado), la configuración inicial se hace en la web.
 **Pruebas:** `contrato_app_tendero.test.js › [S2]`; el candado por canal, `sesion_por_canal.test.js`.
 
 ### [S3] `POST /api/2fa/verify` — completar el login con segundo factor
@@ -90,6 +92,20 @@ Es la forma de conocer `userId`, `tiendaId` y el tope de egresos del Tendero (el
 ### [S5] `POST /api/logout`
 Con `X-CSRF-Token`. **200** `{ "success": true, "message": "Sesión cerrada" }`. Destruye la sesión y libera el candado de **su** canal (no el del otro). Funciona aunque la sesión ya hubiera sido invalidada.
 **Prueba:** `contrato_app_tendero.test.js › [S5]`; casos finos en `sesion_por_canal.test.js`.
+
+### [S7] `PUT /api/perfil/first-password` — primer cambio de contraseña
+Con `X-CSRF-Token`, solo cuando el login devolvió `user.cambioClaveForzoso: true`. **Cuerpo:** `{ "newPassword": "ClaveNueva2026!" }` (mínimo 8 caracteres).
+
+| Código | Cuerpo | Cuándo |
+|---|---|---|
+| **200** | `{ "success": true, "message": "Contraseña establecida exitosamente" }` | La contraseña queda cambiada y `cambioClaveForzoso` pasa a `false` en la sesión (`[S4]`). La temporal deja de servir. La sesión sigue abierta: no hace falta volver a entrar. |
+| **400** | `{ "success": false, "error": "La contraseña debe tener al menos 8 caracteres" }` | Ausente o corta. |
+| **400** | `{ "success": false, "error": "La nueva contraseña no puede ser igual a la que tienes asignada actualmente." }` | Igual a la temporal. |
+| **400** | `{ "success": false, "error": "Acción no permitida" }` | La cuenta no tiene un cambio pendiente. |
+| **401 / 403** | ver `[S6]` | Sin sesión, o sin token CSRF (`CSRF_INVALID`). |
+
+Cambiar la contraseña en cualquier otro momento (`PUT /api/perfil/password`) no forma parte de esta versión de la app.
+**Prueba:** `contrato_app_tendero.test.js › [S7]`.
 
 ### [S6] Errores que pueden salir en cualquier endpoint protegido
 
