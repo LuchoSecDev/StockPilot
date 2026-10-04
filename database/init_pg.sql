@@ -203,8 +203,12 @@ CREATE TABLE IF NOT EXISTS Ventas (
     estado_deuda VARCHAR(50) DEFAULT 'Pagado', -- 'Pagado', 'Pendiente'
     efectivo_recibido NUMERIC(15, 2) DEFAULT 0,
     cambio_devuelto NUMERIC(15, 2) DEFAULT 0,
-    canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app')) -- de la sesión: 'web' o 'app'
+    canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app')), -- de la sesión: 'web' o 'app'
+    idempotency_key VARCHAR(100), -- cabecera Idempotency-Key de la app (NULL = sin clave)
+    idempotency_hash VARCHAR(64)  -- SHA-256 de la carga, para detectar la misma clave con otra venta
 );
+-- Una clave por vendedor; parcial: las ventas sin clave no cuentan.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ventas_idempotencia ON Ventas(id_vendedor, idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- 7. TABLA VENTAS-PRODUCTOS
 CREATE TABLE IF NOT EXISTS VentasProductos (

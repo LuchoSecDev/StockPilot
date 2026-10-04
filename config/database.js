@@ -257,9 +257,15 @@ db.migrationReady = (async function autoMigrate() {
                 ADD COLUMN IF NOT EXISTS estado_deuda VARCHAR(50) DEFAULT 'Pagado',
                 -- Canal desde el que se registró la venta: 'web' (navegador) o 'app' (app nativa del Tendero).
                 -- Las ventas anteriores quedan en 'web'. Se toma de la sesión, nunca del cuerpo de la petición.
-                ADD COLUMN IF NOT EXISTS canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app'));
+                ADD COLUMN IF NOT EXISTS canal VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (canal IN ('web', 'app')),
+                -- Idempotencia de la venta del carrito (cabecera Idempotency-Key): la clave que mandó la app y una
+                -- huella (SHA-256) de la carga, para detectar la misma clave con otra venta. NULL = sin clave.
+                ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS idempotency_hash VARCHAR(64);
 
                 CREATE INDEX IF NOT EXISTS idx_ventas_sesion_caja ON Ventas(id_sesion_caja);
+                -- Una clave por vendedor. Parcial: las ventas sin clave (todas las anteriores y las de la web) no cuentan.
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_ventas_idempotencia ON Ventas(id_vendedor, idempotency_key) WHERE idempotency_key IS NOT NULL;
             `);
             // 5.1 Asegurar tabla Abonos (pagos de fiados). Requiere Clientes y SesionCaja, creadas arriba.
             await pool.query(`
