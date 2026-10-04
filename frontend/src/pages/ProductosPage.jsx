@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import ProductTable from '../components/productos/ProductTable';
 import ProductFormModal from '../components/productos/ProductFormModal';
 import PromoManualModal from '../components/productos/PromoManualModal';
+import SumarStockModal from '../components/productos/SumarStockModal';
 import { useState } from 'react';
 import { SYNC_EVENTS, emitSyncEvent } from '../utils/stockSync';
 import { useToast } from '../context/ToastContext';
@@ -23,6 +24,7 @@ const ProductosPage = () => {
     uploadLoading, handleFileUpload,
     modalOpen, editMode, formLoading, formData, proveedores, handleOpenModal, handleCloseModal, handleSubmitProducto,
     toggleModalOpen, setToggleModalOpen, toggleProducto, setToggleProducto, toggleLoading, submitToggleEstado,
+    sumarStockProducto, setSumarStockProducto, sumarStockLoading, submitSumarStock,
     linkModalOpen, setLinkModalOpen, linkBarcodeCode, submitLinkBarcode, openNewProductWithBarcode,
     eliminarModalOpen, setEliminarModalOpen, eliminarProductoSel, setEliminarProductoSel, eliminarLoading, submitEliminar
   } = useProductosPage();
@@ -167,16 +169,24 @@ const ProductosPage = () => {
              <p className="text-slate-600 font-bold mb-6">Hemos detectado el código <span className="bg-slate-100 text-tinta px-2 py-1 rounded font-mono">{linkBarcodeCode}</span>, pero no está registrado.</p>
              
              <div className="space-y-4">
-                <button onClick={() => openNewProductWithBarcode(linkBarcodeCode)} className="w-full text-left p-4 rounded-lg border-2 border-azul/30 bg-azul/10 hover:bg-azul/10 hover:border-azul/30 transition-colors group">
-                   <h4 className="font-bold text-azul text-sm mb-1 group-hover:text-azul">Crear Producto Nuevo</h4>
-                   <p className="text-xs font-bold text-azul">Usar este EAN para registrar un artículo que no existe en el sistema.</p>
-                </button>
+                {isAdmin ? (
+                  <>
+                  <button onClick={() => openNewProductWithBarcode(linkBarcodeCode)} className="w-full text-left p-4 rounded-lg border-2 border-azul/30 bg-azul/10 hover:bg-azul/10 hover:border-azul/30 transition-colors group">
+                     <h4 className="font-bold text-azul text-sm mb-1 group-hover:text-azul">Crear Producto Nuevo</h4>
+                     <p className="text-xs font-bold text-azul">Usar este EAN para registrar un artículo que no existe en el sistema.</p>
+                  </button>
                 
-                <div className="relative flex items-center py-2">
-                   <div className="flex-grow border-t border-slate-200"></div>
-                   <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold">O Vincular</span>
-                   <div className="flex-grow border-t border-slate-200"></div>
-                </div>
+                  <div className="relative flex items-center py-2">
+                     <div className="flex-grow border-t border-slate-200"></div>
+                     <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold">O Vincular</span>
+                     <div className="flex-grow border-t border-slate-200"></div>
+                  </div>
+                  </>
+                ) : (
+                  <p role="note" className="p-4 rounded-2xl border-2 border-aviso-suave bg-amber-50/60 text-xs font-bold text-amber-800 leading-relaxed">
+                    Este producto es nuevo. Pídele al administrador que lo registre. Si ya existe con otro código, vincúlalo abajo.
+                  </p>
+                )}
 
                 <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50">
                    <label className="block text-xs font-semibold text-slate-600 ml-1 mb-2">Selecciona un producto existente</label>
@@ -225,6 +235,14 @@ const ProductosPage = () => {
         onCancel={() => setEliminarModalOpen(false)}
         loading={eliminarLoading}
         icon="trash"
+      />
+
+      <SumarStockModal
+        isOpen={!!sumarStockProducto}
+        onClose={() => setSumarStockProducto(null)}
+        producto={sumarStockProducto}
+        onSubmit={submitSumarStock}
+        loading={sumarStockLoading}
       />
 
       <PromoManualModal

@@ -96,15 +96,6 @@ class Product {
         return result.changes > 0;
     }
 
-    static async addStock(productId, cantidad) {
-        const query = `
-            UPDATE Productos SET cantidad = cantidad + ?, fecha_entrada = CURRENT_DATE
-            WHERE id_producto = ?
-        `;
-        const result = await db.runAsync(query, [cantidad, productId]);
-        return result.changes > 0;
-    }
-
     static async updatePrice(productId, newPrice) {
         const query = `UPDATE Productos SET precio = ? WHERE id_producto = ?`;
         const result = await db.runAsync(query, [newPrice, productId]);

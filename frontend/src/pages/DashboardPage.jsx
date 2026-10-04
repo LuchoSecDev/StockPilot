@@ -136,6 +136,7 @@ const DashboardPage = () => {
 
 
   const handleApplyStrategy = (promo) => {
+    if (!isAdmin) return; // aplicar estrategias de precio es solo del Administrador (P22-10, D3)
     setSelectedPromo(promo);
     setCustomDiscount(promo.discount || 0);
     setShowModal(true);
@@ -618,16 +619,18 @@ const DashboardPage = () => {
                       </div>
                       <div className="w-12 h-12 bg-azul text-white rounded-2xl flex items-center justify-center font-bold text-xs shadow-md">-{promo.discount}%</div>
                     </div>
-                    <button
-                      onClick={() => handleApplyStrategy(promo)}
-                      disabled={applyingStrategy === promo.id}
-                      className="w-full py-4 rounded-lg bg-azul text-white text-xs font-bold hover:bg-azul-hondo transition-colors shadow-lg active:scale-95"
-                    >
-                      {applyingStrategy === promo.id
-                        ? <span className="flex items-center justify-center gap-1"><Zap size={12} /> Procesando...</span>
-                        : <span className="flex items-center justify-center gap-1"><Target size={12} /> Activar Oferta</span>
-                      }
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleApplyStrategy(promo)}
+                        disabled={applyingStrategy === promo.id}
+                        className="w-full py-4 rounded-lg bg-azul text-white text-xs font-bold hover:bg-azul-hondo transition-colors shadow-lg active:scale-95"
+                      >
+                        {applyingStrategy === promo.id
+                          ? <span className="flex items-center justify-center gap-1"><Zap size={12} /> Procesando...</span>
+                          : <span className="flex items-center justify-center gap-1"><Target size={12} /> Activar Oferta</span>
+                        }
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
