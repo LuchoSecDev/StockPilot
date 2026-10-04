@@ -25,10 +25,12 @@ jobs:
   respaldo:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # postgres:17 trae pg_dump/psql 17. Es el cliente, no el servidor de Neon: cuando Neon suba a un
-    # major mayor, subir este número también (el paso "Verificar versión" falla en rojo si no).
+    # postgres:18 trae pg_dump/psql 18. El servidor de Neon de este proyecto es Postgres 18 (lo
+    # detectó la primera corrida, que falló a propósito con la imagen 17). Es el cliente, no el
+    # servidor: cuando Neon suba a un major mayor, subir este número también (el paso "Verificar
+    # que pg_dump es >= ..." falla en rojo si no).
     container:
-      image: postgres:17
+      image: postgres:18
     env:
       DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
@@ -62,7 +64,7 @@ jobs:
           echo "Cliente pg_dump: Postgres $client_major"
           if [ "$client_major" -lt "$server_major" ]; then
             echo "::error::pg_dump ($client_major) es más antiguo que el servidor de Neon ($server_major)."
-            echo "::error::Sube la etiqueta de la imagen 'postgres:17' de este workflow a $server_major o superior."
+            echo "::error::Sube la etiqueta de la imagen 'postgres:18' de este workflow a $server_major o superior."
             exit 1
           fi
 
