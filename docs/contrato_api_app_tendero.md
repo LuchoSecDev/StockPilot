@@ -63,7 +63,7 @@ Sin CSRF. Cabecera opcional `X-Canal: app` (mayúsculas y espacios se toleran; c
 | **200** | `{ "success": true, "require2FA": true, "message": "…" }` | La cuenta tiene 2FA: falta el código (`[S3]`). **Todavía no hay sesión**: cualquier ruta protegida da 401. |
 | **400** | `{ "success": false, "error": "Faltan campos obligatorios" }` | Falta `login` o `password`. |
 | **401** | `{ "success": false, "error": "Usuario/correo o contraseña incorrectos" }` | Mismo mensaje para usuario inexistente y clave mala. |
-| **409** | `{ "success": false, "error": "…", "code": "SESSION_ACTIVE" }` | Un **Tendero** ya tiene sesión **en ese canal**. Repetir con `"force": true` la reemplaza. |
+| **409** | `{ "success": false, "error": "…", "code": "SESSION_ACTIVE" }` | Un **Tendero** ya tiene sesión **en ese canal**. Repetir con `"force": true` la reemplaza. **Ojo, hallazgo conocido:** el candado solo se libera al **cerrar sesión**, no cuando la sesión **caduca** (30 minutos sin actividad). Si el Tendero cierra la app sin pulsar «Cerrar sesión» y vuelve más tarde, el login recibe 409 aunque no exista ninguna sesión real. Mientras no se corrija, la app debe presentar el 409 como «hay una sesión anterior; ¿continuar y cerrarla?», no como «otro celular». |
 | **429** | `{ "success": false, "error": "…" }` | 10 intentos fallidos por IP cada 15 min (un 409 también cuenta como fallido). |
 
 Notas para la app:
@@ -316,6 +316,7 @@ Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 40
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
+| Candado de sesión | `session_id_app` (y `session_id` en la web) solo se libera en el logout, no al caducar la sesión: tras 30 minutos sin actividad, el siguiente login recibe 409 `SESSION_ACTIVE` aunque no haya sesión viva. Verificado leyendo `authController.js:57-67` y `models/User.js` | Cada vez que un Tendero vuelva sin haber cerrado sesión verá la pregunta «cerrar la otra sesión» | **Pendiente de decisión** (zona de autenticación). Propuesta: en el login, tratar el candado como libre si su sesión ya no existe o caducó en el almacén de sesiones |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre) ni a la app | **Resuelto (4-oct-2026):** confirmación con motivo si se recibe más de lo pedido; menos de lo pedido deja la orden «Parcial» |
 | Pagos | El sistema no verifica que el pago de una venta con Tarjeta o Transferencia se haya recibido (solo el efectivo se contrasta, en el cierre de caja) | La app solo registra lo que declara el Tendero | **Decisión (4-oct-2026): por ahora se confía en lo registrado.** Propuesta en `docs/propuesta_verificacion_de_pagos.md` |
 
