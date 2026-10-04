@@ -20,7 +20,14 @@ La app es un **cliente delgado**: las reglas (stock, cupo de crédito, tope de e
 | **Carrito** | Guardarlo en almacenamiento local mientras se arma. | Plan 07: «no perder el carrito si falla la red». También cubre el 401 por sesión caducada. | — |
 | **Configuración** | La URL del servidor en configuración **fuera del repositorio** (`--dart-define` o un archivo ignorado en `.gitignore`). Nada de contraseñas, claves ni cookies en el código. | El repositorio de la app es público. | — |
 | **Plataforma y entrega** | Solo Android al inicio, APK firmado (plan 07, 6.3). La llave de firma **fuera del repositorio** y con una persona responsable de custodiarla. | Una app firmada con otra llave no puede actualizar a la ya instalada (comportamiento estándar de Android, no verificado aquí): perderla obliga a desinstalar en cada celular. | — |
-| **Identificador del paquete** (`applicationId`) | Definirlo **antes** de empezar. Es decisión del equipo. | Cambiarlo después equivale a publicar otra app. | — |
+| **Identificador del paquete** (`applicationId`) | **Decidido (4-oct-2026): `com.lem.stockpilot`.** Ver la nota debajo de la tabla. | Cambiarlo después equivale a publicar otra app. | — |
+
+### Por qué `com.lem.stockpilot`
+**`lem` son las iniciales del equipo fundador** (decisión de Luis, 4-oct-2026). Si el proyecto pasa a otras personas, esas letras se quedan así a propósito: son la huella de quienes lo empezaron, y **no se cambian**. El identificador no lo ve el usuario final (ve el nombre de la app); sirve para que Android y Google Play reconozcan la app.
+- Cumple las reglas de Android (VERIFICADO en su documentación): al menos dos segmentos, cada uno empieza con una letra y solo lleva letras, números o guion bajo.
+- **Se escribe `stockpilot`, con k.** Una vez publicada la app el identificador no se cambia: Google Play la trataría como otra app distinta.
+- Al crear el proyecto: `flutter create --org com.lem --project-name stockpilot app_tendero`. Debería dar `com.lem.stockpilot` (INFERRED: es el comportamiento habitual de `flutter create`, no se probó aquí). Si se corrige a mano, es `applicationId` en `android/app/build.gradle.kts`, y conviene mantener `namespace` igual.
+- La disponibilidad en Google Play solo se comprueba al subir la app por primera vez; el APK por instalación directa no la necesita.
 
 ## 3. Orden de construcción (corte vertical)
 
