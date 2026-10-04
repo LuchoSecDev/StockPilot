@@ -228,6 +228,65 @@ describe('[S5] POST /api/logout', () => {
   });
 });
 
+describe('[S7] PUT /api/perfil/first-password (primer cambio de contraseña)', () => {
+  // Las cuentas de Tendero que crea el Administrador nacen con cambio_clave_forzoso = true.
+  async function conClaveTemporal() {
+    const u = await crearUsuario({ rol: 'Tendero', cambio_clave_forzoso: true });
+    const agente = request.agent(app);
+    const login = await agente.post('/api/login').set('X-Canal', 'app').send({ login: u.usuario, password: u.password });
+    const csrf = await obtenerCsrfToken(agente);
+    return { ...u, agente, csrf, login };
+  }
+  const cambiar = (s, newPassword) => s.agente.put('/api/perfil/first-password').set('X-CSRF-Token', s.csrf).send({ newPassword });
+
+  it('el login avisa con user.cambioClaveForzoso = true; el cambio responde 200 { success, message } y la marca se apaga', async () => {
+    const s = await conClaveTemporal();
+    expect(s.login.body.user.cambioClaveForzoso).toBe(true);
+
+    const r = await cambiar(s, 'ClaveNueva2026!');
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ success: true, message: 'Contraseña establecida exitosamente' });
+    expect((await s.agente.get('/api/session-info').set(JSON_ACCEPT)).body.cambioClaveForzoso).toBe(false);
+
+    // La clave anterior deja de servir, la nueva sí, y ya no vuelve a pedir el cambio (force: la sesión de arriba sigue abierta).
+    expect((await request(app).post('/api/login').set('X-Canal', 'app').send({ login: s.usuario, password: s.password, force: true })).status).toBe(401);
+    const entrada = await request(app).post('/api/login').set('X-Canal', 'app').send({ login: s.usuario, password: 'ClaveNueva2026!', force: true });
+    expect(entrada.status).toBe(200);
+    expect(entrada.body.user.cambioClaveForzoso).toBe(false);
+  });
+
+  it('400 con menos de 8 caracteres, ausente, o igual a la contraseña temporal; la contraseña no cambia', async () => {
+    const s = await conClaveTemporal();
+    for (const [clave, mensaje] of [['corta', 'La contraseña debe tener al menos 8 caracteres'], [undefined, 'La contraseña debe tener al menos 8 caracteres'], [s.password, 'La nueva contraseña no puede ser igual a la que tienes asignada actualmente.']]) {
+      const r = await cambiar(s, clave);
+      expect(r.status, String(clave)).toBe(400);
+      expect(r.body).toEqual({ success: false, error: mensaje });
+    }
+    expect((await s.agente.get('/api/session-info').set(JSON_ACCEPT)).body.cambioClaveForzoso).toBe(true);
+  });
+
+  it('400 «Acción no permitida» si la cuenta no tiene un cambio pendiente; 401 sin sesión; 403 sin token CSRF', async () => {
+    const { tenderoA } = await dosTiendas(app);
+    const noPendiente = await tenderoA.agente.put('/api/perfil/first-password').set('X-CSRF-Token', tenderoA.csrfToken).send({ newPassword: 'ClaveNueva2026!' });
+    expect(noPendiente.status).toBe(400);
+    expect(noPendiente.body).toEqual({ success: false, error: 'Acción no permitida' });
+
+    const sinSesion = await request(app).put('/api/perfil/first-password').send({ newPassword: 'ClaveNueva2026!' });
+    expect([401, 403]).toContain(sinSesion.status);
+
+    const s = await conClaveTemporal();
+    const sinToken = await s.agente.put('/api/perfil/first-password').send({ newPassword: 'ClaveNueva2026!' });
+    expect(sinToken.status).toBe(403);
+    expect(sinToken.body.code).toBe('CSRF_INVALID');
+  });
+
+  it('COMPORTAMIENTO ACTUAL: el servidor NO bloquea las demás rutas mientras el cambio está pendiente; es la app la que debe exigirlo antes de dejar operar', async () => {
+    const s = await conClaveTemporal();
+    expect((await s.agente.get('/api/caja/sesion').set(JSON_ACCEPT)).status).toBe(200);
+    expect((await s.agente.get('/api/productos').set(JSON_ACCEPT)).status).toBe(200);
+  });
+});
+
 describe('[S6] Errores transversales (valen para todos los endpoints protegidos)', () => {
   it('sin sesión: 401 { error: "No autenticado" } SI la app manda Accept: application/json; sin esa cabecera responde 302 a "/"', async () => {
     const conAccept = await request(app).get('/api/caja/sesion').set(JSON_ACCEPT);
