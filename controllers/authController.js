@@ -5,6 +5,7 @@ const crypto = require('crypto'); // Para generar tokens aleatorios
 const Mailer = require('../utils/mailer'); // Servicio de envíos de correo
 const { safeError } = require('../utils/securityUtils');
 const { canalDesdeCabecera, canalDeSesion } = require('../utils/canal');
+const { sesionSigueViva } = require('../utils/candadoSesion');
 const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 
@@ -57,8 +58,12 @@ class AuthController {
             // Bloquear segundo login (solo para Tenderos), DENTRO del mismo canal: una sesión web y una
             // sesión app del mismo Tendero pueden convivir; `force` solo invalida la de este canal.
             const { force } = req.body;
+            // El candado solo bloquea mientras su sesión siga VIVA: si caducó (30 min sin actividad) sin cerrar sesión,
+            // ya no hay nada que proteger y el login lo reemplaza (utils/candadoSesion.js). Ante un fallo del almacén se
+            // conserva el bloqueo.
             const sesionActivaDelCanal = canal === 'app' ? user.session_id_app : user.session_id;
-            if (user.rol !== 'Administrador' && sesionActivaDelCanal && !force) {
+            if (user.rol !== 'Administrador' && sesionActivaDelCanal && !force
+                && await sesionSigueViva(req.sessionStore, sesionActivaDelCanal)) {
                 return res.status(409).json({
                     success: false,
                     error: 'Ya hay una sesión activa para este usuario en otro dispositivo.',
