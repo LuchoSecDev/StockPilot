@@ -63,7 +63,7 @@ Sin CSRF. Cabecera opcional `X-Canal: app` (mayúsculas y espacios se toleran; c
 | **200** | `{ "success": true, "require2FA": true, "message": "…" }` | La cuenta tiene 2FA: falta el código (`[S3]`). **Todavía no hay sesión**: cualquier ruta protegida da 401. |
 | **400** | `{ "success": false, "error": "Faltan campos obligatorios" }` | Falta `login` o `password`. |
 | **401** | `{ "success": false, "error": "Usuario/correo o contraseña incorrectos" }` | Mismo mensaje para usuario inexistente y clave mala. |
-| **409** | `{ "success": false, "error": "…", "code": "SESSION_ACTIVE" }` | Un **Tendero** ya tiene sesión **en ese canal**. Repetir con `"force": true` la reemplaza. **Ojo, hallazgo conocido:** el candado solo se libera al **cerrar sesión**, no cuando la sesión **caduca** (30 minutos sin actividad). Si el Tendero cierra la app sin pulsar «Cerrar sesión» y vuelve más tarde, el login recibe 409 aunque no exista ninguna sesión real. Mientras no se corrija, la app debe presentar el 409 como «hay una sesión anterior; ¿continuar y cerrarla?», no como «otro celular». |
+| **409** | `{ "success": false, "error": "…", "code": "SESSION_ACTIVE" }` | Un **Tendero** ya tiene sesión **en ese canal**. Repetir con `"force": true` la reemplaza. El candado solo bloquea mientras esa sesión siga **viva**: si **caducó** (30 minutos sin actividad) sin haber cerrado sesión, el login la reemplaza y entra sin 409 (corregido el 4-oct-2026; antes un Tendero que no cerraba sesión recibía 409 siempre). Si el almacén de sesiones falla, se conserva el bloqueo. El 409 que llega a la app significa, por tanto, que hay una sesión **realmente abierta** en otro dispositivo (o una anterior de este que aún no caduca). |
 | **429** | `{ "success": false, "error": "…" }` | 10 intentos fallidos por IP cada 15 min (un 409 también cuenta como fallido). |
 
 Notas para la app:
@@ -311,12 +311,11 @@ La lista completa y su prueba (Tendero → 403, la base no cambia) están en `au
 
 ## 11. Hallazgos abiertos que tocan a la app (resumen)
 
-Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 403), `link-barcode` con códigos duplicados, `costo_compra` visible al Tendero, ventas fiadas sin límite de crédito ni validación de cliente, producto inexistente en el carrito, falta de «ventas del turno» y de `canal` en el listado, importes del historial con el precio actual, resolver alertas inexistentes con 200, y `forgot-password` sin límite.
+Corregidos en `feat/backend-app-tendero` y ya reflejados arriba: C4 (CSRF → 403), `link-barcode` con códigos duplicados, `costo_compra` visible al Tendero, ventas fiadas sin límite de crédito ni validación de cliente, producto inexistente en el carrito, falta de «ventas del turno» y de `canal` en el listado, importes del historial con el precio actual, resolver alertas inexistentes con 200, y `forgot-password` sin límite. Y el candado de sesión que no se liberaba al caducar la sesión (409 con la sesión ya caducada; `sesion_candado_caducada.test.js`).
 
 
 | ID | Qué | Efecto en la app | Propuesta |
 |---|---|---|---|
-| Candado de sesión | `session_id_app` (y `session_id` en la web) solo se libera en el logout, no al caducar la sesión: tras 30 minutos sin actividad, el siguiente login recibe 409 `SESSION_ACTIVE` aunque no haya sesión viva. Verificado leyendo `authController.js:57-67` y `models/User.js` | Cada vez que un Tendero vuelva sin haber cerrado sesión verá la pregunta «cerrar la otra sesión» | **Pendiente de decisión** (zona de autenticación). Propuesta: en el login, tratar el candado como libre si su sesión ya no existe o caducó en el almacén de sesiones |
 | P21-10 | Recepción de mercancía de una orden sin tope | No aplica a `[M1]` (entrada libre) ni a la app | **Resuelto (4-oct-2026):** confirmación con motivo si se recibe más de lo pedido; menos de lo pedido deja la orden «Parcial» |
 | Pagos | El sistema no verifica que el pago de una venta con Tarjeta o Transferencia se haya recibido (solo el efectivo se contrasta, en el cierre de caja) | La app solo registra lo que declara el Tendero | **Decisión (4-oct-2026): por ahora se confía en lo registrado.** Propuesta en `docs/propuesta_verificacion_de_pagos.md` |
 
