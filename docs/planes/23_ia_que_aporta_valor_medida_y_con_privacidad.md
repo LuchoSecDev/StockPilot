@@ -33,7 +33,7 @@
 
 - **Sí:** activación, adopción, embudo, utilidad de las alertas, exactitud de inventario (ninguno de los indicadores de la Tabla 3 depende de IA, según el documento de Intervención).
 - **No se podrá afirmar nada sobre:** el bucle de aprendizaje, los ajustes de GPT, el Consejero ni el diferenciador frente a Treinta. Se declara como **«no evaluado en el piloto»**, no como incumplido.
-- **Demostrable aunque el piloto sea corto:** que el ciclo completo funciona de punta a punta (sugerencia → pedido → recepción → evaluación → factor), una vez corregido el evaluador. Cuántas evaluaciones habrá depende del plazo de entrega de cada producto (UNKNOWN).
+- **Demostrable aunque el piloto sea corto:** que el ciclo completo funciona de punta a punta (sugerencia → pedido → recepción → evaluación → factor), una vez corregido el evaluador. El período de evaluación de cada orden es de **al menos 14 días** (`max(lead_time × 2, 14)`, `feedbackController.js:242`) y la evaluación se corre a diario aunque el período no haya terminado (la proyección se pondera por los días transcurridos). Por eso en un piloto de 6 semanas **sí habrá evaluaciones, pero pocas**: el número exacto depende de cuántas órdenes se aprueben y para qué productos (VERIFIED en el código; corrige la suposición inicial de que se necesitaba «un mes»).
 
 ---
 
