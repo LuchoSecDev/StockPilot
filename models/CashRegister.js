@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { desglosePorMetodo, METODOS_VENTA, METODOS_ABONO } = require('../utils/cashRegisterHelpers');
 
 class CashRegister {
     /**
@@ -58,19 +59,6 @@ class CashRegister {
     }
 
     /**
-     * Calcula las ventas en efectivo realizadas durante la sesión actual
-     */
-    static async getSessionSalesAmount(id_sesion) {
-        const result = await db.getAsync(
-            `SELECT COALESCE(SUM(precio_total), 0) as total_ventas 
-             FROM Ventas 
-             WHERE id_sesion_caja = ? AND metodo_pago = 'Efectivo'`,
-            [id_sesion]
-        );
-        return parseFloat(result.total_ventas || 0);
-    }
-
-    /**
      * Calcula los egresos realizados durante la sesión actual
      */
     static async getSessionExpensesTotal(id_sesion) {
@@ -84,16 +72,63 @@ class CashRegister {
     }
 
     /**
-     * Calcula los abonos en efectivo recibidos durante la sesión actual
+     * Lo vendido y lo abonado en una sesión, SEPARADO por método de pago (auditoría del turno). Una sola consulta por
+     * tabla: de ahí salen tanto el desglose como el efectivo que entra al cajón, así que no pueden contradecirse
+     * aunque se registre una venta en medio.
+     *
+     * @returns {Promise<{ventas_por_metodo: object, abonos_por_metodo: object}>}
      */
-    static async getSessionAbonosAmount(id_sesion) {
-        const result = await db.getAsync(
-            `SELECT COALESCE(SUM(monto), 0) as total_abonos 
-             FROM Abonos 
-             WHERE id_sesion_caja = ? AND metodo_pago = 'Efectivo'`,
+    static async getSessionPaymentBreakdown(id_sesion) {
+        const ventas = await db.allAsync(
+            `SELECT metodo_pago, COUNT(*) AS cantidad, COALESCE(SUM(precio_total), 0) AS total
+             FROM Ventas
+             WHERE id_sesion_caja = ?
+             GROUP BY metodo_pago`,
             [id_sesion]
         );
-        return parseFloat(result.total_abonos || 0);
+        const abonos = await db.allAsync(
+            `SELECT metodo_pago, COUNT(*) AS cantidad, COALESCE(SUM(monto), 0) AS total
+             FROM Abonos
+             WHERE id_sesion_caja = ?
+             GROUP BY metodo_pago`,
+            [id_sesion]
+        );
+        return {
+            ventas_por_metodo: desglosePorMetodo(ventas, METODOS_VENTA),
+            abonos_por_metodo: desglosePorMetodo(abonos, METODOS_ABONO)
+        };
+    }
+
+    /**
+     * El arqueo de una sesión con lo que el vendedor contó: cuánto DEBERÍA haber en el cajón (apertura + ventas en
+     * efectivo + abonos en efectivo − egresos no rechazados) y la diferencia con lo declarado, más el desglose por
+     * método de pago. Solo lee: no cambia nada. Lo usan el cierre (closeSession) y la vista previa del cierre, para
+     * que las dos hagan la MISMA cuenta. Solo el efectivo entra al cajón; tarjeta, transferencia y fiado quedan en el
+     * desglose para que el Administrador los audite.
+     *
+     * @param {{id_sesion: number, monto_apertura: string|number}} sesion - La fila de SesionCaja.
+     * @param {number} monto_cierre_declarado - Ya validado (número finito >= 0).
+     */
+    static async calcularArqueo(sesion, monto_cierre_declarado) {
+        const { ventas_por_metodo, abonos_por_metodo } = await this.getSessionPaymentBreakdown(sesion.id_sesion);
+        const ventas_efectivo = ventas_por_metodo.Efectivo.total;
+        const abonos_efectivo = abonos_por_metodo.Efectivo.total;
+        const egresos = await this.getSessionExpensesTotal(sesion.id_sesion);
+        const monto_apertura = parseFloat(sesion.monto_apertura || 0);
+        const monto_cierre_calculado = monto_apertura + ventas_efectivo + abonos_efectivo - egresos;
+        const declarado = Number(monto_cierre_declarado);
+
+        return {
+            monto_apertura,
+            ventas_efectivo,
+            abonos_efectivo,
+            egresos,
+            monto_cierre_calculado,
+            monto_cierre_declarado: declarado,
+            diferencia: declarado - monto_cierre_calculado,
+            ventas_por_metodo,
+            abonos_por_metodo
+        };
     }
 
     /**
@@ -105,44 +140,30 @@ class CashRegister {
         if (!sesion) throw new Error("Sesión no encontrada");
         if (sesion.estado === 'Cerrada') throw new Error("La sesión ya está cerrada");
 
-        // 2. Calcular total esperado (Apertura + Ventas en efectivo + Abonos en efectivo - Egresos)
-        const ventas_efectivo = await this.getSessionSalesAmount(id_sesion);
-        const abonos_efectivo = await this.getSessionAbonosAmount(id_sesion);
-        const egresos = await this.getSessionExpensesTotal(id_sesion);
-        const monto_apertura = parseFloat(sesion.monto_apertura || 0);
-        const monto_cierre_calculado = monto_apertura + ventas_efectivo + abonos_efectivo - egresos;
-        
-        // 3. Diferencia
-        const diferencia = parseFloat(monto_cierre_declarado) - monto_cierre_calculado;
+        // 2. Calcular el total esperado y la diferencia (la misma cuenta de la vista previa)
+        const arqueo = await this.calcularArqueo(sesion, monto_cierre_declarado);
 
-        // 4. Actualizar estado
+        // 3. Actualizar estado
         await db.runAsync(
-            `UPDATE SesionCaja 
-             SET monto_cierre_declarado = ?, 
-                 monto_cierre_calculado = ?, 
-                 diferencia = ?, 
-                 fecha_cierre = CURRENT_TIMESTAMP, 
+            `UPDATE SesionCaja
+             SET monto_cierre_declarado = ?,
+                 monto_cierre_calculado = ?,
+                 diferencia = ?,
+                 fecha_cierre = CURRENT_TIMESTAMP,
                  estado = 'Cerrada'
              WHERE id_sesion = ?`,
-            [monto_cierre_declarado, monto_cierre_calculado, diferencia, id_sesion]
+            [arqueo.monto_cierre_declarado, arqueo.monto_cierre_calculado, arqueo.diferencia, id_sesion]
         );
 
-        return {
-            monto_apertura,
-            ventas_efectivo,
-            abonos_efectivo,
-            egresos,
-            monto_cierre_calculado,
-            monto_cierre_declarado,
-            diferencia
-        };
+        return arqueo;
     }
 
     /**
-     * Obtiene el historial de sesiones de caja de una tienda
+     * Obtiene el historial de sesiones de caja de una tienda, cada una con lo vendido y abonado por método de pago
+     * (calculado en el momento a partir de las ventas y los abonos de esa sesión).
      */
     static async getSessionsHistory(id_tienda) {
-        return await db.allAsync(
+        const sesiones = await db.allAsync(
             `SELECT s.*, u.nombres as vendedor_nombre 
              FROM SesionCaja s
              LEFT JOIN Usuarios u ON s.id_vendedor = u.id_usuario
@@ -150,6 +171,26 @@ class CashRegister {
              ORDER BY s.fecha_apertura DESC`,
             [id_tienda]
         );
+        const ventas = await db.allAsync(
+            `SELECT id_sesion_caja, metodo_pago, COUNT(*) AS cantidad, COALESCE(SUM(precio_total), 0) AS total
+             FROM Ventas
+             WHERE id_tienda = ? AND id_sesion_caja IS NOT NULL
+             GROUP BY id_sesion_caja, metodo_pago`,
+            [id_tienda]
+        );
+        const abonos = await db.allAsync(
+            `SELECT id_sesion_caja, metodo_pago, COUNT(*) AS cantidad, COALESCE(SUM(monto), 0) AS total
+             FROM Abonos
+             WHERE id_tienda = ? AND id_sesion_caja IS NOT NULL
+             GROUP BY id_sesion_caja, metodo_pago`,
+            [id_tienda]
+        );
+        const deLaSesion = (filas, id) => filas.filter((f) => f.id_sesion_caja === id);
+        return sesiones.map((s) => ({
+            ...s,
+            ventas_por_metodo: desglosePorMetodo(deLaSesion(ventas, s.id_sesion), METODOS_VENTA),
+            abonos_por_metodo: desglosePorMetodo(deLaSesion(abonos, s.id_sesion), METODOS_ABONO)
+        }));
     }
 
     // ==========================================

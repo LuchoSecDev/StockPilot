@@ -54,8 +54,11 @@ Es el mayor riesgo del proyecto: se resuelve **antes** de construir lo demás so
 - **Listo cuando:** se vende con cada método; cortar la red a mitad y reintentar devuelve la **misma** venta (`Idempotent-Replayed: true`) sin duplicar; los errores 400 y 404 se muestran bien; el fiado respeta el cupo; y un 401 en medio de una venta no pierde el carrito.
 
 ### Paso 5 · Cierre de caja
-- `[K3]` con el arqueo y `[V3]` con las ventas del turno (`?turno=actual`). Ejemplos `23` y `27`.
-- **Listo cuando:** el Tendero declara lo contado, ve la diferencia y la caja queda cerrada.
+- Cierre en tres tiempos (decisión del 5-oct-2026, opción «B»): el Tendero **cuenta y declara** → `[K5]` le muestra el arqueo y la **diferencia** sin cerrar nada (puede **recontar**) → **confirma** y `[K3]` cierra. Si entre `[K5]` y `[K3]` cambió algo (una venta, un egreso), la app muestra el arqueo **final** de `[K3]` y avisa que cambió.
+- `[V3]` con las ventas del turno (`?turno=actual`). Ejemplos `23`, `30`, `31` y `27`.
+- No cerrar la caja mientras haya una venta «sin confirmar» (su reintento caería fuera del turno).
+- `[K3]` no tiene idempotencia: ante un tiempo de espera, la app consulta `[K1]` antes de decir si se cerró.
+- **Listo cuando:** el Tendero declara lo contado, ve la diferencia, puede recontar, confirma y la caja queda cerrada.
 
 ### Paso 6 · Después de lo anterior
 Egresos `[K4]` (la foto debe pesar **menos de ~750 KB**: comprimirla antes), entrada de mercancía `[M1]`, alertas `[A1]` y `[A2]`, y la solicitud de producto `[O1]`.

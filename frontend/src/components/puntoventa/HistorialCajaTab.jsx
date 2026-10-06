@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { lineasPorMetodo, formatoPesos } from '../../utils/arqueo';
 
 const HistorialCajaTab = () => {
   const [history, setHistory] = useState([]);
@@ -58,6 +59,7 @@ const HistorialCajaTab = () => {
                 <th className="p-4 text-right">M. Calculado</th>
                 <th className="p-4 text-right">M. Declarado</th>
                 <th className="p-4 text-right">Diferencia</th>
+                <th className="p-4">Por método de pago</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm font-medium">
@@ -81,6 +83,23 @@ const HistorialCajaTab = () => {
                     <td className="p-4 text-right text-tinta font-bold">{s.estado === 'Cerrada' ? formatCurrency(s.monto_cierre_declarado) : '---'}</td>
                     <td className={`p-4 text-right font-bold ${isDescuadre ? (diff < 0 ? 'text-peligro' : 'text-aviso') : 'text-exito'}`}>
                       {s.estado === 'Cerrada' ? formatCurrency(diff) : '---'}
+                    </td>
+                    <td className="p-4 text-xs text-slate-600" data-testid="por-metodo">
+                      {(() => {
+                        const ventas = lineasPorMetodo(s.ventas_por_metodo, { soloConMovimiento: true });
+                        const abonos = lineasPorMetodo(s.abonos_por_metodo, { soloConMovimiento: true });
+                        if (ventas.length === 0 && abonos.length === 0) return '---';
+                        return (
+                          <div className="space-y-0.5">
+                            {ventas.map((l) => (
+                              <div key={`v-${l.metodo}`}>{l.etiqueta}: <span className="font-bold text-tinta-2">{formatoPesos(l.total)}</span> ({l.cantidad})</div>
+                            ))}
+                            {abonos.map((l) => (
+                              <div key={`a-${l.metodo}`} className="text-slate-500">Abonos {l.etiqueta.toLowerCase()}: <span className="font-bold">{formatoPesos(l.total)}</span> ({l.cantidad})</div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );

@@ -1,8 +1,8 @@
 {
-  "descripcion": "Cierre de caja con el efectivo contado. Devuelve el arqueo: diferencia = declarado − calculado.",
+  "descripcion": "Vista previa del cierre: con el efectivo contado devuelve el arqueo (lo que debería haber y la diferencia) SIN cerrar la caja. Si se confirma con el mismo monto, [K3] devuelve este mismo arqueo.",
   "peticion": {
     "metodo": "POST",
-    "ruta": "/api/caja/cerrar",
+    "ruta": "/api/caja/arqueo-previo",
     "headers": {
       "Accept": "application/json",
       "X-CSRF-Token": "<valor de GET /api/csrf-token>",
@@ -19,7 +19,6 @@
     },
     "body": {
       "success": true,
-      "message": "Caja cerrada exitosamente (Arqueo completo)",
       "arqueo": {
         "monto_apertura": 50000,
         "ventas_efectivo": 9000,

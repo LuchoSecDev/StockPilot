@@ -472,6 +472,13 @@ describe('[K2] POST /api/caja/abrir', () => {
   // La atomicidad (20 aperturas simultáneas → una sola caja) está en caja_apertura_concurrencia.test.js.
 });
 
+// El desglose por método de pago que acompaña al arqueo ([K3] y [K5]): todas las claves siempre presentes, en cero
+// si no hubo movimiento. «Otro» recoge cualquier método fuera de los conocidos (datos viejos), para que nada se pierda.
+const SIN_MOVIMIENTO = { cantidad: 0, total: 0 };
+const desglose = (metodos, extra = {}) => ({ ...Object.fromEntries([...metodos, 'Otro'].map((m) => [m, SIN_MOVIMIENTO])), ...extra });
+const ventasPorMetodo = (extra) => desglose(['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado'], extra);
+const abonosPorMetodo = (extra) => desglose(['Efectivo', 'Tarjeta', 'Transferencia'], extra);
+
 describe('[K3] POST /api/caja/cerrar', () => {
   it('200 { success, message, arqueo } con apertura, ventas en efectivo, abonos, egresos, calculado, declarado y diferencia; la caja queda cerrada', async () => {
     const e = await escenario();
@@ -484,7 +491,11 @@ describe('[K3] POST /api/caja/cerrar', () => {
     expect(r.body).toEqual({
       success: true,
       message: 'Caja cerrada exitosamente (Arqueo completo)',
-      arqueo: { monto_apertura: 50000, ventas_efectivo: 9000, abonos_efectivo: 0, egresos: 10000, monto_cierre_calculado: 49000, monto_cierre_declarado: 60000, diferencia: 11000 }
+      arqueo: {
+        monto_apertura: 50000, ventas_efectivo: 9000, abonos_efectivo: 0, egresos: 10000, monto_cierre_calculado: 49000, monto_cierre_declarado: 60000, diferencia: 11000,
+        ventas_por_metodo: ventasPorMetodo({ Efectivo: { cantidad: 1, total: 9000 } }),
+        abonos_por_metodo: abonosPorMetodo()
+      }
     });
     expect((await e.get(e.tenderoA, '/api/caja/sesion')).body).toEqual({ active: false });
     await esperarTrabajoEnSegundoPlano();
@@ -497,12 +508,224 @@ describe('[K3] POST /api/caja/cerrar', () => {
     expect(sinCaja.body).toEqual({ error: 'No hay ninguna caja abierta para cerrar.' });
 
     await e.abrirCaja(e.tenderoA);
-    for (const cuerpo of [{}, { monto_cierre_declarado: -5 }]) {
+    // `null` es lo que llega cuando el cliente manda NaN o Infinity (JSON no los admite).
+    for (const cuerpo of [{}, { monto_cierre_declarado: -5 }, { monto_cierre_declarado: null }, { monto_cierre_declarado: 'abc' }, { monto_cierre_declarado: '' }, { monto_cierre_declarado: [] }, { monto_cierre_declarado: true }]) {
       const r = await e.post(e.tenderoA, '/api/caja/cerrar', cuerpo);
-      expect(r.status).toBe(400);
+      expect(r.status, JSON.stringify(cuerpo)).toBe(400);
       expect(r.body).toEqual({ error: 'El monto de cierre declarado no es válido.' });
     }
     expect((await e.get(e.tenderoA, '/api/caja/sesion')).body.active).toBe(true);
+    expect(Number((await db.getAsync("SELECT COUNT(*) AS n FROM SesionCaja WHERE estado = 'Cerrada'")).n)).toBe(0);
+  });
+
+  it('un monto declarado en texto numérico («60000») se acepta y el arqueo lo devuelve como NÚMERO', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    const r = await e.post(e.tenderoA, '/api/caja/cerrar', { monto_cierre_declarado: '50000' });
+    expect(r.status).toBe(200);
+    expect(r.body.arqueo.monto_cierre_declarado).toBe(50000);
+    expect(r.body.arqueo.diferencia).toBe(0);
+  });
+});
+
+describe('[K5] POST /api/caja/arqueo-previo', () => {
+  const contarDescuadres = async () => Number((await db.getAsync("SELECT COUNT(*) AS n FROM NotificacionesUsuario WHERE tipo = 'descuadre_caja'")).n);
+
+  it('200 { success, arqueo } con las MISMAS cuentas que [K3]; no cierra la caja, no guarda nada y no notifica; se puede pedir varias veces', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 2 }] }); // 9.000 en efectivo
+    await e.post(e.tenderoA, '/api/caja/egreso', { monto: 10000, motivo: 'Bolsas y hielo' });
+
+    const previo = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 60000 });
+    expect(previo.status).toBe(200);
+    expect(previo.body).toEqual({
+      success: true,
+      arqueo: {
+        monto_apertura: 50000, ventas_efectivo: 9000, abonos_efectivo: 0, egresos: 10000, monto_cierre_calculado: 49000, monto_cierre_declarado: 60000, diferencia: 11000,
+        ventas_por_metodo: ventasPorMetodo({ Efectivo: { cantidad: 1, total: 9000 } }),
+        abonos_por_metodo: abonosPorMetodo()
+      }
+    });
+
+    // Recontar: otros montos, varias veces. Nada cambia en la base.
+    expect((await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 49000 })).body.arqueo.diferencia).toBe(0);
+    expect((await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 40000 })).body.arqueo.diferencia).toBe(-9000);
+    expect((await e.get(e.tenderoA, '/api/caja/sesion')).body.active).toBe(true);
+    const fila = await db.getAsync('SELECT estado, monto_cierre_declarado, monto_cierre_calculado, diferencia, fecha_cierre FROM SesionCaja');
+    expect(fila.estado).toBe('Abierta');
+    expect(fila.monto_cierre_declarado).toBeNull();
+    expect(fila.monto_cierre_calculado).toBeNull();
+    expect(fila.diferencia).toBeNull();
+    expect(fila.fecha_cierre).toBeNull();
+    expect(await contarDescuadres()).toBe(0); // [K3] sí avisaría de un descuadre tan grande
+
+    // Y lo que dijo la vista previa es lo que [K3] confirma.
+    const cierre = await e.post(e.tenderoA, '/api/caja/cerrar', { monto_cierre_declarado: 60000 });
+    expect(cierre.body.arqueo).toEqual(previo.body.arqueo);
+    expect(await contarDescuadres()).toBe(1);
+    await esperarTrabajoEnSegundoPlano();
+  });
+
+  it('solo cuentan las ventas en EFECTIVO; un egreso rechazado no se resta y uno pendiente de aprobar sí', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 2 }], metodo_pago: 'Efectivo' }); // 9.000
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }], metodo_pago: 'Tarjeta' }); // 4.500: no entra al cajón
+    await e.post(e.tenderoA, '/api/caja/egreso', { monto: 10000, motivo: 'Pendiente de aprobar' });
+    const rechazado = await e.post(e.tenderoA, '/api/caja/egreso', { monto: 3000, motivo: 'Este se rechaza' });
+    expect((await e.put(e.adminA, `/api/caja/egreso/${rechazado.body.id_egreso}/rechazar`, {})).status).toBe(200);
+
+    const r = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 49000 });
+    expect(r.body.arqueo).toEqual({
+      monto_apertura: 50000, ventas_efectivo: 9000, abonos_efectivo: 0, egresos: 10000, monto_cierre_calculado: 49000, monto_cierre_declarado: 49000, diferencia: 0,
+      // La venta con tarjeta NO suma al cajón, pero SÍ queda a la vista en el desglose (auditoría).
+      ventas_por_metodo: ventasPorMetodo({ Efectivo: { cantidad: 1, total: 9000 }, Tarjeta: { cantidad: 1, total: 4500 } }),
+      abonos_por_metodo: abonosPorMetodo()
+    });
+    await esperarTrabajoEnSegundoPlano();
+  });
+
+  it('la vista previa puede quedar vieja: si se vende algo después, [K3] recalcula', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 2 }] }); // 9.000
+    const previo = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 59000 });
+    expect(previo.body.arqueo.diferencia).toBe(0);
+
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }] }); // +4.500
+    const cierre = await e.post(e.tenderoA, '/api/caja/cerrar', { monto_cierre_declarado: 59000 });
+    expect(cierre.body.arqueo.ventas_efectivo).toBe(13500);
+    expect(cierre.body.arqueo.diferencia).toBe(-4500);
+    await esperarTrabajoEnSegundoPlano();
+  });
+
+  it('solo mira la caja del propio usuario: la de otro vendedor (de otra tienda) no se mezcla', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    await e.abrirCaja(e.tenderoB, 10000);
+    const r = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 50000 });
+    expect(r.body.arqueo).toEqual({
+      monto_apertura: 50000, ventas_efectivo: 0, abonos_efectivo: 0, egresos: 0, monto_cierre_calculado: 50000, monto_cierre_declarado: 50000, diferencia: 0,
+      ventas_por_metodo: ventasPorMetodo(), abonos_por_metodo: abonosPorMetodo()
+    });
+  });
+
+  it('DESGLOSE POR MÉTODO (auditoría): tarjeta, transferencia, fiado y un método desconocido quedan separados; la suma de todos es lo vendido en el turno y solo el efectivo entra al cajón', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    const cliente = await e.post(e.adminA, '/api/clientes', { nombre: 'Cliente Fiado', limite_credito: 0 });
+    const venta = (cantidad, extra = {}) => e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad }], ...extra });
+
+    await venta(1); // Efectivo por defecto: 4.500
+    await venta(2, { metodo_pago: 'Efectivo' }); // 9.000
+    await venta(1, { metodo_pago: 'Tarjeta' }); // 4.500
+    await venta(2, { metodo_pago: 'Transferencia' }); // 9.000
+    await venta(1, { metodo_pago: 'Transferencia' }); // 4.500
+    await venta(1, { metodo_pago: 'Fiado', id_cliente: cliente.body.id_cliente ?? cliente.body.cliente?.id_cliente }); // 4.500 a crédito
+    const rara = await venta(1); // una venta vieja con un método fuera de los cuatro (antes se guardaba cualquier texto)
+    await db.runAsync("UPDATE Ventas SET metodo_pago = 'Cheque' WHERE id_venta = ?", [rara.body.id_venta]);
+
+    const r = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 50000 + 4500 + 9000 });
+    expect(r.status).toBe(200);
+    const a = r.body.arqueo;
+    expect(a.ventas_por_metodo).toEqual({
+      Efectivo: { cantidad: 2, total: 13500 },
+      Tarjeta: { cantidad: 1, total: 4500 },
+      Transferencia: { cantidad: 2, total: 13500 },
+      Fiado: { cantidad: 1, total: 4500 },
+      Otro: { cantidad: 1, total: 4500 }
+    });
+    expect(a.ventas_efectivo).toBe(13500);
+    expect(a.monto_cierre_calculado).toBe(50000 + 13500); // el resto de los métodos no entra al cajón
+    expect(a.diferencia).toBe(0);
+
+    // Auditoría: lo desglosado suma TODO lo vendido en el turno, ni más ni menos.
+    const vendidoEnElTurno = Number((await db.getAsync('SELECT COALESCE(SUM(precio_total), 0) AS t FROM Ventas WHERE id_sesion_caja = (SELECT id_sesion FROM SesionCaja WHERE id_vendedor = ?)', [e.tenderoA.id_usuario])).t);
+    const sumaDelDesglose = Object.values(a.ventas_por_metodo).reduce((s, m) => s + m.total, 0);
+    expect(sumaDelDesglose).toBe(vendidoEnElTurno);
+    await esperarTrabajoEnSegundoPlano();
+  });
+
+  it('DESGLOSE: cada turno tiene el suyo; lo vendido en un turno anterior de la misma tienda no se mezcla con el actual', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA, 50000);
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 2 }], metodo_pago: 'Efectivo' }); // turno 1: 9.000
+    expect((await e.post(e.tenderoA, '/api/caja/cerrar', { monto_cierre_declarado: 59000 })).status).toBe(200);
+
+    await e.abrirCaja(e.tenderoA, 10000); // turno 2
+    await e.post(e.tenderoA, '/api/registrar-venta-carrito', { items: [{ id_producto: e.producto, cantidad: 1 }], metodo_pago: 'Tarjeta' }); // 4.500 con tarjeta
+    const r = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 10000 });
+    expect(r.body.arqueo).toEqual({
+      monto_apertura: 10000, ventas_efectivo: 0, abonos_efectivo: 0, egresos: 0, monto_cierre_calculado: 10000, monto_cierre_declarado: 10000, diferencia: 0,
+      ventas_por_metodo: ventasPorMetodo({ Tarjeta: { cantidad: 1, total: 4500 } }), // NADA del turno 1
+      abonos_por_metodo: abonosPorMetodo()
+    });
+    await esperarTrabajoEnSegundoPlano();
+  });
+
+  it('DESGLOSE: los abonos de clientes también se separan por método; solo el abono en efectivo entra al cajón', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.adminA, 20000); // los abonos los registra el Administrador: van a SU caja
+    const cliente = await e.post(e.adminA, '/api/clientes', { nombre: 'Cliente Abono', limite_credito: 0 });
+    const id = cliente.body.id_cliente ?? cliente.body.cliente?.id_cliente;
+    expect((await e.post(e.adminA, `/api/clientes/${id}/abonos`, { monto: 2000, metodo_pago: 'Efectivo' })).status).toBe(200);
+    expect((await e.post(e.adminA, `/api/clientes/${id}/abonos`, { monto: 3000, metodo_pago: 'Transferencia' })).status).toBe(200);
+    expect((await e.post(e.adminA, `/api/clientes/${id}/abonos`, { monto: 1500, metodo_pago: 'Efectivo' })).status).toBe(200);
+
+    const r = await e.post(e.adminA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 23500 });
+    expect(r.body.arqueo.abonos_por_metodo).toEqual(abonosPorMetodo({ Efectivo: { cantidad: 2, total: 3500 }, Transferencia: { cantidad: 1, total: 3000 } }));
+    expect(r.body.arqueo.abonos_efectivo).toBe(3500);
+    expect(r.body.arqueo.monto_cierre_calculado).toBe(20000 + 3500);
+    expect(r.body.arqueo.diferencia).toBe(0);
+  });
+
+  it('400 { error } sin caja abierta; 400 con monto ausente, negativo, nulo, de texto o de otro tipo (la caja sigue abierta); el 0 y el texto numérico valen', async () => {
+    const e = await escenario();
+    const sinCaja = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 0 });
+    expect(sinCaja.status).toBe(400);
+    expect(sinCaja.body).toEqual({ error: 'No hay ninguna caja abierta para cerrar.' });
+
+    await e.abrirCaja(e.tenderoA, 50000);
+    for (const cuerpo of [{}, { monto_cierre_declarado: -5 }, { monto_cierre_declarado: null }, { monto_cierre_declarado: 'abc' }, { monto_cierre_declarado: '' }, { monto_cierre_declarado: [] }, { monto_cierre_declarado: {} }, { monto_cierre_declarado: true }]) {
+      const r = await e.post(e.tenderoA, '/api/caja/arqueo-previo', cuerpo);
+      expect(r.status, JSON.stringify(cuerpo)).toBe(400);
+      expect(r.body).toEqual({ error: 'El monto de cierre declarado no es válido.' });
+    }
+    expect((await e.get(e.tenderoA, '/api/caja/sesion')).body.active).toBe(true);
+
+    const cero = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 0 });
+    expect(cero.status).toBe(200);
+    expect(cero.body.arqueo.diferencia).toBe(-50000);
+    const texto = await e.post(e.tenderoA, '/api/caja/arqueo-previo', { monto_cierre_declarado: '50000.50' });
+    expect(texto.status).toBe(200);
+    expect(texto.body.arqueo.monto_cierre_declarado).toBe(50000.5);
+    expect(texto.body.arqueo.diferencia).toBe(0.5);
+  });
+
+  it('403 CSRF_INVALID sin el token (es una escritura para el servidor aunque no cambie datos)', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.tenderoA);
+    const r = await e.tenderoA.agente.post('/api/caja/arqueo-previo').set(JSON_ACCEPT).send({ monto_cierre_declarado: 1000 });
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe('CSRF_INVALID');
+  });
+
+  it('401 sin sesión, aunque traiga un token CSRF válido de una sesión anónima', async () => {
+    await escenario(); // deja la base lista; esta petición no usa ninguna de sus sesiones
+    const anonimo = request.agent(app);
+    const csrf = await obtenerCsrfToken(anonimo);
+    const r = await anonimo.post('/api/caja/arqueo-previo').set(JSON_ACCEPT).set('X-CSRF-Token', csrf).send({ monto_cierre_declarado: 1000 });
+    expect(r.status).toBe(401);
+    expect(r.body).toEqual({ error: 'No autenticado' });
+  });
+
+  it('el Administrador también puede usarlo con SU caja', async () => {
+    const e = await escenario();
+    await e.abrirCaja(e.adminA, 20000);
+    const r = await e.post(e.adminA, '/api/caja/arqueo-previo', { monto_cierre_declarado: 20000 });
+    expect(r.status).toBe(200);
+    expect(r.body.arqueo.monto_apertura).toBe(20000);
   });
 });
 

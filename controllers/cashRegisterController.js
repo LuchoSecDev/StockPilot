@@ -2,7 +2,7 @@ const CashRegister = require('../models/CashRegister');
 const Store = require('../models/Store');
 const Notification = require('../models/Notification');
 const db = require('../config/database');
-const { evaluarDescuadreCaja } = require('../utils/cashRegisterHelpers');
+const { evaluarDescuadreCaja, normalizarMontoDeclarado } = require('../utils/cashRegisterHelpers');
 
 class CashRegisterController {
     static async getCurrentSession(req, res) {
@@ -51,15 +51,14 @@ class CashRegisterController {
         try {
             const id_tienda = req.session.tiendaId;
             const id_vendedor = req.session.userId;
-            const { monto_cierre_declarado } = req.body;
-
             // Buscar sesión activa
             const activeSession = await CashRegister.getCurrentSession(id_tienda, id_vendedor);
             if (!activeSession) {
                 return res.status(400).json({ error: 'No hay ninguna caja abierta para cerrar.' });
             }
 
-            if (monto_cierre_declarado === undefined || monto_cierre_declarado < 0) {
+            const monto_cierre_declarado = normalizarMontoDeclarado(req.body.monto_cierre_declarado);
+            if (monto_cierre_declarado === null) {
                 return res.status(400).json({ error: 'El monto de cierre declarado no es válido.' });
             }
 
@@ -81,6 +80,34 @@ class CashRegisterController {
         } catch (error) {
             console.error('Error closing cash register session:', error);
             res.status(500).json({ error: 'Error al cerrar la caja' });
+        }
+    }
+
+    /**
+     * Vista previa del cierre ([K5]): calcula el arqueo con el monto que el vendedor contó, SIN cerrar la caja, sin
+     * guardar nada y sin notificar. Sirve para ver la diferencia y confirmar o recontar antes del cierre real.
+     * Mismas validaciones y mismos mensajes que el cierre.
+     */
+    static async previewClose(req, res) {
+        try {
+            const id_tienda = req.session.tiendaId;
+            const id_vendedor = req.session.userId;
+
+            const activeSession = await CashRegister.getCurrentSession(id_tienda, id_vendedor);
+            if (!activeSession) {
+                return res.status(400).json({ error: 'No hay ninguna caja abierta para cerrar.' });
+            }
+
+            const monto_cierre_declarado = normalizarMontoDeclarado(req.body.monto_cierre_declarado);
+            if (monto_cierre_declarado === null) {
+                return res.status(400).json({ error: 'El monto de cierre declarado no es válido.' });
+            }
+
+            const arqueo = await CashRegister.calcularArqueo(activeSession, monto_cierre_declarado);
+            res.json({ success: true, arqueo });
+        } catch (error) {
+            console.error('Error calculating cash register preview:', error);
+            res.status(500).json({ error: 'Error al calcular el arqueo' });
         }
     }
 
