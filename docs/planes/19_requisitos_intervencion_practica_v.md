@@ -1,6 +1,6 @@
 # Plan 19: Requisitos de la intervención (Práctica V) antes de datos reales
 
-**Estado (6-oct-2026):** 3.1 y 3.2 implementadas y verificadas. **3.4 (modo básico), fases A, B y C: se implementan antes de la visita** (decisión de Luis del 6-oct; ver «Actualización del 6-oct-2026» del plan 22, sección 5). 3.3 y 3.5 (incluida la encuesta de satisfacción) se implementan con el panel (plan 22, I1, I2 e I4), antes del arranque del piloto. 3.6 sigue documentada como diseño, sin implementar.
+**Estado (6-oct-2026):** 3.1 y 3.2 implementadas y verificadas. **3.4 (modo básico), fases A, B y C: IMPLEMENTADAS el 6-oct en la rama `feat/modo-basico-web` (subida al remoto, sin mezclar a `main` ni desplegar).** Fase A y B: columna `Usuarios.modo_interfaz`, endpoint e interruptor, menú reducido. Fase C: pantalla `/pedir`, solo Administrador. Además, el modo básico no muestra ni pide las tarjetas de IA del Dashboard (plan 23). Decisión de Luis del 6-oct; ver «Actualización del 6-oct-2026» del plan 22, sección 5. 3.3 y 3.5 (incluida la encuesta de satisfacción) se implementan con el panel (plan 22, I1, I2 e I4), antes del arranque del piloto. 3.6 sigue documentada como diseño, sin implementar.
 **Fecha:** 2026-09-25
 **Origen:** `docs/contexto_revision_cowork_2026-09-23.md`, sección 3 ("Decisiones y sugerencias de producto"), y el análisis de resultados de `Documentacion/StockPilot_Intervencion_y_Viabilidad.docx` (sección 2.6, "Antes de recibir datos de negocios reales se deben cumplir dos condiciones...").
 
