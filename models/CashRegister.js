@@ -97,6 +97,33 @@ class CashRegister {
     }
 
     /**
+     * El arqueo de una sesión con lo que el vendedor contó: cuánto DEBERÍA haber en el cajón (apertura + ventas en
+     * efectivo + abonos en efectivo − egresos no rechazados) y la diferencia con lo declarado. Solo lee: no cambia
+     * nada. Lo usan el cierre (closeSession) y la vista previa del cierre, para que las dos hagan la MISMA cuenta.
+     *
+     * @param {{id_sesion: number, monto_apertura: string|number}} sesion - La fila de SesionCaja.
+     * @param {number} monto_cierre_declarado - Ya validado (número finito >= 0).
+     */
+    static async calcularArqueo(sesion, monto_cierre_declarado) {
+        const ventas_efectivo = await this.getSessionSalesAmount(sesion.id_sesion);
+        const abonos_efectivo = await this.getSessionAbonosAmount(sesion.id_sesion);
+        const egresos = await this.getSessionExpensesTotal(sesion.id_sesion);
+        const monto_apertura = parseFloat(sesion.monto_apertura || 0);
+        const monto_cierre_calculado = monto_apertura + ventas_efectivo + abonos_efectivo - egresos;
+        const declarado = Number(monto_cierre_declarado);
+
+        return {
+            monto_apertura,
+            ventas_efectivo,
+            abonos_efectivo,
+            egresos,
+            monto_cierre_calculado,
+            monto_cierre_declarado: declarado,
+            diferencia: declarado - monto_cierre_calculado
+        };
+    }
+
+    /**
      * Cierra la sesión de caja comparando lo declarado vs calculado
      */
     static async closeSession(id_sesion, monto_cierre_declarado) {
@@ -105,37 +132,22 @@ class CashRegister {
         if (!sesion) throw new Error("Sesión no encontrada");
         if (sesion.estado === 'Cerrada') throw new Error("La sesión ya está cerrada");
 
-        // 2. Calcular total esperado (Apertura + Ventas en efectivo + Abonos en efectivo - Egresos)
-        const ventas_efectivo = await this.getSessionSalesAmount(id_sesion);
-        const abonos_efectivo = await this.getSessionAbonosAmount(id_sesion);
-        const egresos = await this.getSessionExpensesTotal(id_sesion);
-        const monto_apertura = parseFloat(sesion.monto_apertura || 0);
-        const monto_cierre_calculado = monto_apertura + ventas_efectivo + abonos_efectivo - egresos;
-        
-        // 3. Diferencia
-        const diferencia = parseFloat(monto_cierre_declarado) - monto_cierre_calculado;
+        // 2. Calcular el total esperado y la diferencia (la misma cuenta de la vista previa)
+        const arqueo = await this.calcularArqueo(sesion, monto_cierre_declarado);
 
-        // 4. Actualizar estado
+        // 3. Actualizar estado
         await db.runAsync(
-            `UPDATE SesionCaja 
-             SET monto_cierre_declarado = ?, 
-                 monto_cierre_calculado = ?, 
-                 diferencia = ?, 
-                 fecha_cierre = CURRENT_TIMESTAMP, 
+            `UPDATE SesionCaja
+             SET monto_cierre_declarado = ?,
+                 monto_cierre_calculado = ?,
+                 diferencia = ?,
+                 fecha_cierre = CURRENT_TIMESTAMP,
                  estado = 'Cerrada'
              WHERE id_sesion = ?`,
-            [monto_cierre_declarado, monto_cierre_calculado, diferencia, id_sesion]
+            [arqueo.monto_cierre_declarado, arqueo.monto_cierre_calculado, arqueo.diferencia, id_sesion]
         );
 
-        return {
-            monto_apertura,
-            ventas_efectivo,
-            abonos_efectivo,
-            egresos,
-            monto_cierre_calculado,
-            monto_cierre_declarado,
-            diferencia
-        };
+        return arqueo;
     }
 
     /**

@@ -6,6 +6,7 @@ Cada archivo `.json` de esta carpeta es **una llamada real** al servidor (la pet
 - El nombre es `NN_ID_descripcion.json`. `NN` es el orden dentro del flujo, e `ID` es el del contrato (`S2`, `V2`, `K4`…).
 - Cada archivo tiene `descripcion`, `peticion` (método, ruta, cabeceras y cuerpo) y `respuesta` (estado, cabeceras relevantes y cuerpo).
 - `01` a `29` son un turno completo de un Tendero en orden: sesión, caja, catálogo, venta, egreso, recepción y cierre. Los ids de venta, producto o cliente que aparecen salen de ese flujo.
+- `30` y `31` son la vista previa del cierre (`K5`): en el turno van **justo antes** del cierre `27` (contar → ver la diferencia → confirmar).
 - `40` a `44` son el segundo factor del Administrador. `50` y `51` son el primer inicio de sesión con contraseña temporal.
 
 ## Qué NO son

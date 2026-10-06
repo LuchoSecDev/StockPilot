@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluarDescuadreCaja } from '../../utils/cashRegisterHelpers.js';
+import { evaluarDescuadreCaja, normalizarMontoDeclarado } from '../../utils/cashRegisterHelpers.js';
 
 describe('evaluarDescuadreCaja', () => {
   it('faltante significativo (> umbral): esSignificativo true, esFaltante true, título y mensaje de faltante', () => {
@@ -28,5 +28,25 @@ describe('evaluarDescuadreCaja', () => {
   it('acepta un umbral distinto del default (5000)', () => {
     expect(evaluarDescuadreCaja(-1500, 1000).esSignificativo).toBe(true);
     expect(evaluarDescuadreCaja(-800, 1000).esSignificativo).toBe(false);
+  });
+});
+
+describe('normalizarMontoDeclarado', () => {
+  it('acepta un número finito >= 0, incluido el 0 y los decimales', () => {
+    expect(normalizarMontoDeclarado(60000)).toBe(60000);
+    expect(normalizarMontoDeclarado(0)).toBe(0);
+    expect(normalizarMontoDeclarado(50000.5)).toBe(50000.5);
+  });
+
+  it('acepta un texto numérico (con espacios alrededor) y lo devuelve como NÚMERO', () => {
+    expect(normalizarMontoDeclarado('60000')).toBe(60000);
+    expect(normalizarMontoDeclarado(' 60000.50 ')).toBe(60000.5);
+    expect(normalizarMontoDeclarado('0')).toBe(0);
+  });
+
+  it('rechaza (null) lo ausente, negativo, no finito, vacío, de texto o de otro tipo', () => {
+    for (const malo of [undefined, null, -1, -0.01, NaN, Infinity, -Infinity, '', ' ', 'abc', '12abc', '-5', '1e3', '1,5', '.5', [], [5], {}, true, false]) {
+      expect(normalizarMontoDeclarado(malo), String(malo)).toBeNull();
+    }
   });
 });

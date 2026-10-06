@@ -6,6 +6,7 @@ const { sanitizeBody } = require('../middleware/validation');
 
 router.get('/api/caja/sesion', requireLogin, cashRegisterController.getCurrentSession);
 router.post('/api/caja/abrir', requireLogin, sanitizeBody, cashRegisterController.openSession);
+router.post('/api/caja/arqueo-previo', requireLogin, sanitizeBody, cashRegisterController.previewClose);
 router.post('/api/caja/cerrar', requireLogin, sanitizeBody, cashRegisterController.closeSession);
 router.get('/api/caja/historial', requireLogin, cashRegisterController.getHistory);
 

@@ -21,4 +21,25 @@ function evaluarDescuadreCaja(diferencia, umbral = 5000) {
   return { esSignificativo, esFaltante, titulo, mensaje };
 }
 
-module.exports = { evaluarDescuadreCaja };
+/**
+ * Valida el monto que el vendedor declara al cerrar la caja (y al pedir la vista previa del cierre).
+ * Antes solo se rechazaba el monto ausente o negativo: un `null` (lo que llega cuando el cliente manda NaN) o un
+ * texto como «abc» pasaba la validación y se guardaba un arqueo sin sentido.
+ *
+ * @param {unknown} valor - Lo recibido en `monto_cierre_declarado`.
+ * @returns {number|null} El monto como número, o `null` si no es un número finito >= 0 (se acepta un número o un
+ *   texto numérico como «60000» o «60000.50»).
+ */
+function normalizarMontoDeclarado(valor) {
+  let monto;
+  if (typeof valor === 'number') {
+    monto = valor;
+  } else if (typeof valor === 'string' && /^\d+(\.\d+)?$/.test(valor.trim())) {
+    monto = Number(valor.trim());
+  } else {
+    return null;
+  }
+  return Number.isFinite(monto) && monto >= 0 ? monto : null;
+}
+
+module.exports = { evaluarDescuadreCaja, normalizarMontoDeclarado };

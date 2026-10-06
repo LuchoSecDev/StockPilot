@@ -150,6 +150,9 @@ describe('Ejemplos de la API de la app del Tendero', () => {
       { body: { id_producto: arroz, cantidad: 6, observacion: 'Pedido del lunes' }, csrf });
 
     // ── Cierre y fin de sesión ──
+    // Antes de cerrar: contar → declarar → ver la diferencia → confirmar o recontar. El arqueo previo no cierra nada.
+    await ejemplo('30_K5_arqueo_previo', 'Vista previa del cierre: con el efectivo contado devuelve el arqueo (lo que debería haber y la diferencia) SIN cerrar la caja. Si se confirma con el mismo monto, [K3] devuelve este mismo arqueo.', app1, 'post', '/api/caja/arqueo-previo', { body: { monto_cierre_declarado: 57500 }, csrf });
+    await ejemplo('31_K5_monto_invalido_400', 'El monto declarado debe ser un número finito mayor o igual a 0 (también un texto numérico). Con «abc», nulo o negativo: 400, y la caja sigue abierta.', app1, 'post', '/api/caja/arqueo-previo', { body: { monto_cierre_declarado: 'abc' }, csrf, esperado: 400 });
     await ejemplo('27_K3_cerrar_caja', 'Cierre de caja con el efectivo contado. Devuelve el arqueo: diferencia = declarado − calculado.', app1, 'post', '/api/caja/cerrar', { body: { monto_cierre_declarado: 57500 }, csrf });
     await ejemplo('28_S5_logout', 'Cierra la sesión y libera el candado de su canal.', app1, 'post', '/api/logout', { body: {}, csrf });
     await ejemplo('29_S6_sin_sesion_401', 'Cualquier ruta protegida sin sesión (o con la sesión caducada). Requiere Accept: application/json; sin esa cabecera sería un 302.', app1, 'get', '/api/productos', { esperado: 401 });
