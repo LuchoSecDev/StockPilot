@@ -255,7 +255,8 @@ class AuthController {
                 nombres: req.session.nombres,
                 cambioClaveForzoso: Boolean(req.session.cambio_clave_forzoso),
                 needs2FASetup: isAdmin && !is2FAEnabled,
-                is2FAEnabled: is2FAEnabled
+                is2FAEnabled: is2FAEnabled,
+                modoInterfaz: user ? user.modo_interfaz : 'avanzado'
             });
         } catch (error) {
             console.error('Error en getSessionInfo:', error);
@@ -296,6 +297,29 @@ class AuthController {
             }
         } catch (error) {
             console.error('Error actualizando perfil:', error);
+            res.status(500).json({ success: false, error: 'Error del servidor' });
+        }
+    }
+
+    // PATCH /api/perfil/modo-interfaz  { modo: 'basico' | 'avanzado' }
+    // Solo la propia cuenta (el id sale de la sesión, nunca del cuerpo): cambia qué menú ve, no lo que puede hacer.
+    // El modo no concede ni quita permisos; las rutas siguen protegidas por rol como siempre (plan 19, 3.4.3, fase B).
+    static async setModoInterfaz(req, res) {
+        try {
+            const userId = req.session.userId;
+            if (!userId) return res.status(401).json({ success: false, error: 'No autorizado' });
+
+            const modo = req.body && req.body.modo;
+            if (!User.MODOS_INTERFAZ.includes(modo)) {
+                return res.status(400).json({ success: false, error: "El modo debe ser 'basico' o 'avanzado'" });
+            }
+
+            const actualizado = await User.setModoInterfaz(userId, modo);
+            if (!actualizado) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+
+            res.json({ success: true, modoInterfaz: modo });
+        } catch (error) {
+            console.error('Error cambiando el modo de interfaz:', error);
             res.status(500).json({ success: false, error: 'Error del servidor' });
         }
     }

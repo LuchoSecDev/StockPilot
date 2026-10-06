@@ -203,7 +203,8 @@ describe('[S4] GET /api/session-info', () => {
       nombres: ERROR,
       cambioClaveForzoso: false,
       needs2FASetup: false,
-      is2FAEnabled: false
+      is2FAEnabled: false,
+      modoInterfaz: 'basico' // menú de la web (plan 19, 3.4); la app lo ignora
     });
     expect(Number(r.body.limiteEgresoTendero)).toBe(150000);
 

@@ -7,11 +7,21 @@ import {
   LayoutDashboard, ShoppingCart, Package, Bell, Store,
   ArrowLeftRight, Truck, TrendingDown, FlaskConical,
   FileText, ScanSearch, Brain, Users, User, LogOut,
-  X, ChevronLeft, ChevronRight, Megaphone, Wallet
+  X, ChevronLeft, ChevronRight, Megaphone, Wallet, SlidersHorizontal, LayoutList
 } from 'lucide-react';
+import { enlacesDelMenu, modoOpuesto } from '../utils/menu';
+
+// Ícono de cada enlace según su ruta; qué enlaces se muestran lo decide utils/menu.js (rol + modo).
+const ICONOS = {
+  '/dashboard': LayoutDashboard, '/ventas': ShoppingCart, '/productos': Package, '/alertas': Bell,
+  '/tiendas': Store, '/cartera': Wallet, '/movimientos': ArrowLeftRight, '/comunicados': Megaphone,
+  '/proveedores': Truck, '/analitica-visual': TrendingDown, '/simulador': FlaskConical, '/reportes': FileText,
+  '/auditoria': ScanSearch, '/aprendizaje': Brain, '/registro-tendero': Users, '/perfil': User,
+};
 
 const Sidebar = () => {
-  const { logout, user, switchStore } = useAuth();
+  const { logout, user, switchStore, cambiarModoInterfaz } = useAuth();
+  const [errorModo, setErrorModo] = useState('');
   const { isOpen, isCollapsed, toggleCollapse, closeSidebar } = useSidebar();
   const [alertCount, setAlertCount] = useState(0);
   const [tiendas, setTiendas] = useState([]);
@@ -46,28 +56,20 @@ const Sidebar = () => {
     }
   }, [user?.tiendaId, user?.rol]);
 
-  const links = [
-    { to: "/dashboard",  text: "Vista general",    icon: LayoutDashboard },
-    { to: "/ventas",     text: "Punto de Venta",    icon: ShoppingCart },
-    { to: "/productos",  text: "Catálogo",          icon: Package },
-    { to: "/alertas",    text: "Monitor Alertas",   icon: Bell },
-    { to: "/tiendas",    text: user?.rol === 'Administrador' ? "Mis Tiendas" : "Mi Tienda", icon: Store },
-  ];
+  const links = enlacesDelMenu(user?.rol, user?.modoInterfaz).map((e) => ({ ...e, icon: ICONOS[e.to] }));
 
-  if (user?.rol === 'Administrador') {
-    links.push({ to: "/cartera",            text: "Cartera (Fiados)", icon: Wallet });
-    links.push({ to: "/movimientos",        text: "Movimientos",      icon: ArrowLeftRight,  id: "nav-movimientos" });
-    links.push({ to: "/comunicados",        text: "Comunicados",      icon: Megaphone });
-    links.push({ to: "/proveedores",        text: "Proveedores AI",   icon: Truck });
-    links.push({ to: "/analitica-visual",   text: "Analítica Visual", icon: TrendingDown,    id: "nav-analitica-visual" });
-    links.push({ to: "/simulador",          text: "Simulador AI",     icon: FlaskConical,    id: "nav-simulador" });
-    links.push({ to: "/reportes",           text: "Generar Reportes", icon: FileText });
-    links.push({ to: "/auditoria",          text: "Auditoría AI",     icon: ScanSearch });
-    links.push({ to: "/aprendizaje",        text: "Aprendizaje AI",   icon: Brain });
-    links.push({ to: "/registro-tendero", text: "Colaboradores",    icon: Users,           id: "nav-registro-tendero" });
-  }
+  const esBasico = user?.modoInterfaz === 'basico';
+  const textoModo = esBasico ? 'Ver menú completo' : 'Ver menú simple';
+  const IconoModo = esBasico ? SlidersHorizontal : LayoutList;
 
-  links.push({ to: "/perfil", text: "Mi Perfil", icon: User });
+  const alternarModo = async () => {
+    setErrorModo('');
+    try {
+      await cambiarModoInterfaz(modoOpuesto(user?.modoInterfaz));
+    } catch (err) {
+      setErrorModo(err.message);
+    }
+  };
 
   const sidebarWidth = isCollapsed ? 'w-20' : 'w-64';
 
@@ -222,10 +224,29 @@ const Sidebar = () => {
             );
           })}
 
+          {/* Interruptor del menú: siempre visible, para que nadie se sienta «encerrado» en el modo simple (plan 19, 3.4.1) */}
+          <button
+            id="nav-modo-interfaz"
+            onClick={alternarModo}
+            title={textoModo}
+            aria-label={textoModo}
+            className={`
+              flex items-center gap-3 py-3 mt-4 rounded-lg shrink-0 transition-colors
+              border border-white/20 text-white/90 hover:bg-white/10 hover:text-white
+              ${isCollapsed ? 'justify-center px-0' : 'px-4'}
+            `}
+          >
+            <IconoModo size={18} />
+            {!isCollapsed && <span className="text-sm">{textoModo}</span>}
+          </button>
+          {errorModo && !isCollapsed && (
+            <p role="alert" className="text-xs text-rose-200 px-4 mt-1">{errorModo}</p>
+          )}
+
           <button
             onClick={logout}
             className={`
-              flex items-center gap-3 py-3 transition-colors text-slate-100 hover:text-rose-300 hover:bg-rose-500/15 mt-4 rounded-lg shrink-0
+              flex items-center gap-3 py-3 transition-colors text-slate-100 hover:text-rose-300 hover:bg-rose-500/15 mt-2 rounded-lg shrink-0
               ${isCollapsed ? 'justify-center px-0' : 'px-4'}
             `}
           >

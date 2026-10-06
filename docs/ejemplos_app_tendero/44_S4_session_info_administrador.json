@@ -22,7 +22,8 @@
       "nombres": "Marta Gómez",
       "cambioClaveForzoso": false,
       "needs2FASetup": false,
-      "is2FAEnabled": true
+      "is2FAEnabled": true,
+      "modoInterfaz": "basico"
     }
   }
 }

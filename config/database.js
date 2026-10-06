@@ -1,6 +1,7 @@
 // config/database.js - ADAPTADOR POSTGRESQL (Compatibilidad SQLite)
 require('dotenv').config();
 const { Pool } = require('pg');
+const { asegurarModoInterfaz } = require('./migraciones/modoInterfaz');
 
 const isNeon = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
 
@@ -216,6 +217,8 @@ db.migrationReady = (async function autoMigrate() {
                 -- Candado de sesión del canal «app» (app nativa del Tendero). session_id sigue siendo el del canal web.
                 ADD COLUMN IF NOT EXISTS session_id_app VARCHAR(255);
             `);
+            // 4.1 Modo del menú (básico/avanzado). Aparte porque su orden de pasos importa (ver el archivo).
+            await asegurarModoInterfaz(pool);
 
             // 5. Asegurar esquema para Arqueo de Caja y Facturación POS (Fase 1 y 2)
             await pool.query(`

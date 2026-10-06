@@ -85,7 +85,8 @@ Con `X-CSRF-Token` (pedido tras el login). **Cuerpo:** `{ "token": "123456" }` (
 **Prueba:** `contrato_app_tendero.test.js › [S3]`; canal con 2FA en `sesion_por_canal.test.js`.
 
 ### [S4] `GET /api/session-info`
-**200** `{ "success": true, "userId", "tiendaId", "tiendaNombre", "limiteEgresoTendero": "150000.00", "rol", "nombres", "cambioClaveForzoso", "needs2FASetup", "is2FAEnabled" }`. **401** `{ "success": false, "error": "Sesión no iniciada" }` sin sesión.
+**200** `{ "success": true, "userId", "tiendaId", "tiendaNombre", "limiteEgresoTendero": "150000.00", "rol", "nombres", "cambioClaveForzoso", "needs2FASetup", "is2FAEnabled", "modoInterfaz": "basico" }`. **401** `{ "success": false, "error": "Sesión no iniciada" }` sin sesión.
+`modoInterfaz` (`"basico"` o `"avanzado"`, añadido el 6-oct) es la preferencia de menú de la **web**; la app no lo usa y puede ignorarlo. Es un campo nuevo, no cambia ninguno de los anteriores.
 Es la forma de conocer `userId`, `tiendaId` y el tope de egresos del Tendero (el login no los devuelve). No valida el candado concurrente: usar una ruta protegida (p. ej. `[K1]`) para comprobar que la sesión sigue viva.
 **Prueba:** `contrato_app_tendero.test.js › [S4]`.
 
