@@ -304,7 +304,9 @@ services/
 
 El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. Esta sección solo dice qué depende de qué dentro del plan 21 y en qué tramo cae cada fase respecto al piloto.
 
-**Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) para la visita a las tiendas piloto. Eso cambia el tramo de tres filas: la app reemplaza al modo básico web antes del piloto, así que **R3.1 ya no va antes del piloto**; **R1 pasa a después del piloto**, salvo que la fecha del Sprint 6.3 lo exija antes, y el tiempo real (T1 y T2) **se replantea**, porque para una app nativa lo natural son notificaciones push y no SSE.
+**Actualización del 6-oct-2026.** Luis decidió que el piloto va con la web y que la app nativa sigue en paralelo (plan 22, sección 5). El modo básico web (fases A, B y C del plan 19) vuelve antes de la visita, pero **no depende de R3.1**: se construye sobre `Sidebar.jsx` y una pantalla nueva. Por eso **los tramos de la tabla no cambian**: R3.1 y el resto siguen después del piloto. Las filas P21-09, P21-13 y R2 de `caja.js` ya están en `main` (merge `cb028d9`).
+
+**Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) para la visita a las tiendas piloto. Eso cambió el tramo de tres filas: la app reemplazaba al modo básico web antes del piloto, así que **R3.1 ya no va antes del piloto**; **R1 pasa a después del piloto**, salvo que la fecha del Sprint 6.3 lo exija antes, y el tiempo real (T1 y T2) **se replantea**, porque para una app nativa lo natural son notificaciones push y no SSE.
 
 | Fase | Requiere | Tramo | Motivo |
 |---|---|---|---|

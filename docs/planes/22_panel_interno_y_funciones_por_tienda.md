@@ -1,7 +1,7 @@
 # Plan 22: Panel interno del equipo y funciones liberables por tienda
 
-**Estado (3-oct-2026):** I0 terminada y en producción (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
-**La sección 5 es el único orden de ejecución vigente** para los planes 19, 21 y 22.
+**Estado (6-oct-2026):** I0 terminada y en producción (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
+**La sección 5 es el único orden de ejecución vigente** para los planes 19, 21 y 22. **Cambió el 6-oct:** el piloto va con la web y el modo básico; la app nativa va en paralelo (ver «Actualización del 6-oct-2026» en la sección 5).
 **Fecha:** 2026-09-28
 **Origen:** decisión de Luis (28-sep) de tener, antes del piloto, un panel del equipo para:
 - ver las tiendas y usuarios registrados,
@@ -214,8 +214,8 @@ Antes de la convocatoria, agregar a `/politica-datos` un párrafo como este:
 | **I0** | Auditoría de autorización: egresos entre tiendas (P22-09), matriz de roles (P22-10), `requireAdmin` donde la matriz lo indique (incluidas las dos rutas de tienda del hallazgo 1.4) y pruebas de 403 | **Hecha** (3-oct, en producción) |
 | **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | Antes del arranque del piloto |
 | **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | Antes del arranque del piloto |
-| **I3** | Funciones liberables (3.4) | Después del piloto: con la app nativa, el modo básico web deja de ir antes del piloto |
-| **I4** | Pantalla de embudo, párrafo de la política (3.7) y campo de experiencia digital en el registro (plan 19, 3.5) | Antes del arranque del piloto |
+| **I3** | Funciones liberables (3.4) | Después del piloto: el modo básico web es una preferencia por usuario y no las necesita |
+| **I4** | Pantalla de embudo, párrafo de la política (3.7), campo de experiencia digital en el registro y encuesta de satisfacción (plan 19, 3.5) | Antes del arranque del piloto |
 
 El código nuevo se escribe desde el inicio con el patrón del plan 21: controladores delgados y lógica en `services/interno/`. Así no se crea más deuda mientras se refactoriza la existente.
 
@@ -225,15 +225,29 @@ El código nuevo se escribe desde el inicio con el patrón del plan 21: controla
 
 Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 remite aquí y en su sección 6 solo guarda las dependencias entre sus fases. El estado de cada punto se lleva en `docs/seguimiento_planes.xlsx`.
 
-**Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) porque la idea es llevarla a la visita a las tiendas piloto, prevista para la semana del 5 de octubre. La visita **no** es el arranque del piloto: el arranque se programa después con cada dueño. Con la app, el modo básico web (plan 19, 3.4), R3.1 e I3 dejan de ir antes del piloto.
+**Actualización del 6-oct-2026 (reemplaza la del 3-oct).** Luis decidió que **el piloto y la visita de esta semana van con la web**, y que la app nativa del Tendero sigue en paralelo, sin fecha de piloto, para presentarla en la sustentación (prevista para noviembre, día por confirmar). Motivo: la app todavía no cubre egresos, mercancía, alertas ni cobros no efectivos, y llevarla a una tienda real con prisa pondría en riesgo los datos del piloto. La app es una comodidad para los tenderos que no usan computador, no un requisito del piloto.
+
+Qué cambia respecto al 3-oct:
+- **El modo básico web (plan 19, 3.4) vuelve a ir antes de la visita**, porque sin app la web es lo único que ve el Tendero y el menú tiene 15 o 16 módulos. Van las fases **A, B y C** (preferencia, menú condicional y la pantalla `/pedir`). **D** (permisos de Colaborador sobre órdenes) y **E** (catálogo simplificado) quedan para después de la visita: `/pedir` se entrega solo al Administrador, que es el dueño de la tienda y quien hará la prueba.
+- **El modo básico es una preferencia por usuario** (`Usuarios.modo_interfaz`), no una función por tienda, así que **I3 sigue después del piloto**.
+- **El panel (I1, I2, I4) sigue siendo antes del arranque del piloto, no antes de la visita**, y suma la **encuesta de satisfacción** del plan 19, 3.5 (punto 3), con las dos preguntas de «sorpresa».
+- **La visita sigue sin ser el arranque del piloto.** Para la prueba de usabilidad (fase 4) se usa una tienda de demostración y una hoja de observación en papel (tiempo, errores y SUS por tarea): el panel no la mide.
+- **La app deja de ir en la visita.** Se sigue construyendo en ramas, contra un entorno aparte desde el arranque del piloto, y no se publica nueva versión durante las 6 semanas. Una prueba pequeña con 2 o 3 tenderos, antes de la sustentación, dará la evidencia real de la app.
+- R3.1 sigue **después del piloto**: el modo básico (A, B y C) no depende de ese refactor.
+
+**Actualización del 3-oct-2026 (histórica, ya no vigente).** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) para llevarla a la visita a las tiendas piloto, prevista para la semana del 5 de octubre. La visita **no** es el arranque del piloto: el arranque se programa después con cada dueño. Con la app, el modo básico web (plan 19, 3.4), R3.1 e I3 dejaban de ir antes del piloto.
 
 **Hecho (28-sep a 3-oct), todo en `main` y desplegado:**
 - R0 del plan 21 (P21-01) y el reinicio de limitadores en las pruebas (P21-11).
 - I0 completo: P22-09, matriz de roles (P22-10), la semilla en producción y C1, C2, C3, C6 y C7 (sección 1.4).
 - Respaldo externo: workflow diario de GitHub Actions, cifrado, con 14 días de retención (`docs/restaurar_respaldo.md`). Restauración verificada el 3-oct, según Luis.
 
-**A. Antes de la visita**
-1. **Backend para la app** (rama `feat/backend-app-tendero`), cada punto con su prueba:
+**A. Antes de la visita (vigente desde el 6-oct)**
+1. **Modo básico web, fases A, B y C** (plan 19, 3.4.3), cada una con su prueba. Las cuentas existentes se respaldan a `'avanzado'` para no cambiarles el menú de golpe.
+2. **Tienda de demostración** y **material de la visita:** guion de la fase 4 con las 6 tareas, hoja de observación (tiempo, errores, SUS), autorización de tratamiento de datos y formato de línea base.
+3. **Backend para la app: ya hecho** (lo que sigue es histórico, del 3 al 5-oct; está en `main` y desplegado). Lo que quede pendiente del lado de la app no bloquea la visita.
+
+*Histórico, backend para la app* (rama `feat/backend-app-tendero`), cada punto con su prueba:
    - sesión por canal: una en la web y una en la app al mismo tiempo (plan 07, sección 6);
    - `Ventas.canal` ('web' o 'app');
    - limitador de `verify-reset-code` y `skip` del limitador global (P21-09 y P21-13);
@@ -241,11 +255,10 @@ Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 rem
    - `docs/contrato_api_app_tendero.md`, con la prueba de integración de cada endpoint.
    - **Añadido el 4-oct-2026**, antes de que la app empiece a construirse: idempotencia de la venta del carrito (cabecera `Idempotency-Key`, para reintentar sin duplicar cuando se pierde la señal) y validación de `metodo_pago` (un «efectivo» en minúscula dejaba la venta fuera del arqueo). Ambas en el contrato `[V2]`, con sus pruebas.
    - **Entorno de desarrollo de la app (4-oct-2026):** mientras no haya tiendas reales, el equipo desarrolla contra el servidor desplegado (`docs/guia_entorno_app.md`). Desde el arranque del piloto eso deja de ser posible: hará falta un entorno aparte (ver C).
-2. **Versión de prueba de la app para Android** (equipo, repositorio aparte), construida contra ese contrato.
-3. **Material de la visita:** guion de la fase 4 (tareas, qué se mide en cada una, cuestionario), autorización de tratamiento de datos y formato de línea base.
+   - *Versión de prueba de la app para Android* (equipo, repositorio aparte), construida contra ese contrato: **sigue en desarrollo, fuera de la visita.**
 
 **B. La visita**
-- Presentación, autorización de datos, línea base y **fase 4 (usabilidad) con la versión de prueba de la app**.
+- Presentación, autorización de datos, línea base y **fase 4 (usabilidad) con la web en modo básico**, sobre la tienda de demostración. Si la fase C no estuviera lista, las tareas 4 y 5 se hacen en el menú completo y el informe lo dice.
 - Render está en plan gratuito y se duerme tras 15 minutos sin tráfico: abrir la app o la web unos minutos antes de entrar a cada tienda.
 
 **C. Entre la visita y el arranque del piloto**
@@ -264,7 +277,8 @@ Esta es la única lista de orden para los planes 07, 19, 21 y 22; el plan 21 rem
 **E. Después del piloto**
 - R1 (antes, si el Sprint 6.3 lo exige), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
 - Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
-- Modo básico web e I3, solo si el piloto muestra que hacen falta.
+- Modo básico web fases D y E, e I3, solo si el piloto muestra que hacen falta.
+- Prueba de usabilidad de la app con 2 o 3 tenderos, en entorno aparte, antes de la sustentación.
 - Distribución en iPhone (requiere un Mac y la membresía de pago de Apple).
 
 **F. Sin fecha**

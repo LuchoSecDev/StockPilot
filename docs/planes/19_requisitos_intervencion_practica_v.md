@@ -1,6 +1,6 @@
 # Plan 19: Requisitos de la intervención (Práctica V) antes de datos reales
 
-**Estado:** 3.1 y 3.2 implementadas y verificadas. 3.3, 3.4, 3.5 y 3.6 documentadas como diseño, sin implementar (a pedido explícito del usuario — "solo documentar por ahora").
+**Estado (6-oct-2026):** 3.1 y 3.2 implementadas y verificadas. **3.4 (modo básico), fases A, B y C: se implementan antes de la visita** (decisión de Luis del 6-oct; ver «Actualización del 6-oct-2026» del plan 22, sección 5). 3.3 y 3.5 (incluida la encuesta de satisfacción) se implementan con el panel (plan 22, I1, I2 e I4), antes del arranque del piloto. 3.6 sigue documentada como diseño, sin implementar.
 **Fecha:** 2026-09-25
 **Origen:** `docs/contexto_revision_cowork_2026-09-23.md`, sección 3 ("Decisiones y sugerencias de producto"), y el análisis de resultados de `Documentacion/StockPilot_Intervencion_y_Viabilidad.docx` (sección 2.6, "Antes de recibir datos de negocios reales se deben cumplir dos condiciones...").
 
@@ -98,7 +98,12 @@ Contexto (2026-09-24): la muestra de la encuesta (F1) está sesgada hacia tender
 
 ## 3.4 Modo básico (divulgación progresiva) — evaluación y plan detallado, sin implementar
 
-**Estado:** evaluación y plan completos a pedido del usuario (2026-09-24). Sigue sin implementarse — es un cambio de UX que toca la navegación principal, y la propia intervención (Fase 4, prueba de usabilidad con 5 tenderos) es el paso diseñado para validar esto antes de construirlo.
+**Estado (6-oct-2026):** el 3-oct se había aplazado porque la app nativa iba a la visita. Ya no: **el piloto y la visita van con la web**, así que se construyen A, B y C como prototipo y se lleva a la prueba de usabilidad (fase F, tal como se había pensado desde el principio). Decisiones del 6-oct:
+- `/pedir` (fase C) solo para el **Administrador**; la fase D (permisos de Colaborador sobre órdenes, medio-alto riesgo) y la E (catálogo simplificado) quedan para después de la visita.
+- El modo básico es una **preferencia por usuario**; no depende de las funciones por tienda (plan 22, I3).
+- Las 6 tareas de la fase 4 incluyen «registrar la llegada de mercancía» y «aprobar la sugerencia de compra»: sin la fase C no se podrían hacer en modo básico.
+
+Evaluación y plan completos a pedido del usuario (2026-09-24). Es un cambio de UX que toca la navegación principal, y la propia intervención (Fase 4, prueba de usabilidad con 5 tenderos) es el paso diseñado para validarlo.
 
 ### 3.4.1 Evaluación
 

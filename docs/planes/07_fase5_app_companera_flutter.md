@@ -49,14 +49,15 @@ La App Compañera debería incluir únicamente los siguientes módulos para mant
 
 ---
 
-## 6. Actualización (3-oct-2026): la app se adelanta para la visita a las tiendas piloto
+## 6. Actualización (3-oct-2026, revisada el 6-oct): la app del Tendero
 
-**Estado:** en construcción por el equipo, en un repositorio aparte. El orden general está en el plan 22, sección 5.
+**Estado (6-oct-2026):** en construcción por el equipo, en un repositorio aparte, **en paralelo al piloto**. El orden general está en el plan 22, sección 5.
 
-### 6.1 Por qué se adelanta
-El equipo decidió llevar la app a la visita a las tiendas piloto (semana del 5 de octubre). La visita no es el arranque del piloto: allí se hace la presentación, la autorización de datos, la línea base y la prueba de usabilidad (fase 4) con una versión de prueba. El arranque se programa después con cada dueño, con la app ya corregida.
-
-La app del Tendero cubre casi las mismas vistas que el modo básico web (plan 19, 3.4), así que ese modo deja de construirse antes del piloto.
+### 6.1 Qué se decidió
+- **3-oct:** el equipo adelantó la app para llevarla a la visita a las tiendas piloto (semana del 5 de octubre) y, por eso, aplazó el modo básico web.
+- **6-oct (vigente):** Luis decidió que **el piloto y la visita van con la web**, en modo básico (plan 19, 3.4, fases A, B y C). La app sigue construyéndose sin fecha de piloto y se presentará en la sustentación (prevista para noviembre, día por confirmar). Motivo: aún no cubre egresos, mercancía, alertas ni cobros no efectivos, y probarla con prisa en una tienda real arriesgaría los datos del piloto. Para los tenderos que no usan computador es una comodidad, no un requisito.
+- **Durante las 6 semanas del piloto** no se publica una versión nueva de la app, y su desarrollo usa un entorno aparte, nunca la base de producción (plan 22, sección 5, C y D). Sus ventas llevan `canal = 'app'`, así que no deben mezclarse con las del piloto: las pruebas de la app van a una tienda de prueba.
+- Antes de la sustentación se hará una prueba pequeña con 2 o 3 tenderos para tener evidencia real de la app.
 
 ### 6.2 Alcance de la versión para el piloto
 Todo usa endpoints que ya existen y que, después de I0 (plan 22, 1.4), el Tendero puede usar.
