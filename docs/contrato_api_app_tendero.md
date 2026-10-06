@@ -176,7 +176,7 @@ Con CSRF. **Cuerpo:** `{ "monto_cierre_declarado": 60000 }` (lo que el Tendero c
 
 | Código | Cuerpo |
 |---|---|
-| **200** | `{ "success": true, "message": "Caja cerrada exitosamente (Arqueo completo)", "arqueo": { "monto_apertura", "ventas_efectivo", "abonos_efectivo", "egresos", "monto_cierre_calculado", "monto_cierre_declarado", "diferencia" } }` (todos números). `diferencia = declarado − calculado`; calculado = apertura + ventas en efectivo + abonos en efectivo − egresos. Un descuadre significativo genera una notificación. |
+| **200** | `{ "success": true, "message": "Caja cerrada exitosamente (Arqueo completo)", "arqueo": { "monto_apertura", "ventas_efectivo", "abonos_efectivo", "egresos", "monto_cierre_calculado", "monto_cierre_declarado", "diferencia", "ventas_por_metodo", "abonos_por_metodo" } }` (los importes, números). `diferencia = declarado − calculado`; calculado = apertura + ventas en efectivo + abonos en efectivo − egresos. Un descuadre significativo genera una notificación. `ventas_por_metodo` y `abonos_por_metodo` son el **desglose por método de pago** del turno (ver abajo). |
 | **400** | `{ "error": "No hay ninguna caja abierta para cerrar." }` |
 | **400** | `{ "error": "El monto de cierre declarado no es válido." }` (ausente, negativo, `null`, texto no numérico, `NaN` o infinito; la caja sigue abierta) |
 
@@ -189,8 +189,25 @@ Con CSRF. **No cierra la caja, no guarda nada y no genera notificaciones**: calc
 
 | Código | Cuerpo |
 |---|---|
-| **200** | `{ "success": true, "arqueo": { "monto_apertura", "ventas_efectivo", "abonos_efectivo", "egresos", "monto_cierre_calculado", "monto_cierre_declarado", "diferencia" } }` (todos números, **la misma forma y las mismas cuentas que el `arqueo` de `[K3]`**: `diferencia = declarado − calculado`; `calculado = apertura + ventas en efectivo + abonos en efectivo − egresos que no estén «Rechazado»`). |
+| **200** | `{ "success": true, "arqueo": { "monto_apertura", "ventas_efectivo", "abonos_efectivo", "egresos", "monto_cierre_calculado", "monto_cierre_declarado", "diferencia", "ventas_por_metodo", "abonos_por_metodo" } }` (los importes, números; **la misma forma y las mismas cuentas que el `arqueo` de `[K3]`**: `diferencia = declarado − calculado`; `calculado = apertura + ventas en efectivo + abonos en efectivo − egresos que no estén «Rechazado»`). |
 | **400** | `{ "error": "No hay ninguna caja abierta para cerrar." }` · `{ "error": "El monto de cierre declarado no es válido." }` (igual que `[K3]`) |
+
+**Desglose por método de pago (auditoría), en `[K3]` y `[K5]`.** Se agregó el 5-oct-2026 (campos nuevos: cambio compatible). Hasta entonces el arqueo solo sumaba el efectivo y lo vendido con otros métodos no se veía por ningún lado.
+```json
+"ventas_por_metodo": {
+  "Efectivo":      { "cantidad": 2, "total": 13500 },
+  "Tarjeta":       { "cantidad": 1, "total": 4500 },
+  "Transferencia": { "cantidad": 0, "total": 0 },
+  "Fiado":         { "cantidad": 1, "total": 4500 },
+  "Otro":          { "cantidad": 0, "total": 0 }
+},
+"abonos_por_metodo": { "Efectivo": {…}, "Tarjeta": {…}, "Transferencia": {…}, "Otro": {…} }
+```
+- **Todas las claves aparecen siempre**, en cero si no hubo movimiento. `cantidad` es un número de ventas (o abonos) y `total`, un importe.
+- `Otro` recoge cualquier método fuera de los conocidos (datos viejos, de cuando el servidor guardaba cualquier texto): ningún importe queda fuera de la cuenta. En los abonos, «Fiado» no es una forma de pagar y también cae en `Otro`.
+- **Solo el efectivo entra al cajón:** `ventas_efectivo = ventas_por_metodo.Efectivo.total` y `abonos_efectivo = abonos_por_metodo.Efectivo.total` (salen de la misma consulta, así que no se pueden contradecir). Tarjeta, transferencia y fiado quedan a la vista para que el Administrador los audite y los coteje (datáfono, banco, cartera). **El sistema no verifica esos pagos** (`docs/propuesta_verificacion_de_pagos.md`): el desglose muestra lo que registró el Tendero. El fiado es crédito, no dinero recibido.
+- La suma de `ventas_por_metodo` es **todo lo vendido en el turno**. Se calcula al momento, a partir de las ventas y los abonos de esa sesión de caja (no se guarda una copia al cerrar).
+- El Administrador lo ve por cada turno en `GET /api/caja/historial` (campos `ventas_por_metodo` y `abonos_por_metodo` en cada sesión). Esa ruta es **solo del Administrador** (403 al Tendero; antes la API la entregaba a cualquier usuario con sesión aunque la web escondiera la pestaña).
 
 Reglas que la pantalla debe mostrar (es de donde sale la cifra): solo cuentan las ventas en **efectivo** (las de tarjeta, transferencia y fiado no entran al cajón); los egresos **pendientes de aprobación** también se restan; solo se mira **la caja del propio usuario**.
 **La vista previa puede quedar vieja:** si entre `[K5]` y `[K3]` se registra otra venta, otro egreso o un abono, `[K3]` recalcula y devuelve cifras distintas. La app debe mostrar el arqueo **final** que devuelve `[K3]` y avisar si cambió respecto de la vista previa.
@@ -321,7 +338,7 @@ Con CSRF. **Cuerpo:** `{ "id_producto": 1, "cantidad": 5, "urgencia": "alta"? }`
 
 ## 10. Lo que la app NO debe llamar (es del Administrador y responde 403 al Tendero)
 
-Crear, editar, borrar y pausar productos; carga masiva; promociones manuales; salidas y ajustes de inventario; generar alertas; reportes y exportaciones; estrategias de precio de la IA; crear clientes y registrar abonos; aprobar o rechazar egresos; proveedores y órdenes de compra; tiendas y colaboradores.
+Crear, editar, borrar y pausar productos; carga masiva; promociones manuales; salidas y ajustes de inventario; generar alertas; reportes y exportaciones; estrategias de precio de la IA; crear clientes y registrar abonos; aprobar o rechazar egresos; el historial de sesiones de caja (`GET /api/caja/historial`); proveedores y órdenes de compra; tiendas y colaboradores.
 La lista completa y su prueba (Tendero → 403, la base no cambia) están en `autorizacion_roles.test.js` (matriz de roles P22-10).
 
 ## 11. Hallazgos abiertos que tocan a la app (resumen)

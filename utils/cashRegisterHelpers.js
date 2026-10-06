@@ -42,4 +42,39 @@ function normalizarMontoDeclarado(valor) {
   return Number.isFinite(monto) && monto >= 0 ? monto : null;
 }
 
-module.exports = { evaluarDescuadreCaja, normalizarMontoDeclarado };
+/** Los métodos de pago de una venta (contrato [V2]). Cualquier otro texto cae en «Otro». */
+const METODOS_VENTA = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado'];
+
+/** Los métodos con que se puede abonar a la cuenta de un cliente. «Fiado» no es una forma de pagar un abono. */
+const METODOS_ABONO = ['Efectivo', 'Tarjeta', 'Transferencia'];
+
+/**
+ * Agrupa por método de pago lo que ya viene sumado por la base de datos (una fila por método) para el desglose de
+ * auditoría del cierre de caja: cuánto se movió por cada método en un turno.
+ *
+ * Todas las claves de [metodosConocidos] aparecen siempre (en cero si no hubo movimiento) y se agrega «Otro», que
+ * recoge cualquier método fuera de los conocidos (datos viejos, de cuando el servidor guardaba cualquier texto) para
+ * que ningún importe quede fuera de la cuenta.
+ *
+ * @param {Array<{metodo_pago: string, cantidad: number|string, total: number|string}>} filas
+ * @param {string[]} metodosConocidos
+ * @returns {Object<string, {cantidad: number, total: number}>}
+ */
+function desglosePorMetodo(filas, metodosConocidos) {
+  const desglose = {};
+  for (const metodo of [...metodosConocidos, 'Otro']) {
+    desglose[metodo] = { cantidad: 0, total: 0 };
+  }
+  for (const fila of filas) {
+    const clave = metodosConocidos.includes(fila.metodo_pago) ? fila.metodo_pago : 'Otro';
+    desglose[clave].cantidad += Number(fila.cantidad);
+    desglose[clave].total += parseFloat(fila.total || 0);
+  }
+  // Dinero: se redondea a centavos para que sumar decimales no deje restos como 0.30000000000000004.
+  for (const metodo of Object.keys(desglose)) {
+    desglose[metodo].total = Math.round(desglose[metodo].total * 100) / 100;
+  }
+  return desglose;
+}
+
+module.exports = { evaluarDescuadreCaja, normalizarMontoDeclarado, desglosePorMetodo, METODOS_VENTA, METODOS_ABONO };

@@ -53,3 +53,41 @@ export function lineasDelArqueo(arqueo) {
     { clave: 'egresos', etiqueta: 'Egresos (gastos)', signo: '−', monto: arqueo.egresos },
   ];
 }
+
+const ORDEN_DE_METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado', 'Otro'];
+const ETIQUETAS_DE_METODOS = {
+  Efectivo: 'Efectivo',
+  Tarjeta: 'Tarjeta',
+  Transferencia: 'Transferencia',
+  Fiado: 'Fiado (crédito)',
+  Otro: 'Otro método',
+};
+
+/**
+ * El desglose por método de pago de un turno ([K5], [K3] e historial de caja) como una lista ordenada para pintarla.
+ * [porMetodo] es `{ Efectivo: {cantidad, total}, Tarjeta: {...}, ... }`.
+ *
+ * @param {{soloConMovimiento?: boolean}} opciones - `true` deja fuera los métodos sin ventas ni importe.
+ * @returns {Array<{metodo: string, etiqueta: string, cantidad: number, total: number, entraAlCajon: boolean}>}
+ *   `entraAlCajon` es verdadero solo para el efectivo: tarjeta, transferencia y fiado no son dinero en el cajón.
+ */
+export function lineasPorMetodo(porMetodo, { soloConMovimiento = false } = {}) {
+  if (!porMetodo) return [];
+  const posicion = (metodo) => {
+    const i = ORDEN_DE_METODOS.indexOf(metodo);
+    return i < 0 ? ORDEN_DE_METODOS.length : i;
+  };
+  return Object.keys(porMetodo)
+    .sort((x, y) => posicion(x) - posicion(y))
+    .map((metodo) => ({
+      metodo,
+      etiqueta: ETIQUETAS_DE_METODOS[metodo] ?? metodo,
+      cantidad: Number(porMetodo[metodo]?.cantidad ?? 0),
+      total: Number(porMetodo[metodo]?.total ?? 0),
+      entraAlCajon: metodo === 'Efectivo',
+    }))
+    .filter((l) => !soloConMovimiento || l.cantidad > 0 || aCentavos(l.total) !== 0);
+}
+
+/** «2 ventas» / «1 venta», para el desglose. */
+export const textoDeVentas = (cantidad) => `${cantidad} ${cantidad === 1 ? 'venta' : 'ventas'}`;

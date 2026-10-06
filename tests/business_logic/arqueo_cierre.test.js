@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montoContado, describirDiferencia, elArqueoCambio, lineasDelArqueo, formatoPesos } from '../../frontend/src/utils/arqueo.js';
+import { montoContado, describirDiferencia, elArqueoCambio, lineasDelArqueo, formatoPesos, lineasPorMetodo, textoDeVentas } from '../../frontend/src/utils/arqueo.js';
 
 describe('montoContado (lo que el vendedor escribe en «Efectivo total en cajón»)', () => {
   it('acepta un número finito >= 0, también como texto, y el 0', () => {
@@ -73,5 +73,55 @@ describe('lineasDelArqueo', () => {
 describe('formatoPesos', () => {
   it('agrupa los miles al estilo colombiano', () => {
     expect(formatoPesos(1500)).toMatch(/^\$1[.,]500$/);
+  });
+});
+
+describe('lineasPorMetodo (desglose por método de pago)', () => {
+  const desglose = {
+    Otro: { cantidad: 0, total: 0 },
+    Fiado: { cantidad: 1, total: 4500 },
+    Tarjeta: { cantidad: 1, total: 4500 },
+    Efectivo: { cantidad: 2, total: 13500 },
+    Transferencia: { cantidad: 0, total: 0 },
+  };
+
+  it('las ordena siempre igual (efectivo, tarjeta, transferencia, fiado, otro) aunque lleguen desordenadas', () => {
+    expect(lineasPorMetodo(desglose).map((l) => l.metodo)).toEqual(['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado', 'Otro']);
+  });
+
+  it('con soloConMovimiento deja fuera los métodos sin ventas ni importe', () => {
+    expect(lineasPorMetodo(desglose, { soloConMovimiento: true }).map((l) => l.metodo)).toEqual(['Efectivo', 'Tarjeta', 'Fiado']);
+  });
+
+  it('solo el efectivo entra al cajón: tarjeta, transferencia y fiado no', () => {
+    const porMetodo = Object.fromEntries(lineasPorMetodo(desglose).map((l) => [l.metodo, l.entraAlCajon]));
+    expect(porMetodo).toEqual({ Efectivo: true, Tarjeta: false, Transferencia: false, Fiado: false, Otro: false });
+  });
+
+  it('el fiado lleva una etiqueta que aclara que es crédito', () => {
+    expect(lineasPorMetodo(desglose).find((l) => l.metodo === 'Fiado').etiqueta).toBe('Fiado (crédito)');
+  });
+
+  it('un método nuevo que el servidor agregue se muestra al final con su propio nombre (no se pierde)', () => {
+    const l = lineasPorMetodo({ ...desglose, Cripto: { cantidad: 1, total: 10 } }).at(-1);
+    expect(l.metodo).toBe('Cripto');
+    expect(l.etiqueta).toBe('Cripto');
+  });
+
+  it('un importe sin cantidad se sigue mostrando (no se oculta dinero)', () => {
+    expect(lineasPorMetodo({ Tarjeta: { cantidad: 0, total: 500 } }, { soloConMovimiento: true })).toHaveLength(1);
+  });
+
+  it('sin desglose (un servidor viejo) devuelve una lista vacía en vez de romper', () => {
+    expect(lineasPorMetodo(undefined)).toEqual([]);
+    expect(lineasPorMetodo(null, { soloConMovimiento: true })).toEqual([]);
+  });
+});
+
+describe('textoDeVentas', () => {
+  it('singular y plural', () => {
+    expect(textoDeVentas(1)).toBe('1 venta');
+    expect(textoDeVentas(0)).toBe('0 ventas');
+    expect(textoDeVentas(3)).toBe('3 ventas');
   });
 });

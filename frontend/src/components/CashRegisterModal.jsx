@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useToast } from '../context/ToastContext';
 import { X, Lock, Unlock, Landmark, Calculator, RotateCcw } from 'lucide-react';
 import ErrorState from './common/ErrorState';
-import { formatoPesos, montoContado, describirDiferencia, elArqueoCambio, lineasDelArqueo } from '../utils/arqueo';
+import { formatoPesos, montoContado, describirDiferencia, elArqueoCambio, lineasDelArqueo, lineasPorMetodo, textoDeVentas } from '../utils/arqueo';
 
 // Cómo se pinta cada resultado del arqueo.
 const ESTILO_DIFERENCIA = {
@@ -188,9 +188,40 @@ const CashRegisterModal = ({ isOpen, onClose, onStatusChange }) => {
                 );
               })()}
 
+              {(() => {
+                const ventas = lineasPorMetodo(arqueoPrevio.ventas_por_metodo, { soloConMovimiento: true });
+                const abonos = lineasPorMetodo(arqueoPrevio.abonos_por_metodo, { soloConMovimiento: true });
+                return (
+                  <div className="border border-slate-200 rounded-2xl p-4 text-sm space-y-2" data-testid="desglose-por-metodo">
+                    <p className="text-xs font-bold text-slate-500">Lo vendido en el turno, por método de pago</p>
+                    {ventas.length === 0 ? (
+                      <p className="text-slate-500">Sin ventas en este turno.</p>
+                    ) : (
+                      ventas.map((l) => (
+                        <div key={l.metodo} className="flex justify-between text-slate-600">
+                          <span>{l.etiqueta} <span className="text-xs text-slate-400">· {textoDeVentas(l.cantidad)}{l.entraAlCajon ? '' : ' · no entra al cajón'}</span></span>
+                          <span className="font-bold text-tinta-2">{formatoPesos(l.total)}</span>
+                        </div>
+                      ))
+                    )}
+                    {abonos.length > 0 && (
+                      <>
+                        <p className="text-xs font-bold text-slate-500 pt-2">Abonos de clientes</p>
+                        {abonos.map((l) => (
+                          <div key={l.metodo} className="flex justify-between text-slate-600">
+                            <span>{l.etiqueta} <span className="text-xs text-slate-400">· {l.cantidad} {l.cantidad === 1 ? 'abono' : 'abonos'}{l.entraAlCajon ? '' : ' · no entra al cajón'}</span></span>
+                            <span className="font-bold text-tinta-2">{formatoPesos(l.total)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
               <p className="text-xs text-slate-500">
-                Solo cuentan las ventas en efectivo: las de tarjeta, transferencia y fiado no entran al cajón. Si se
-                registra algo mientras revisas, el arqueo final puede cambiar.
+                Solo el efectivo entra al cajón: lo vendido con tarjeta, transferencia o fiado no se cuenta en lo que
+                debería haber. Si se registra algo mientras revisas, el arqueo final puede cambiar.
               </p>
 
               <div className="flex gap-3">
