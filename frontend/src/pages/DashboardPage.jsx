@@ -12,6 +12,10 @@ const DashboardPage = () => {
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = user?.rol === 'Administrador';
+  // Modo básico (plan 19, 3.4): sin las tarjetas de IA (Consejero y Estrategias de Venta) y sin pedirlas al servidor.
+  // El piloto es corto y la IA necesita meses de historial para aprender (Feedback_IA), así que lo que se prueba es
+  // el punto de venta, las alertas y el inventario; el pedido sugerido vive en /pedir, con el motor matemático.
+  const esBasico = user?.modoInterfaz === 'basico';
   const storeKey = user?.tiendaId ?? 'default';
   const [stats, setStats] = useState({
     totalArticulos: 0,
@@ -53,8 +57,8 @@ const DashboardPage = () => {
     const cachedRecs = localStorage.getItem(`stockpilot_recs_${storeKey}`);
 
     if (cachedStats) { setStats(JSON.parse(cachedStats)); setLoading(false); }
-    if (cachedRecs) setRecommendations(JSON.parse(cachedRecs));
-    if (cachedPromos) { setPromotions(JSON.parse(cachedPromos)); setLoadingPromos(false); }
+    if (!esBasico && cachedRecs) setRecommendations(JSON.parse(cachedRecs));
+    if (!esBasico && cachedPromos) { setPromotions(JSON.parse(cachedPromos)); setLoadingPromos(false); }
 
     // --- Fase 1: stats SQL puros (~100–200ms), quita el spinner de inmediato ---
     try {
@@ -84,6 +88,11 @@ const DashboardPage = () => {
     }
 
     // --- Fase 2: IA en background, no bloquea las tarjetas de stats ---
+    // En modo básico no se pide: ni se muestra, ni se paga la llamada a OpenAI, ni se escribe en la auditoría de IA.
+    if (esBasico) {
+      setLoadingPromos(false);
+      return;
+    }
     try {
       const [aiRes, promoRes] = await Promise.all([
         axios.get('/api/ia/recommendations', { ...(signal && { signal }) }),
@@ -112,7 +121,7 @@ const DashboardPage = () => {
         setLoadingPromos(false);
       }
     }
-  }, [storeKey, isAdmin]);
+  }, [storeKey, isAdmin, esBasico]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -411,7 +420,8 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
+      <div className={`grid grid-cols-1 ${esBasico ? '' : 'xl:grid-cols-3'} gap-4 md:gap-6`}>
+        {!esBasico && (<>
         {/* Asistente Estratégico IA */}
         <section className="xl:col-span-2 bg-white rounded-2xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-tinta shadow-lg relative overflow-hidden border border-slate-100">
           <div className="absolute top-0 right-0 p-6 opacity-5 text-azul"><Bot size={96} /></div>
@@ -518,6 +528,7 @@ const DashboardPage = () => {
           loading={pedidoEnCurso === 'todo'}
           icon="check"
         />
+        </>)}
 
         {/* Estado del Inventario */}
         <section className="bg-white rounded-2xl p-8 shadow-lg border border-slate-100 self-start">
@@ -576,6 +587,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Oportunidades de Promoción IA */}
+      {!esBasico && (<>
       <section className="bg-white rounded-2xl p-8 text-tinta shadow-lg relative overflow-hidden border border-slate-100">
         <div className="absolute top-0 right-0 p-6 opacity-5 text-azul"><DollarSign size={96} /></div>
         <div className="relative z-10">
@@ -713,6 +725,7 @@ const DashboardPage = () => {
           </div>
         </div>
       )}
+      </>)}
 
       {/* WELCOME ALERT MODAL */}
       {welcomeAlert && (

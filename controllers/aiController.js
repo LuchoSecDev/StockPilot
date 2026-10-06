@@ -815,8 +815,11 @@ const aiController = {
       const total_abonado = abonos.reduce((sum, a) => sum + Number(a.monto), 0);
       const saldo_pendiente = total_fiado - total_abonado;
 
+      // Privacidad (Ley 1581): a OpenAI no se manda quién es el cliente (nombre ni celular), solo su historial de pagos.
+      // La política publicada promete «sin datos personales». El id deja rastro en la auditoría sin identificar a nadie
+      // fuera de la tienda. Lo cubre tests/integration/ia_privacidad.test.js.
       const historialAnalisis = {
-        cliente: clienteRes.nombre,
+        id_cliente: clienteRes.id_cliente,
         limite_credito: clienteRes.limite_credito,
         total_compras_fiadas: total_fiado,
         total_pagado: total_abonado,

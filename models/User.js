@@ -56,10 +56,22 @@ class User {
 
     static async findById(userId) {
         const query = `
-            SELECT id_usuario, nombres, genero, correo, celular, usuario, rol, id_tienda, foto_url, cambio_clave_forzoso, two_factor_enabled
+            SELECT id_usuario, nombres, genero, correo, celular, usuario, rol, id_tienda, foto_url, cambio_clave_forzoso, two_factor_enabled, modo_interfaz
             FROM Usuarios WHERE id_usuario = ?
         `;
         return await db.getAsync(query, [userId]);
+    }
+
+    // Menú reducido ('basico') o completo ('avanzado'). Lista cerrada: la base lo exige con un CHECK, y aquí se
+    // valida antes para poder responder 400 en vez de un 500 por violar el CHECK.
+    static MODOS_INTERFAZ = ['basico', 'avanzado'];
+
+    static async setModoInterfaz(userId, modo) {
+        if (!User.MODOS_INTERFAZ.includes(modo)) {
+            throw new Error(`Modo de interfaz inválido: ${modo}`);
+        }
+        const result = await db.runAsync(`UPDATE Usuarios SET modo_interfaz = ? WHERE id_usuario = ?`, [modo, userId]);
+        return result.changes > 0;
     }
 
     static async findByStore(storeId) {

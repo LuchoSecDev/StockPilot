@@ -12,6 +12,7 @@ router.post('/api/logout', AuthController.logout);
 // Rutas de Perfil
 router.get('/api/perfil', AuthController.getProfile);
 router.put('/api/perfil', AuthController.updateProfile);
+router.patch('/api/perfil/modo-interfaz', sanitizeBody, AuthController.setModoInterfaz);
 router.put('/api/perfil/password', AuthController.changePassword);
 router.put('/api/perfil/first-password', AuthController.firstPasswordChange);
 

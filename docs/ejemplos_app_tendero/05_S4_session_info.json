@@ -22,7 +22,8 @@
       "nombres": "Carlos Pérez",
       "cambioClaveForzoso": false,
       "needs2FASetup": false,
-      "is2FAEnabled": false
+      "is2FAEnabled": false,
+      "modoInterfaz": "basico"
     }
   }
 }

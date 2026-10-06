@@ -58,7 +58,11 @@ CREATE TABLE IF NOT EXISTS Usuarios (
     reset_expires VARCHAR(100),
     two_factor_secret VARCHAR(255),
     two_factor_enabled BOOLEAN DEFAULT FALSE,
-    fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE
+    fecha_aceptacion_politica_datos TIMESTAMP WITH TIME ZONE,
+    -- Menú que ve la persona: 'basico' (reducido, el de las cuentas NUEVAS) o 'avanzado' (completo). Plan 19, 3.4.3.
+    -- En una base ya existente la migración (config/migraciones/modoInterfaz.js) deja las cuentas actuales en 'avanzado'.
+    modo_interfaz VARCHAR(10) NOT NULL DEFAULT 'basico',
+    CONSTRAINT ck_usuarios_modo_interfaz CHECK (modo_interfaz IN ('basico', 'avanzado'))
 );
 
 -- Cierra la dependencia circular Tienda <-> Usuarios de arriba: recién acá pueden existir las dos.

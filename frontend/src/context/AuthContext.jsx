@@ -141,7 +141,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, [checkSession]);
 
-  const value = useMemo(() => ({ user, login, verify2FA, logout, switchStore, loading, checkSession }), [user, login, verify2FA, logout, switchStore, loading, checkSession]);
+  // Cambia el menú de la propia cuenta ('basico' o 'avanzado'). El estado local solo se actualiza cuando el servidor
+  // confirma: si falla (red, sesión vencida), el menú no cambia y la pantalla puede avisar con el error que se lanza.
+  const cambiarModoInterfaz = useCallback(async (modo) => {
+    try {
+      const res = await axios.patch('/api/perfil/modo-interfaz', { modo });
+      if (!res.data.success) throw new Error(res.data.error || 'No se pudo cambiar el modo');
+      setUser((actual) => (actual ? { ...actual, modoInterfaz: res.data.modoInterfaz } : actual));
+    } catch (err) {
+      throw new Error(err.response?.data?.error || err.message || 'No se pudo cambiar el modo');
+    }
+  }, []);
+
+  const value = useMemo(() => ({ user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession }), [user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession]);
 
   return (
     <AuthContext.Provider value={value}>
