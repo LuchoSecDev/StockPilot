@@ -14,6 +14,8 @@ const ENLACES = [
   { to: '/dashboard',        text: 'Vista general',    basico: true },
   { to: '/ventas',           text: 'Punto de Venta',   basico: true },
   { to: '/productos',        text: 'Catálogo',         basico: true },
+  // Solo del Administrador: armar, aprobar y recibir pedidos mueve dinero (la fase D, que se lo daría al Colaborador, queda para después).
+  { to: '/pedir',            text: '¿Qué pido?',       soloAdmin: true, basico: true },
   { to: '/alertas',          text: 'Monitor Alertas',  basico: true },
   { to: '/tiendas',          text: 'Mi Tienda',        textoAdmin: 'Mis Tiendas' },
   { to: '/cartera',          text: 'Cartera (Fiados)', soloAdmin: true },

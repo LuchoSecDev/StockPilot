@@ -4,9 +4,9 @@ import { enlacesDelMenu, modoOpuesto, MODOS_INTERFAZ } from '../../frontend/src/
 const rutas = (rol, modo) => enlacesDelMenu(rol, modo).map((e) => e.to);
 
 describe('enlacesDelMenu en modo avanzado (el menú de siempre)', () => {
-  it('el Administrador ve los 16 enlaces, en el orden de siempre', () => {
+  it('el Administrador ve los 17 enlaces (los 16 de siempre más «¿Qué pido?»)', () => {
     expect(rutas('Administrador', 'avanzado')).toEqual([
-      '/dashboard', '/ventas', '/productos', '/alertas', '/tiendas', '/cartera', '/movimientos', '/comunicados',
+      '/dashboard', '/ventas', '/productos', '/pedir', '/alertas', '/tiendas', '/cartera', '/movimientos', '/comunicados',
       '/proveedores', '/analitica-visual', '/simulador', '/reportes', '/auditoria', '/aprendizaje', '/registro-tendero', '/perfil',
     ]);
   });
@@ -26,15 +26,17 @@ describe('enlacesDelMenu en modo avanzado (el menú de siempre)', () => {
 });
 
 describe('enlacesDelMenu en modo básico (menú reducido)', () => {
-  it('muestra solo Vista general, Punto de Venta, Catálogo, Alertas y Mi Perfil, igual para los dos roles', () => {
-    const esperado = ['/dashboard', '/ventas', '/productos', '/alertas', '/perfil'];
-    expect(rutas('Administrador', 'basico')).toEqual(esperado);
-    expect(rutas('Tendero', 'basico')).toEqual(esperado);
+  it('el Administrador ve Vista general, Punto de Venta, Catálogo, «¿Qué pido?», Alertas y Mi Perfil', () => {
+    expect(rutas('Administrador', 'basico')).toEqual(['/dashboard', '/ventas', '/productos', '/pedir', '/alertas', '/perfil']);
+  });
+
+  it('el Colaborador ve lo mismo salvo «¿Qué pido?», que mueve dinero y es solo del Administrador', () => {
+    expect(rutas('Tendero', 'basico')).toEqual(['/dashboard', '/ventas', '/productos', '/alertas', '/perfil']);
   });
 
   it('oculta lo avanzado, pero ocultar no es conceder: un Colaborador nunca ve enlaces de Administrador', () => {
     const colaborador = rutas('Tendero', 'basico');
-    for (const ruta of ['/cartera', '/reportes', '/proveedores', '/registro-tendero', '/tiendas']) {
+    for (const ruta of ['/pedir', '/cartera', '/reportes', '/proveedores', '/registro-tendero', '/tiendas']) {
       expect(colaborador).not.toContain(ruta);
     }
   });

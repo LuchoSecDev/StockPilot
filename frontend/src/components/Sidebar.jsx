@@ -7,13 +7,13 @@ import {
   LayoutDashboard, ShoppingCart, Package, Bell, Store,
   ArrowLeftRight, Truck, TrendingDown, FlaskConical,
   FileText, ScanSearch, Brain, Users, User, LogOut,
-  X, ChevronLeft, ChevronRight, Megaphone, Wallet, SlidersHorizontal, LayoutList
+  X, ChevronLeft, ChevronRight, Megaphone, Wallet, SlidersHorizontal, LayoutList, ClipboardList
 } from 'lucide-react';
 import { enlacesDelMenu, modoOpuesto } from '../utils/menu';
 
 // Ícono de cada enlace según su ruta; qué enlaces se muestran lo decide utils/menu.js (rol + modo).
 const ICONOS = {
-  '/dashboard': LayoutDashboard, '/ventas': ShoppingCart, '/productos': Package, '/alertas': Bell,
+  '/dashboard': LayoutDashboard, '/ventas': ShoppingCart, '/productos': Package, '/pedir': ClipboardList, '/alertas': Bell,
   '/tiendas': Store, '/cartera': Wallet, '/movimientos': ArrowLeftRight, '/comunicados': Megaphone,
   '/proveedores': Truck, '/analitica-visual': TrendingDown, '/simulador': FlaskConical, '/reportes': FileText,
   '/auditoria': ScanSearch, '/aprendizaje': Brain, '/registro-tendero': Users, '/perfil': User,
