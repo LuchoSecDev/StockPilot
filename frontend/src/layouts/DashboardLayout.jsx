@@ -18,6 +18,23 @@ const DashboardLayout = () => {
 
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [totpToken, setTotpToken] = useState('');
+  const [dismissed2FA, setDismissed2FA] = useState(() => sessionStorage.getItem('dismissed2FA') === 'true');
+
+  useEffect(() => {
+    setDismissed2FA(sessionStorage.getItem('dismissed2FA') === 'true');
+  }, [user?.userId]);
+
+  useEffect(() => {
+    const handleRequire2FA = (e) => {
+      sessionStorage.removeItem('dismissed2FA');
+      setDismissed2FA(false);
+      if (e.detail?.message) {
+        toast.warning(e.detail.message);
+      }
+    };
+    window.addEventListener('require-2fa', handleRequire2FA);
+    return () => window.removeEventListener('require-2fa', handleRequire2FA);
+  }, [toast]);
 
   useEffect(() => {
     if (!user?.needs2FASetup || qrCodeUrl) return;
@@ -39,6 +56,7 @@ const DashboardLayout = () => {
     e.preventDefault();
     try {
       await axios.post('/api/2fa/verify', { token: totpToken });
+      sessionStorage.removeItem('dismissed2FA');
       toast.success('2FA Habilitado con éxito');
       window.location.reload(); 
     } catch (err) {
@@ -47,7 +65,7 @@ const DashboardLayout = () => {
   };
 
   const renderForce2FA = () => {
-    if (!user?.needs2FASetup) return null;
+    if (!user?.needs2FASetup || dismissed2FA) return null;
     return (
       <div className="fixed inset-0 bg-tinta/95 backdrop-blur-sm z-[9999] flex items-center justify-center p-6">
         <form onSubmit={handleVerify2FA} className="bg-white w-full max-w-md p-10 rounded-2xl shadow-lg animate-scale-in text-center">
@@ -56,9 +74,9 @@ const DashboardLayout = () => {
           </div>
           <h2 className="titular text-2xl text-tinta mb-2">Configurar Seguridad</h2>
           <p className="text-xs text-slate-500 font-bold mb-6 leading-relaxed">
-            Como Administrador, es obligatorio configurar 2FA antes de continuar.<br/>
+            Como Administrador, es obligatorio configurar 2FA para crear, editar o eliminar registros.<br/>
             1. Descarga Google Authenticator.<br/>
-            2. Escanea el código QR.
+            2. Escanea el código QR y digita el código de 6 dígitos.
           </p>
 
           {qrCodeUrl ? (
@@ -87,6 +105,16 @@ const DashboardLayout = () => {
           >
             Verificar y Activar
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              sessionStorage.setItem('dismissed2FA', 'true');
+              setDismissed2FA(true);
+            }}
+            className="w-full mt-3 py-2 text-xs text-slate-500 hover:text-slate-700 font-bold transition-colors"
+          >
+            Configurar más tarde
+          </button>
         </form>
       </div>
     );
@@ -104,6 +132,20 @@ const DashboardLayout = () => {
           <span className="font-bold text-tinta text-sm underline decoration-azul underline-offset-4">StockPilot</span>
         </div>
         <div className="flex items-center gap-4">
+          {user?.needs2FASetup && dismissed2FA && (
+            <button
+              type="button"
+              onClick={() => {
+                sessionStorage.removeItem('dismissed2FA');
+                setDismissed2FA(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200"
+              title="2FA Pendiente: Se requiere para modificar registros"
+            >
+              <Shield size={14} className="text-amber-600 animate-pulse" />
+              <span>2FA</span>
+            </button>
+          )}
           <div className="mt-1">
             <NotificationCenter />
           </div>
@@ -130,6 +172,20 @@ const DashboardLayout = () => {
       `}>
         {/* 🖥️ Desktop Header (Only md+) */}
         <header className="hidden md:flex items-center justify-end px-12 h-14 w-full z-[150] shrink-0">
+            {user?.needs2FASetup && dismissed2FA && (
+              <button
+                type="button"
+                onClick={() => {
+                  sessionStorage.removeItem('dismissed2FA');
+                  setDismissed2FA(false);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-sm transition-all cursor-pointer mr-4"
+                title="Haz clic para activar 2FA ahora"
+              >
+                <Shield size={14} className="text-amber-600 animate-pulse" />
+                <span>2FA Pendiente (Requerido para modificar registros)</span>
+              </button>
+            )}
             <div className="mt-2">
               <NotificationCenter />
             </div>
