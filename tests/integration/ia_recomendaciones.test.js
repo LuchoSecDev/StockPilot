@@ -58,7 +58,7 @@ describe('IA: camino feliz con OpenAI simulado', () => {
     expect(segunda.status).toBe(200);
     expect(segunda.body.cached).toBe(true);
     expect(segunda.body.recommendations).toEqual(primera.body.recommendations);
-    // La caché es en memoria (aiCache_v3, por tiendaId): la 2a petición ni siquiera llega a OpenAI.
+    // La caché es la tabla Cache_IA (compartida entre réplicas): la 2a petición ni siquiera llega a OpenAI.
     expect(spy).toHaveBeenCalledTimes(1);
   });
 

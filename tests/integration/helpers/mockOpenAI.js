@@ -6,16 +6,16 @@
  * archivos de la corrida de integración).
  *
  * Por qué `vi.spyOn` sobre el prototipo compartido y no `vi.mock('openai', ...)`:
- * `aiController.js` y `suppliersController.js` construyen cada uno su propia instancia
- * (`new OpenAI({...})`) al cargar el módulo. Con `isolate:false` esas instancias se crean UNA
- * sola vez por proceso y sobreviven toda la corrida — un `vi.mock` de fábrica no las alcanzaría
- * retroactivamente, y además contaminaría cualquier otro archivo que importe `openai` (incluido
- * `ia_caida.test.js`, que necesita el fallo REAL de red con la clave inválida de `.env.test`).
- * En cambio, `Object.getPrototypeOf(new OpenAI({apiKey}).chat.completions)` es el MISMO objeto
- * (`Completions.prototype`) sin importar cuántas instancias de `OpenAI` se construyan — verificado
- * en vivo antes de escribir esta prueba. Espiar ese prototipo intercepta la llamada real de
- * cualquier instancia ya construida, y `mockRestore()` en `afterEach` devuelve la función original
- * exacta (misma referencia), así que ningún otro archivo del proceso queda afectado una vez restaurado.
+ * el cliente de OpenAI se construye UNA sola vez por proceso (`services/ia/openaiClient.js`) al
+ * cargar el módulo, y con `isolate:false` esa instancia sobrevive toda la corrida — un `vi.mock`
+ * de fábrica no la alcanzaría retroactivamente, y además contaminaría cualquier otro archivo que
+ * importe `openai` (incluido `ia_caida.test.js`, que necesita el fallo REAL de red con la clave
+ * inválida de `.env.test`). En cambio, `Object.getPrototypeOf(new OpenAI({apiKey}).chat.completions)`
+ * es el MISMO objeto (`Completions.prototype`) sin importar cuántas instancias de `OpenAI` se
+ * construyan. Espiar ese prototipo intercepta la llamada real de la instancia ya construida, y
+ * `mockRestore()` en `afterEach` devuelve la función original exacta (misma referencia), así que
+ * ningún otro archivo del proceso queda afectado una vez restaurado. (Antes había dos instancias,
+ * una en `aiController` y otra en `suppliersController`; el prototipo compartido las cubría a ambas.)
  *
  * @module tests/integration/helpers/mockOpenAI
  */
