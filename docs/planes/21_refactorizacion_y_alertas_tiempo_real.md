@@ -1,6 +1,6 @@
 # Plan 21: Refactorización por capas y alertas en tiempo real
 
-**Estado (8-oct-2026):** R0 terminada y mezclada en `main` el 28-sep (ver resultados en la sección R0). **R1 hecha, verificada y aprobada por Luis el 8-oct; mezclada a `main` local (merge sin push de `main`) y subida en la rama `refactor/R1-servicios-ia`** (ver «R1 — Resultados»). R2-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
+**Estado (8-oct-2026):** R0 terminada y mezclada en `main` el 28-sep (ver resultados en la sección R0). **R1 hecha, verificada, aprobada por Luis y subida a `main` el 8-oct (la rama `refactor/R1-servicios-ia` también está en `origin`)** (ver «R1 — Resultados»). R2-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
 **Orden de ejecución:** este plan dice *qué* se hace en cada fase y *por qué*. *Cuándo* se hace cada una está en el **plan 22, sección 5**, que es el único orden vigente para los planes 19, 21 y 22. La sección 6 de este plan solo recoge las dependencias entre fases. No todo el plan se hace antes del piloto: lo que queda para después está programado, no descartado.
 **Fecha:** 2026-09-27
 **Origen:**
@@ -191,7 +191,7 @@ services/
 
 #### R1 — Resultados (rama `refactor/R1-servicios-ia`, 8-oct-2026, sin mezclar a `main`)
 
-**Estado:** hecha, verificada y aprobada por Luis (8-oct). Se mezcló a `main` local con un merge sin avance rápido (`--no-ff`), que conserva los hitos. **`origin/main` no se tocó:** `main` local tiene 5 commits previos sin subir (entre ellos el 2FA en operaciones CRUD, `ec4d48c`) y empujarlo publicaría todo junto y podría disparar un despliegue durante el congelamiento del piloto (sección 6). La rama se subió a `origin` como evidencia. Subir `main` queda pendiente de la orden de Luis.
+**Estado:** hecha, verificada y aprobada por Luis (8-oct). Se mezcló a `main` con un merge sin avance rápido (`--no-ff`, `f93958e`), que conserva los hitos, y se subió `main` a `origin` con los 17 commits que `main` local tenía por delante (incluido el 2FA en operaciones CRUD, `ec4d48c`, que Luis había dejado sin subir). Luis autorizó subir a producción el 8-oct porque la visita a las tiendas aún no ocurre; el congelamiento del piloto (sección 6) rige desde su arranque.
 
 | Commit | Qué hace |
 |---|---|
@@ -383,7 +383,7 @@ services/
 
 El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. Esta sección solo dice qué depende de qué dentro del plan 21 y en qué tramo cae cada fase respecto al piloto.
 
-**Actualización del 8-oct-2026.** R1 está hecha y mezclada a `main` local; la rama `refactor/R1-servicios-ia` está subida (ver «R1 — Resultados»). Sigue valiendo el tramo de la tabla: no se despliega hasta después del piloto, y por eso `origin/main` no se actualizó todavía. Con R1 hecha, la extracción del `ia-service` (Sprint 6.3) es mover `services/ia/` y cambiar las llamadas locales por llamadas HTTP.
+**Actualización del 8-oct-2026.** R1 está hecha, mezclada y subida a `main` (ver «R1 — Resultados»). Luis levantó la restricción de desplegar: como la visita a las tiendas aún no ocurre, `main` puede ir a producción. El congelamiento (no desplegar salvo correcciones con su prueba) rige desde el arranque del piloto. Con R1 hecha, la extracción del `ia-service` (Sprint 6.3) es mover `services/ia/` y cambiar las llamadas locales por llamadas HTTP.
 
 **Actualización del 6-oct-2026.** Luis decidió que el piloto va con la web y que la app nativa sigue en paralelo (plan 22, sección 5). El modo básico web (fases A, B y C del plan 19) vuelve antes de la visita, pero **no depende de R3.1**: se construye sobre `Sidebar.jsx` y una pantalla nueva. Por eso **los tramos de la tabla no cambian**: R3.1 y el resto siguen después del piloto. Las filas P21-09, P21-13 y R2 de `caja.js` ya están en `main` (merge `cb028d9`).
 
@@ -396,7 +396,7 @@ El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. 
 | **R2, solo `caja.js`** (punto 2.4) | R0 | Antes de la visita, en la rama del backend para la app | La app abre y cierra caja; una doble apertura dañaría los arqueos, que son datos del piloto. |
 | **P21-10** (recepción sin tope) | R0 | Antes del arranque del piloto, cuando se decida la regla (decisión 5) | La app recibe mercancía. |
 | **R4, solo migración explícita** (punto 2.2) | — | Antes del arranque del piloto (recomendado, decisión 4) | Con datos reales en producción, una auto-migración en cada `require` es un riesgo que no conviene llevar al piloto. |
-| **R1** | R0 | **Hecha el 8-oct y mezclada a `main` local; `origin/main` sin tocar.** Se despliega después del piloto | La app no lo necesita; es la base del `ia-service`. |
+| **R1** | R0 | **Hecha el 8-oct y subida a `main`.** Luis autorizó el despliegue antes de la visita a las tiendas; desde el arranque del piloto rige el congelamiento | La app no lo necesita; es la base del `ia-service`. |
 | **R2** (resto) | R0 | Después del piloto; en rama durante | Toca ventas, inventario y alertas, justo lo que mide el piloto. |
 | **T1 + T2 y sus pruebas (T4)** | R2 (`eventosInventario`) | Después del piloto, **replanteado** | Para la app nativa, las alertas en tiempo real se entregan con notificaciones push; SSE sigue sirviendo para la web. Para medir activación y adopción basta la consulta periódica actual. |
 | **R3.1 a R3.4** | Una prueba E2E o de componente que fije cada página (hoy 7 de 11 E2E están desactualizados, ver `docs/hallazgo_e2e_desactualizados.md`) | Después del piloto | Con la app nativa, el modo básico web deja de ir antes del piloto, y con él la razón para adelantar R3.1. |
@@ -418,7 +418,7 @@ Para la sección de Recomendaciones del Documento de Práctica 5, o como trabajo
 ## 8. Decisiones pendientes (Luis)
 
 1. ¿Se aprueba el transporte **SSE** para T1 y T2, con la interfaz que permite cambiar a Socket.io? ¿O se prefiere Socket.io desde el inicio? Si se elige Socket.io, el plan cambia en T1 (compartir la sesión), T3 (adaptador de Redis y solo WebSocket, o afinidad en Nginx) y T2 (cliente `socket.io-client`), pero no en R0 a R4.
-2. ¿R1 se hace antes del Sprint 6.3, para que el `ia-service` salga de `services/ia/`? Recomendado: sí. **Hecho el 8-oct (rama `refactor/R1-servicios-ia`, mezclada a `main` local).**
+2. ¿R1 se hace antes del Sprint 6.3, para que el `ia-service` salga de `services/ia/`? Recomendado: sí. **Hecho el 8-oct (rama `refactor/R1-servicios-ia`, mezclada y subida a `main`).**
 3. En la opción de T3, ¿se prefiere Redis pub/sub (recomendado, porque funciona igual en Neon) o `LISTEN/NOTIFY` de PostgreSQL (más vistoso para Bases de Datos Avanzadas, pero con la limitación de Neon)?
 4. ¿Se hace la migración explícita de R4 antes de lo previsto, dado el riesgo de la sección 2.2? Recomendado: sí, antes del piloto (así figura en el plan 22, sección 5).
 5. Recepción de mercancía (P21-10): ¿se bloquea recibir más de lo pedido, se pide confirmación o solo se registra la diferencia? ¿Y recibir menos deja el faltante pendiente o cierra la orden como hoy?
