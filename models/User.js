@@ -181,6 +181,12 @@ class User {
         return await db.getAsync(query, [userId]);
     }
 
+    /** Solo el estado (no trae el secreto TOTP): lo consulta la política de 2FA en cada escritura de un administrador. */
+    static async is2FAEnabled(userId) {
+        const fila = await db.getAsync('SELECT two_factor_enabled FROM Usuarios WHERE id_usuario = ?', [userId]);
+        return Boolean(fila && fila.two_factor_enabled);
+    }
+
     static async set2FASecret(userId, secret) {
         const query = `UPDATE Usuarios SET two_factor_secret = ? WHERE id_usuario = ?`;
         await db.runAsync(query, [secret, userId]);

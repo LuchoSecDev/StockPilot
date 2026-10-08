@@ -501,6 +501,12 @@ class AuthController {
             const userId = req.session.userId;
             if (!userId) return res.status(401).json({ success: false, error: 'No autorizado' });
 
+            // Con el 2FA ya activo NO se regenera: cambiaría el secreto con solo tener la sesión (sin contraseña
+            // ni código) y dejaría fuera al dueño legítimo. Para cambiarlo hay que desactivarlo antes.
+            if (await User.is2FAEnabled(userId)) {
+                return res.status(409).json({ success: false, code: 'DOS_FACTORES_YA_ACTIVO', error: 'La verificación en dos pasos ya está activa en tu cuenta.' });
+            }
+
             const secret = authenticator.generateSecret();
             const email = req.session.nombres; // o el correo
             const otpauthUrl = authenticator.keyuri(email, 'StockPilot', secret);
