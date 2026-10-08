@@ -7,7 +7,7 @@ import { fetchProductFromOpenFoodFacts } from '../utils/openFoodFacts';
 import useBarcodeScanner from './useBarcodeScanner';
 
 export const useProductosPage = () => {
-  const { user, require2FA } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
   const isAdmin = user?.rol === 'Administrador';
 
@@ -154,9 +154,6 @@ export const useProductosPage = () => {
 
   const handleFileUpload = async (file) => {
     if (!file) return;
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de importar productos.')) {
-      return;
-    }
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
     setUploadLoading(true);
@@ -180,9 +177,6 @@ export const useProductosPage = () => {
   };
 
   const handleOpenModal = (producto = null) => {
-    if (require2FA && require2FA(producto ? 'Debes configurar la autenticación 2FA antes de editar productos.' : 'Debes configurar la autenticación 2FA antes de registrar nuevos productos.')) {
-      return;
-    }
     if (producto) {
       setEditMode(true);
       setFormData(producto);
@@ -200,9 +194,6 @@ export const useProductosPage = () => {
 
   const handleSubmitProducto = async (data) => {
     if (formLoading) return;
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de guardar cambios.')) {
-      return;
-    }
     setFormLoading(true);
     try {
       if (data.isStockAddition) {
@@ -240,9 +231,6 @@ export const useProductosPage = () => {
 
   const submitEliminar = async () => {
     if (eliminarLoading) return;
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de eliminar productos.')) {
-      return;
-    }
     setEliminarLoading(true);
     try {
       await axios.delete(`/api/productos/${eliminarProductoSel.id_producto}`);
@@ -259,9 +247,6 @@ export const useProductosPage = () => {
 
   const submitToggleEstado = async () => {
     if (toggleLoading) return;
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de cambiar el estado de un producto.')) {
-      return;
-    }
     setToggleLoading(true);
     try {
       const nuevoEstado = toggleProducto.estado === 'Disponible' ? 'Inactivo' : 'Disponible';
@@ -280,9 +265,6 @@ export const useProductosPage = () => {
 
   const submitLinkBarcode = async (productId, barcode) => {
     if (linkLoading) return;
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de vincular códigos de barra.')) {
-      return;
-    }
     setLinkLoading(true);
     try {
       await axios.put(`/api/productos/${productId}/link-barcode`, { codigo_barras: barcode });
@@ -352,10 +334,6 @@ export const useProductosPage = () => {
   // Función para continuar con la creación de un nuevo producto (se llama desde el modal Link)
   const openNewProductWithBarcode = async (code) => {
       if (!isAdmin) return; // crear productos es solo del Administrador (P22-10, D1)
-      if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de registrar productos.')) {
-        setLinkModalOpen(false);
-        return;
-      }
       setLinkModalOpen(false);
       toast.info('Buscando detalles del producto...');
       const apiData = await fetchProductFromOpenFoodFacts(code);

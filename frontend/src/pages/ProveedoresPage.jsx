@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Building2, Plus } from 'lucide-react';
 import { useProveedoresPage } from '../hooks/useProveedoresPage';
-import { useAuth } from '../context/AuthContext';
 
 import ProveedorGrid from '../components/proveedores/ProveedorGrid';
 import ProveedorFormModal from '../components/proveedores/ProveedorFormModal';
@@ -12,7 +11,6 @@ import PaymentModal from '../components/proveedores/PaymentModal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 
 const ProveedoresPage = () => {
-  const { require2FA } = useAuth();
   const {
     proveedores, loading,
     showOrderModal, setShowOrderModal, selectedSupplier,
@@ -61,7 +59,6 @@ const ProveedoresPage = () => {
         
         <button 
           onClick={() => {
-            if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de registrar proveedores.')) return;
             handleOpenSupplierModal();
           }}
           className="bg-azul hover:bg-azul-hondo text-white px-8 py-4 rounded-lg text-xs font-bold shadow-lg transition-colors transition-shadow transition-transform flex items-center gap-2 active:scale-95 z-20"
@@ -74,11 +71,9 @@ const ProveedoresPage = () => {
         proveedores={proveedores} 
         loading={loading} 
         onEdit={(p) => {
-          if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de editar proveedores.')) return;
           handleOpenSupplierModal(p);
         }} 
         onDelete={(p) => {
-          if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de inhabilitar proveedores.')) return;
           setSupplierToDelete(p);
         }} 
         onForecast={handleOpenForecast} 

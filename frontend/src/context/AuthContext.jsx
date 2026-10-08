@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import AppLoader from '../components/common/AppLoader';
-import { requiereConfigurar2FAParaAccion, obtenerMensajeBloqueo2FA, ACCIONES_CRUD_RESTRINGIDAS } from '../utils/security2FA';
+import { esBloqueoPorDosFactores, EVENTO_2FA_REQUERIDO } from '../utils/security2FA';
 
 // Ensure all requests send the session cookie through the Vite proxy
 axios.defaults.withCredentials = true;
@@ -27,6 +27,10 @@ export const AuthProvider = ({ children }) => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
+        // La política de 2FA la decide el servidor: si rechazó la operación, se abre el aviso de activación.
+        if (esBloqueoPorDosFactores(error)) {
+          window.dispatchEvent(new CustomEvent(EVENTO_2FA_REQUERIDO, { detail: { message: error.response.data.error } }));
+        }
         if (error.response?.status === 401) {
           const isConcurrent = error.response.data?.code === 'CONCURRENT_SESSION';
           
@@ -85,9 +89,6 @@ export const AuthProvider = ({ children }) => {
           console.warn("No se pudo renovar el CSRF Token post-login", e);
         }
 
-        // Limpiar descarte previo de 2FA para recordar la configuración en cada inicio de sesión
-        sessionStorage.removeItem('dismissed2FA');
-
         if (res.data.require2FA) {
             return { require2FA: true };
         }
@@ -111,7 +112,6 @@ export const AuthProvider = ({ children }) => {
       try {
           const res = await axios.post('/api/2fa/verify', { token });
           if (res.data.success) {
-              sessionStorage.removeItem('dismissed2FA');
               await checkSession();
               return { success: true, user: res.data.user };
           }
@@ -127,25 +127,9 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Error al cerrar sesión', err);
     } finally {
-      sessionStorage.removeItem('dismissed2FA');
       setUser(null);
     }
   }, []);
-
-  const require2FA = useCallback((action = 'crear', customMessage = null) => {
-    const isNamedAction = ACCIONES_CRUD_RESTRINGIDAS.includes(String(action).toLowerCase());
-    const actionKey = isNamedAction ? action : 'crear';
-    const message = customMessage || (isNamedAction ? obtenerMensajeBloqueo2FA(action) : action);
-
-    if (requiereConfigurar2FAParaAccion(user, actionKey)) {
-      sessionStorage.removeItem('dismissed2FA');
-      window.dispatchEvent(new CustomEvent('require-2fa', { 
-        detail: { message } 
-      }));
-      return true;
-    }
-    return false;
-  }, [user]);
 
   const switchStore = useCallback(async (tiendaId) => {
     try {
@@ -174,7 +158,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const value = useMemo(() => ({ user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession, require2FA }), [user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession, require2FA]);
+  const value = useMemo(() => ({ user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession }), [user, login, verify2FA, logout, switchStore, cambiarModoInterfaz, loading, checkSession]);
 
   return (
     <AuthContext.Provider value={value}>
