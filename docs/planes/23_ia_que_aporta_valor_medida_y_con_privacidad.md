@@ -18,7 +18,7 @@
 
 - **El motor matemático hace casi todo:** cantidad base, urgencia, nivel (agotado, crítico, reponer), alertas, clasificación ABC, selección de qué promocionar y la pantalla `/pedir`. Vive en `utils/reposicion.js` y `utils/promociones.js`.
 - **La IA (OpenAI, `gpt-4o-mini`) hace tres cosas, todas acotadas:**
-  1. Propone un **ajuste porcentual** sobre la cantidad base (clase A hasta +100 %, B +50 %, C +20 %); el código lo recorta con `aplicarAjusteIA`. Consejero (`aiController.js`, `getDashboardRecommendations`) y copiloto de Proveedores (`suppliersController.js`, `generateSmartOrder`).
+  1. Propone un **ajuste porcentual** sobre la cantidad base (clase A hasta +100 %, B +50 %, C +20 %); el código lo recorta con `aplicarAjusteIA`. Consejero (`aiController.js`, `getDashboardRecommendations`; desde el 8-oct la lógica está en `services/ia/recomendaciones.js`) y copiloto de Proveedores (`suppliersController.js`, `generateSmartOrder`).
   2. En **promociones** elige tipo, descuento (máximo 30 %), duración y producto complementario, y redacta el texto. Si OpenAI falla, `determinarPromocionFallback` cubre el 100 %.
   3. En **Cartera** clasifica el riesgo de un cliente que fía. Es el único lugar sin respaldo de reglas.
 - **La IA solo ve lo mismo que el motor** (stock, cantidad base, tendencia, clase, riesgo). Sin información externa, su ajuste no aporta nada nuevo: que mejore las compras es una suposición que hoy nadie mide.

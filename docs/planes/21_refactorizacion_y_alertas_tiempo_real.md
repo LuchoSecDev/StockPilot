@@ -1,6 +1,6 @@
 # Plan 21: Refactorización por capas y alertas en tiempo real
 
-**Estado (3-oct-2026):** R0 terminada y mezclada en `main` el 28-sep (ver resultados en la sección R0). R1-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
+**Estado (8-oct-2026):** R0 terminada y mezclada en `main` el 28-sep (ver resultados en la sección R0). **R1 hecha y verificada en la rama `refactor/R1-servicios-ia` (6 commits); falta que Luis la apruebe y la mezcle** (ver «R1 — Resultados»). R2-R4 siguen en propuesta: nada implementado. Cada fase se aprueba por separado antes de tocar código.
 **Orden de ejecución:** este plan dice *qué* se hace en cada fase y *por qué*. *Cuándo* se hace cada una está en el **plan 22, sección 5**, que es el único orden vigente para los planes 19, 21 y 22. La sección 6 de este plan solo recoge las dependencias entre fases. No todo el plan se hace antes del piloto: lo que queda para después está programado, no descartado.
 **Fecha:** 2026-09-27
 **Origen:**
@@ -29,16 +29,16 @@ Verificado contra el código de `main` del 27-sep-2026.
 
 | # | Hallazgo del análisis | Lo que dice el análisis | Verificado hoy | Postura |
 |---|---|---|---|---|
-| 1 | Controladores "God Object" | aiController 867 líneas; suppliers 565; auth 576; product 476 | aiController **898** (creció con las correcciones de degradación de IA del plan 20, sección 8.13); suppliers 574; auth 575; product 475 | **De acuerdo.** Es el problema principal. El plan 20 ya extrajo 7 funciones puras a `utils/`, pero los controladores siguen mezclando SQL, llamadas a OpenAI, auditoría y armado de respuestas. |
+| 1 | Controladores "God Object" | aiController 867 líneas; suppliers 565; auth 576; product 476 | aiController **898** (creció con las correcciones de degradación de IA del plan 20, sección 8.13); suppliers 574; auth 575; product 475 | **De acuerdo.** Es el problema principal. El plan 20 ya extrajo 7 funciones puras a `utils/`, pero los controladores siguen mezclando SQL, llamadas a OpenAI, auditoría y armado de respuestas. **8-oct: con R1 `aiController.js` bajó a 152 líneas; siguen pendientes de R2 `suppliersController` (632), `authController` (615), `saleController` (502) y `productController` (460).** |
 | 2 | Capa `services/` con un solo archivo | Solo `schedulerService.js` | Confirmado | **De acuerdo.** |
-| 3 | Dos instancias de OpenAI | aiController:24 y suppliersController:11 | Confirmado, idénticas | **De acuerdo.** Además es la costura natural para el `ia-service` (sección 4, R1). |
-| 4 | Caché de IA en memoria "sin TTL, fuga de memoria" | `let aiCache_v3 = {}` crece sin límite | La clave es `tiendaId` y cada escritura **sobrescribe** la anterior, así que crece con el número de tiendas, no con las peticiones. Además tiene respaldo en BD (`Cache_IA`) y solo se usa si el hash de los datos coincide. | **En desacuerdo con el diagnóstico, de acuerdo con cambiarla.** El problema real es que es **estado por proceso**: con 2 réplicas del API (Sprint 6.5, Kubernetes) cada réplica tendría su propia copia y podría llamar a OpenAI por separado. La solución es dejar solo la caché compartida (`Cache_IA`, o Redis cuando exista), no agregarle TTL a la variable. Severidad: media, no alta. |
+| 3 | Dos instancias de OpenAI | aiController:24 y suppliersController:11 | Confirmado, idénticas | **De acuerdo.** Además es la costura natural para el `ia-service` (sección 4, R1). **Resuelto en R1 (8-oct): una sola instancia en `services/ia/openaiClient.js`.** |
+| 4 | Caché de IA en memoria "sin TTL, fuga de memoria" | `let aiCache_v3 = {}` crece sin límite | La clave es `tiendaId` y cada escritura **sobrescribe** la anterior, así que crece con el número de tiendas, no con las peticiones. Además tiene respaldo en BD (`Cache_IA`) y solo se usa si el hash de los datos coincide. | **En desacuerdo con el diagnóstico, de acuerdo con cambiarla.** El problema real es que es **estado por proceso**: con 2 réplicas del API (Sprint 6.5, Kubernetes) cada réplica tendría su propia copia y podría llamar a OpenAI por separado. La solución es dejar solo la caché compartida (`Cache_IA`, o Redis cuando exista), no agregarle TTL a la variable. Severidad: media, no alta. **Resuelto en R1 (8-oct): `aiCache_v3` eliminada; queda solo `Cache_IA`.** |
 | 5 | Páginas monolíticas | Dashboard 741 líneas y 17 `useState`; ProductFormModal ~900+ | Dashboard **740 líneas y 20 `useState`**; Tiendas 681; ProductFormModal **729**; Reportes 582; Analytics 525; Aprendizaje 464 | **De acuerdo.** `DashboardPage` va primero: además es donde aterrizan las alertas en tiempo real. |
 | 6 | Solo 3 hooks | useBarcodeScanner, useProductosPage, useProveedoresPage | Confirmado. `ProductosPage` (12,9 KB) y `ProveedoresPage` (6,4 KB) ya se adelgazaron con ese patrón. | **De acuerdo.** El patrón está probado y falta extenderlo. |
 | 7 | Estilos de controlador mezclados | Clases y objetos literales | 11 controladores con clases y 7 con objetos literales | **De acuerdo, pero con prioridad baja.** Se unifica solo al tocar cada archivo por otra razón. Un cambio masivo solo para esto no se justifica. |
 | 8 | `translateSQL()` de `?` a `$N`; sugiere un ORM | Deuda heredada | Confirmado | **De acuerdo en que es deuda. En desacuerdo con introducir un ORM ahora:** sería reescribir todas las consultas, con riesgo alto. Para Bases de Datos Avanzadas, el SQL explícito es incluso una ventaja. Se mantiene. |
 | 9 | HTML de correos dentro de `schedulerService.js` | ~100 líneas | Confirmado | **De acuerdo**, prioridad baja. |
-| 10 | `console.log` en authController | Líneas 14, 24, 35 y 98 | El problema es mucho más amplio: **156** `console.*` en el backend (auth 23, product 14, sale 12, ai 12…). Solo `clienteController.js` usa el `logger` (Pino). | **De acuerdo, y el alcance es mayor.** Se hace archivo por archivo, junto con cada refactor. |
+| 10 | `console.log` en authController | Líneas 14, 24, 35 y 98 | El problema es mucho más amplio: **156** `console.*` en el backend (auth 23, product 14, sale 12, ai 12…). Solo `clienteController.js` usa el `logger` (Pino). | **De acuerdo, y el alcance es mayor.** Se hace archivo por archivo, junto con cada refactor. **8-oct: quedan 164 `console.*` en el backend (la cifra creció con las funciones nuevas). R1 dejó en 0 los de `aiController.js`, `services/ia/`, `services/inventory/` y `suppliersController.js`; siguen `authController` (24), `schedulerService` (15), `saleController` (12), `productController` (12) y `app.js` (12), entre otros.** |
 | 11 | Lazy loading | 2 de 23 páginas | Confirmado: 21 importaciones estáticas y 2 con `lazy()` | **De acuerdo.** Es barato y de riesgo bajo. |
 | 12 | Pruebas | 12 archivos unitarios + 5 E2E | **13 unitarios (196 pruebas) + 7 de integración (47) + 5 E2E**; cobertura del backend 35,0 % con ambas suites | Dato desactualizado. Cambia la conclusión: ya hay con qué comprobar que la refactorización no rompe nada. |
 | 13 | Estimaciones de 5 a 7 días | Fase 1 de 2 a 3 días | — | **Optimistas.** Los controladores tienen 25,6 % de cobertura; antes de moverlos hay que caracterizarlos (fase R0). Mejor planear por módulo que por días. |
@@ -189,6 +189,85 @@ services/
 
 **Relación con el Sprint 6.3:** el contrato OpenAPI del `ia-service` se escribe a partir de las firmas de `services/ia/`. Si R1 se hace antes, la extracción del microservicio es casi solo mover la carpeta y cambiar la llamada local por una llamada HTTP.
 
+#### R1 — Resultados (rama `refactor/R1-servicios-ia`, 8-oct-2026, sin mezclar a `main`)
+
+**Estado:** hecha y verificada. Falta la aprobación de Luis para mezclarla a `main`. Por el congelamiento del piloto (sección 6) se mezcla pero **no se despliega** hasta después del piloto.
+
+| Commit | Qué hace |
+|---|---|
+| `9ac27a4` | 15 pruebas de caracterización de los 3 endpoints analíticos de `/api/ia` que no tenían ninguna (snapshot, tendencia de precios, umbrales sugeridos), **antes** de moverlos |
+| `72b35c8` | `entradasMotor`, `guardrailsIA`, `reposicion` y `sugerenciasStock` pasan de `utils/` a `services/inventory/` (solo rutas) |
+| `f01bbd0` | `services/ia/`, `services/errores.js`, 4 servicios de análisis en `services/inventory/`, `aiController` delgado y cliente único de OpenAI |
+| `9306750` | 68 pruebas unitarias de la lógica pura |
+| `458118e` | 9 pruebas de integración de los errores y bordes de `/api/ia` que nada cubría |
+| `b899d45` | Arreglo de `generar_reporte.js` (hallazgo P21-17) |
+
+**Estructura final.** La propuesta tenía 5 archivos en `services/ia/`; quedaron 14, porque cada uno hace una sola cosa y lo puro (que se prueba sin base de datos) está separado de lo que lee la base. La regla es que ningún archivo vuelva a crecer hasta ser un «God Object».
+
+```
+services/
+  errores.js                  ← IANoConfiguradaError, RecursoNoEncontradoError (se distinguen con instanceof)
+  ia/
+    openaiClient.js           ← ÚNICA instancia de OpenAI, modelo, asegurarApiKey() y pedirJSON()
+    prompts.js                ← los textos del modelo (puro)
+    recomendaciones.js        ← Consejero: orquesta entradas → caché → OpenAI → guardrails → auditoría
+    contextoRecomendaciones.js← cruce con el motor y guardrails (puro)
+    promociones.js            ← orquesta candidatos → caché → OpenAI → composición → auditoría
+    candidatosPromocion.js    ← a quién se promociona (puro, reloj inyectado)
+    composicionPromociones.js ← lista final con respaldo determinista (puro)
+    datosPromociones.js       ← lecturas de BD de este flujo
+    estrategiaPromocion.js    ← aplica el precio en una transacción
+    riesgoCliente.js          ← riesgo crediticio; historialCredito.js arma el historial sin datos personales (puro)
+    cacheIA.js                ← solo Cache_IA; hashIA.js: hash y claves (puro); auditoriaIA.js: bitácora en archivo
+  inventory/
+    (los 4 motores movidos) + analisisInventario.js (puro) + snapshotAnalitico.js + tendenciaPrecios.js + umbralesProducto.js
+```
+
+**Criterio de salida (verificado):**
+
+| Criterio | Antes | Ahora |
+|---|---|---|
+| Líneas de `aiController.js` | 901 | **152** |
+| `new OpenAI(...)` en el backend | 2 | **1** (`openaiClient.js`) |
+| `aiCache_v3` (caché en memoria del proceso) | sí | **no** |
+| `req`/`res`/`session` en `services/ia/` y `services/inventory/` | — | **0** |
+| `console.*` en `aiController` y `suppliersController` | 16 (12 + 4) | **0** (usan el logger de pino) |
+| Pruebas unitarias | 297 | **365** |
+| Pruebas de integración | 407 | **431** (44 archivos) |
+
+**Sin cambio de comportamiento, comprobado.** 500 sin clave de OpenAI, 404 de producto o cliente inexistente, campo `cached`, ruta de `ai_audit.log` y hash de la caché de promociones son iguales a `main`. Los 6 textos de los prompts son idénticos byte a byte (verificado con un script contra `HEAD`). Lo que sí cambió, a propósito y pedido por este plan: ya no hay caché en memoria, así que cada petición consulta `Cache_IA` (una consulta por llamada), y `cached:true` se conserva.
+
+**Lo que no se movió (queda para R2 y R4):**
+- `suppliersController.generateSmartOrder`: ya usa el cliente único, pero su prompt y su lógica siguen en el controlador (632 líneas, el más grande). R2 lo lleva a `services/proveedores.js`.
+- `ordenBorradorController` (escribe en `Auditoria_IA`).
+- Los `console.*` de `productController` (12), `ordenBorradorController` (5) y `Alert.js` (1), que en R1 solo cambiaron de ruta de importación. `ai_audit.log` se sigue escribiendo en la raíz del repo (se conservó), mientras el resto de los logs va a `logs/`.
+
+**Lección del proceso (hallazgo, no se repite).** El primer intento de R1, sin commitear, cambió el comportamiento sin que nada lo advirtiera: 500 → 200 sin clave de OpenAI, `cached` siempre en `false`, 404 → 500 en `apply-strategy`, el prompt de promociones abreviado y un `require` del logger roto que dejaba la IA en «mantenimiento» para siempre. Lo detectaron 6 pruebas de R0. El análisis de cobertura posterior mostró además que **varios de esos comportamientos no tenían ninguna prueba** (404 de `apply-strategy`, 404 y 500-sin-clave de `assess-risk`, y «sin candidatos» de promociones). Ahora la tienen (`ia_errores_http.test.js`, 9 pruebas, incluido el camino feliz de `apply-strategy`, que cambia precios). Regla para R2 y R3: **antes de mover un endpoint, caracterizar también sus ramas de error**, no solo su camino feliz.
+
+**Verificación (8-oct):**
+- Mutaciones: 11 arreglos rotos a propósito (6 unitarios y 5 de integración); cada uno hizo fallar al menos una prueba.
+- Lint (ESLint ad hoc, el método del plan 10): 0 hallazgos en los archivos tocados.
+- `npm run test:evidence`: 365 unitarias + 431 de integración = **796**, todas en verde; reporte regenerado.
+- Cobertura combinada (`npm run test:coverage:combinada`), sobre las 3.464 sentencias del `coverage.include` (la base de código creció desde R0, que midió 2.943, así que las cifras no son directamente comparables):
+
+| | Sentencias | Ramas | Funciones | Líneas |
+|---|---|---|---|---|
+| Unitarias | 18,33 % | 25,45 % | 35,07 % | 17,10 % |
+| Integración | 69,35 % | 66,13 % | 79,57 % | 71,04 % |
+| **Combinada** | **73,50 %** | **74,29 %** | **84,97 %** | **74,35 %** |
+
+  Los 24 archivos de `services/` que toca R1 están entre 67 % y 100 % (medido antes de agregar `ia_errores_http.test.js`, que sube algo más los servicios de promociones y riesgo); `aiController.js` estaba en 70 % y lo que le faltaba eran ramas de error, que esa prueba cubre en parte.
+- **No se hizo:** arrancar la aplicación real con `node app.js` (levanta el planificador de correos con la configuración del `.env`); la app se ejercitó completa vía HTTP con las pruebas de integración.
+
+**Hallazgos nuevos de esta fase** (también en `docs/seguimiento_planes.xlsx`):
+- **P21-17** `generar_reporte.js` escribía en `Documentacion/` (carpeta que el commit `a665b8c` eliminó) y `npm run test:evidence` terminaba en verde sin generar el reporte. **Corregido** en `b899d45` (ruta y código de salida).
+- **P21-18** El `CLAUDE.md` del repo todavía cita `Documentacion/Reporte_Pruebas_StockPilot.md`; hoy es `docs/Reporte_Pruebas_StockPilot.md`. Pendiente de Luis (es un archivo suyo).
+- **P21-19** `coverage.include` usa `utils/**/*.js`, que también atrapa 4 archivos de `frontend/src/utils/` (`arqueo`, `menu`, `pedir`, `security2FA`; 126 sentencias, 100 % cubiertas): suman cerca de un punto a la cobertura del backend.
+- **P21-20** Los umbrales de cobertura unitaria (10/15/19/9) quedaron muy por debajo de lo medido (18,3/25,5/35,1/17,1). La sección 3 de este plan pide subirlos, nunca bajarlos. Propuesta: 17/23/32/15. Decisión pendiente de Luis (es configuración de pruebas/CI).
+- **P21-21** Zonas con poca cobertura combinada: `tenderoController` 6 %, `dashboardController` 10 %, `auditController` 11 %, `schedulerService` 12 % (los correos), `storeController` 30 % y `reportController` 40 %. Son las candidatas a caracterizar antes de R2 y R3.
+- **P21-22** Las corridas de integración muestran `MaxListenersExceededWarning` (11 listeners en un `Server`, probablemente de `supertest` con `isolate:false`). Es inofensivo, pero ya aparecía antes del cierre de R1; no se verificó si es anterior a R1.
+- **Ratificado, P21-15:** cargar cualquier módulo que importe `config/database.js` ejecuta la auto-migración contra el `DATABASE_URL` del `.env` (en esta sesión ocurrió por accidente al comprobar un `require`; apuntaba a la base local). Refuerza hacerla un comando explícito.
+
 ### R2. Eventos de inventario y servicios de dominio
 
 ```
@@ -304,6 +383,8 @@ services/
 
 El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. Esta sección solo dice qué depende de qué dentro del plan 21 y en qué tramo cae cada fase respecto al piloto.
 
+**Actualización del 8-oct-2026.** R1 está hecha en la rama `refactor/R1-servicios-ia` (ver «R1 — Resultados»). Sigue valiendo el tramo de la tabla: se mezcla a `main`, pero no se despliega hasta después del piloto. Con R1 hecha, la extracción del `ia-service` (Sprint 6.3) es mover `services/ia/` y cambiar las llamadas locales por llamadas HTTP.
+
 **Actualización del 6-oct-2026.** Luis decidió que el piloto va con la web y que la app nativa sigue en paralelo (plan 22, sección 5). El modo básico web (fases A, B y C del plan 19) vuelve antes de la visita, pero **no depende de R3.1**: se construye sobre `Sidebar.jsx` y una pantalla nueva. Por eso **los tramos de la tabla no cambian**: R3.1 y el resto siguen después del piloto. Las filas P21-09, P21-13 y R2 de `caja.js` ya están en `main` (merge `cb028d9`).
 
 **Actualización del 3-oct-2026.** El equipo adelantó la app nativa del Tendero (plan 07, sección 6) para la visita a las tiendas piloto. Eso cambió el tramo de tres filas: la app reemplazaba al modo básico web antes del piloto, así que **R3.1 ya no va antes del piloto**; **R1 pasa a después del piloto**, salvo que la fecha del Sprint 6.3 lo exija antes, y el tiempo real (T1 y T2) **se replantea**, porque para una app nativa lo natural son notificaciones push y no SSE.
@@ -315,7 +396,7 @@ El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. 
 | **R2, solo `caja.js`** (punto 2.4) | R0 | Antes de la visita, en la rama del backend para la app | La app abre y cierra caja; una doble apertura dañaría los arqueos, que son datos del piloto. |
 | **P21-10** (recepción sin tope) | R0 | Antes del arranque del piloto, cuando se decida la regla (decisión 5) | La app recibe mercancía. |
 | **R4, solo migración explícita** (punto 2.2) | — | Antes del arranque del piloto (recomendado, decisión 4) | Con datos reales en producción, una auto-migración en cada `require` es un riesgo que no conviene llevar al piloto. |
-| **R1** | R0 | Después del piloto, salvo que el Sprint 6.3 lo exija antes | La app no lo necesita; es la base del `ia-service`. |
+| **R1** | R0 | **Hecha en rama el 8-oct; falta mezclar a `main`.** Se despliega después del piloto | La app no lo necesita; es la base del `ia-service`. |
 | **R2** (resto) | R0 | Después del piloto; en rama durante | Toca ventas, inventario y alertas, justo lo que mide el piloto. |
 | **T1 + T2 y sus pruebas (T4)** | R2 (`eventosInventario`) | Después del piloto, **replanteado** | Para la app nativa, las alertas en tiempo real se entregan con notificaciones push; SSE sigue sirviendo para la web. Para medir activación y adopción basta la consulta periódica actual. |
 | **R3.1 a R3.4** | Una prueba E2E o de componente que fije cada página (hoy 7 de 11 E2E están desactualizados, ver `docs/hallazgo_e2e_desactualizados.md`) | Después del piloto | Con la app nativa, el modo básico web deja de ir antes del piloto, y con él la razón para adelantar R3.1. |
@@ -337,7 +418,7 @@ Para la sección de Recomendaciones del Documento de Práctica 5, o como trabajo
 ## 8. Decisiones pendientes (Luis)
 
 1. ¿Se aprueba el transporte **SSE** para T1 y T2, con la interfaz que permite cambiar a Socket.io? ¿O se prefiere Socket.io desde el inicio? Si se elige Socket.io, el plan cambia en T1 (compartir la sesión), T3 (adaptador de Redis y solo WebSocket, o afinidad en Nginx) y T2 (cliente `socket.io-client`), pero no en R0 a R4.
-2. ¿R1 se hace antes del Sprint 6.3, para que el `ia-service` salga de `services/ia/`? Recomendado: sí.
+2. ¿R1 se hace antes del Sprint 6.3, para que el `ia-service` salga de `services/ia/`? Recomendado: sí. **Hecho el 8-oct en la rama `refactor/R1-servicios-ia`.**
 3. En la opción de T3, ¿se prefiere Redis pub/sub (recomendado, porque funciona igual en Neon) o `LISTEN/NOTIFY` de PostgreSQL (más vistoso para Bases de Datos Avanzadas, pero con la limitación de Neon)?
 4. ¿Se hace la migración explícita de R4 antes de lo previsto, dado el riesgo de la sección 2.2? Recomendado: sí, antes del piloto (así figura en el plan 22, sección 5).
 5. Recepción de mercancía (P21-10): ¿se bloquea recibir más de lo pedido, se pide confirmación o solo se registra la diferencia? ¿Y recibir menos deja el faltante pendiente o cierra la orden como hoy?

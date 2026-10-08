@@ -142,6 +142,8 @@ Quedo pendiente de tu aprobación para extraer (todas, algunas, o ninguna) antes
 
 Aprobadas las 7, se hicieron en 3 tandas (grupo A/B/C) más un commit de corrección, cada uno verificado con la suite completa en verde antes de commitear. Todo en `feature/cobertura-nivel-1`, sin subir a `origin` ni mezclar a `main`.
 
+> *Nota del 8-oct-2026 (plan 21, R1):* las rutas `utils/guardrailsIA.js`, `utils/reposicion.js`, `utils/entradasMotor.js` y `utils/sugerenciasStock.js` que cita este plan hoy son `services/inventory/…` (se movieron sin cambiar su comportamiento). `utils/promociones.js` sigue donde estaba. Las referencias a `aiController.js` describen cómo estaba entonces: su lógica vive ahora en `services/ia/` y `services/inventory/`.
+
 ### 7.1 Grupo A (commit `205be5e`)
 - `aplicarAjusteIA` (#1, guardrail de ajuste de IA) → `utils/guardrailsIA.js`, usada por `aiController.js` y `suppliersController.js` (elimina la duplicación entre los dos archivos).
 - `calcularImpactoPromocion` (#3) → `utils/promociones.js` (nuevo), usada dos veces dentro de `aiController.js` (elimina la duplicación interna).
