@@ -268,6 +268,28 @@ services/
 - **P21-22** Las corridas de integración muestran `MaxListenersExceededWarning` (11 listeners en un `Server`, probablemente de `supertest` con `isolate:false`). Es inofensivo, pero ya aparecía antes del cierre de R1; no se verificó si es anterior a R1.
 - **Ratificado, P21-15:** cargar cualquier módulo que importe `config/database.js` ejecuta la auto-migración contra el `DATABASE_URL` del `.env` (en esta sesión ocurrió por accidente al comprobar un `require`; apuntaba a la base local). Refuerza hacerla un comando explícito.
 
+#### Revisión del 2FA del commit `ec4d48c` (8-oct-2026) — hallazgos P21-23 a P21-28
+
+Luis preguntó si el 2FA en operaciones CRUD «quedó bien y probado». **No:** como aviso funcionaba y su prueba unitaria era sólida, pero como control de seguridad no existía. El commit tocaba 9 archivos, **todos del frontend y de pruebas**; el servidor no exigía nada, así que un `curl` con la cookie de sesión, el botón «Configurar más tarde» o cualquier pantalla sin guarda (Tiendas, Cartera, Reportes, Caja…) saltaban el bloqueo. Ninguna prueba de integración lo verificaba.
+
+**Decisión de Luis (8-oct):** durante el piloto el 2FA **se informa pero no se exige** (los dueños de tienda no son técnicos, no hay códigos de recuperación y la métrica de activación del plan 22 necesita que creen productos). La exigencia queda como una política que se enciende con una variable de entorno después del piloto.
+
+**Qué se hizo** (rama `feat/2fa-politica-servidor`, 3 commits):
+- **Servidor:** `middleware/twoFactor.js` + `utils/politica2FA.js`. Con `REQUIRE_ADMIN_2FA=true`, un Administrador sin 2FA recibe 403 `DOS_FACTORES_REQUERIDO` en **cualquier escritura** (bloquea por defecto, una ruta nueva queda cubierta sola); leer y los flujos de cuenta quedan abiertos; el Tendero no se ve afectado; lee el estado de la BD (no de la sesión) y falla cerrado. **Apagada por defecto.**
+- `generate2FA` responde 409 si el 2FA ya está activo: antes reescribía el secreto con solo tener la sesión.
+- Limitador propio (5 fallos / 15 min) en `/api/2fa/generate` y `/api/2fa/disable`, que no tenían ninguno.
+- **Frontend:** se quitaron los 17 guards; el interceptor de axios abre el aviso cuando el servidor responde el 403. Un aviso discreto en el encabezado informa que la función existe, sin ventanas al entrar y sin generar un secreto en cada pantalla. El modal salió de `DashboardLayout` (220 → 119 líneas) a `components/security/Activar2FAModal.jsx`.
+- **Pruebas:** 18 de integración y 10 unitarias de la política, 7 unitarias del frontend, 2 E2E reescritas; 11 mutaciones detectadas. Verificado además en el navegador contra `stockpilot_test`: con la política encendida, pausar un producto da 403 y abre el aviso (el producto no cambia); tras activar el 2FA, la misma acción da 200.
+- Procedimiento operativo y la variable: `docs/Protocolo_Produccion.md`, sección 5.
+
+**Hallazgos** (también en `docs/seguimiento_planes.xlsx`):
+- **P21-23** El 2FA «obligatorio» del commit `ec4d48c` solo existía en el navegador. **Corregido** (política en el servidor, apagada por defecto).
+- **P21-24** `generate2FA` sobrescribía el secreto de un 2FA ya activo sin contraseña ni código. **Corregido** (409).
+- **P21-25** `/api/2fa/generate` y `/api/2fa/disable` sin limitador (`disable` pide la contraseña, adivinable sin límite). **Corregido.**
+- **P21-26** *Decisión pendiente, prerrequisito de encender la política:* **códigos de recuperación.** Hoy un dueño que pierde el celular queda fuera y depende del procedimiento manual de soporte.
+- **P21-27** El secreto TOTP se guarda en texto plano en `Usuarios.two_factor_secret` (`VARCHAR(255)`), y la ventana de tolerancia de `otplib` es la de por defecto (sin configurar). Revisar el cifrado en reposo después del piloto.
+- **P21-28** `ProfilePage` tiene su propio modal de activación del 2FA, copia del que ahora es `Activar2FAModal`. Unificarlos.
+
 ### R2. Eventos de inventario y servicios de dominio
 
 ```
