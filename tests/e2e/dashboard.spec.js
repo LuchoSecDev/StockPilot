@@ -7,24 +7,30 @@ test.describe('Auditoría Integral StockPilot', () => {
     await page.goto('/login');
     
     // 2. Llenar Credenciales Reales (basadas en seed data)
-    await page.fill('input[placeholder*="tu@correo.com"]', 'admin');
-    await page.fill('input[placeholder="••••••••"]', 'admin123');
-    
-    // 3. Seleccionar Rol (Interactuando con CustomSelect)
-    // Primero hacemos clic en el selector para abrirlo
-    await page.click('text=Seleccione...');
-    // Luego seleccionamos la opción de Administrador
-    await page.click('text=Administrador (Dueño)');
+    await page.fill('#identificador', 'admin');
+    await page.fill('#password', 'admin123');
     
     // 4. Ingresar
     await page.click('button:has-text("Ingresar a mi Negocio")');
     
+    try {
+      await expect(page.getByText('Cerrar otra sesión e ingresar aquí')).toBeVisible({ timeout: 2000 });
+      await page.getByText('Cerrar otra sesión e ingresar aquí').click();
+    } catch (e) {}
+
+    // Si aparece el modal de 2FA obligatorio para el admin, descartarlo para continuar la auditoría
+    try {
+      const skip2FA = page.getByText('Configurar más tarde');
+      await expect(skip2FA).toBeVisible({ timeout: 2000 });
+      await skip2FA.click();
+    } catch (e) {}
+
     // 5. Verificar que llegamos al Dashboard (buscando un título único del dashboard)
     await expect(page).toHaveURL(/.*dashboard/);
-    await expect(page.locator('h1')).toContainText(/Vista General/i);
+    await expect(page.locator('h1').filter({ hasText: /Vista General/i })).toBeVisible();
     
     // Esperar a que carguen las estadísticas (buscamos un símbolo de moneda o un valor)
-    const statsCard = page.locator('text=Valor Inventario').or(page.locator('text=Ventas de Hoy'));
+    const statsCard = page.locator('text=Valor Inventario').or(page.locator('text=Ventas de Hoy')).first();
     await expect(statsCard).toBeVisible();
 
     // 6. Navegar a Productos usando el Sidebar
@@ -33,7 +39,7 @@ test.describe('Auditoría Integral StockPilot', () => {
     
     // 7. Verificar Inventario
     await expect(page).toHaveURL(/.*productos/);
-    await expect(page.locator('h2')).toContainText(/Inventario/i);
+    await expect(page.getByRole('heading', { level: 2, name: /Inventario|Tus Productos/i })).toBeVisible();
     
     // Verificar que la tabla de productos tenga contenido
     const tablaProductos = page.locator('table');

@@ -26,7 +26,7 @@ const SumarStockModal = ({ isOpen, onClose, producto, onSubmit, loading }) => {
 
   return (
     <div className="fixed inset-0 bg-tinta/45 backdrop-blur-sm z-[120] flex justify-center items-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md overflow-hidden relative animate-scale-in border border-slate-100">
+      <div role="dialog" aria-modal="true" className="bg-white rounded-2xl shadow-lg w-full max-w-md overflow-hidden relative animate-scale-in border border-slate-100">
         <div className="px-6 py-5 flex justify-between items-center border-b border-slate-50">
           <div>
             <h3 className="titular text-lg text-tinta flex items-center gap-2">

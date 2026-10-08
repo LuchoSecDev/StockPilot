@@ -13,6 +13,11 @@ const useBarcodeScanner = (onScan, options = {}) => {
   
   const buffer = useRef('');
   const lastTimeStamp = useRef(0);
+  const onScanRef = useRef(onScan);
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
 
   const handleKeyDown = useCallback((event) => {
     // Si el usuario está escribiendo en un input, textarea o un elemento con contenteditable, lo ignoramos.
@@ -42,7 +47,9 @@ const useBarcodeScanner = (onScan, options = {}) => {
     if (event.key === 'Enter') {
       if (buffer.current.length >= minLength) {
         // Enviar el código capturado al callback
-        onScan(buffer.current);
+        if (onScanRef.current) {
+          onScanRef.current(buffer.current);
+        }
         // Prevenir el comportamiento por defecto del Enter (ej. enviar formularios accidentalmente)
         event.preventDefault();
       }
@@ -55,7 +62,7 @@ const useBarcodeScanner = (onScan, options = {}) => {
     if (event.key.length === 1) {
       buffer.current += event.key;
     }
-  }, [onScan, delayThreshold, minLength]);
+  }, [delayThreshold, minLength]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);

@@ -120,6 +120,9 @@ async function seed() {
         const adminResult = await db.runAsync('INSERT INTO Usuarios (nombres, rol, usuario, contrasena, id_tienda, correo) VALUES (?, ?, ?, ?, ?, ?) RETURNING id_usuario', ['Carlos Admin', 'Administrador', 'admin', hashAdmin, tiendaId, 'admin@test.com']);
         const adminId = adminResult.lastID;
 
+        const hashTendero = await bcrypt.hash('tendero123', 10);
+        await db.runAsync('INSERT INTO Usuarios (nombres, rol, usuario, contrasena, id_tienda, correo) VALUES (?, ?, ?, ?, ?, ?) RETURNING id_usuario', ['Laura Tendero', 'Tendero', 'tendero', hashTendero, tiendaId, 'tendero@test.com']);
+
         // 3. Proveedores
         const provResult = await db.runAsync('INSERT INTO Proveedores (id_tienda, nombre_empresa) VALUES (?, ?) RETURNING id_proveedor', [tiendaId, 'Distribuidora Global']);
         const provId = provResult.lastID;
