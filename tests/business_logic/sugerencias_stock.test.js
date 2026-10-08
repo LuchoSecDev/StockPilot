@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sugerirUmbralesStock } from '../../utils/sugerenciasStock.js';
+import { sugerirUmbralesStock } from '../../services/inventory/sugerenciasStock.js';
 
 describe('sugerirUmbralesStock (umbrales de reorder point sin historial propio)', () => {
   it('calcula stock de seguridad como colchón de 2 días de venta', () => {

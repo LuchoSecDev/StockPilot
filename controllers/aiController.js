@@ -14,11 +14,11 @@ const fs = require('fs');
 const path = require('path');
 const { safeError } = require('../utils/securityUtils');
 const { seleccionarCandidatosReabastecimiento, esRecomendacionAccionable } = require('../utils/recomendacionesDashboard');
-const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
-const { leerEntradasMotor } = require('../utils/entradasMotor');
-const { aplicarAjusteIA } = require('../utils/guardrailsIA');
+const { calcularReposicion, costoUnitario } = require('../services/inventory/reposicion');
+const { leerEntradasMotor } = require('../services/inventory/entradasMotor');
+const { aplicarAjusteIA } = require('../services/inventory/guardrailsIA');
 const { normalizarDescuento, calcularImpactoPromocion, determinarPromocionFallback } = require('../utils/promociones');
-const { sugerirUmbralesStock } = require('../utils/sugerenciasStock');
+const { sugerirUmbralesStock } = require('../services/inventory/sugerenciasStock');
 
 // Inicializar cliente OpenAI con la clave del entorno o una clave falsa para evitar crasheos al arrancar sin la variable
 const openai = new OpenAI({
@@ -125,7 +125,7 @@ const aiController = {
 
       // 3. Procesamiento Analítico (Tendencia y Variabilidad) mapeado directo
       const contextItemsFull = rows.map(item => {
-        // Motor único de reposición (utils/reposicion.js): misma fórmula que Proveedores y Detalle.
+        // Motor único de reposición (services/inventory/reposicion.js): misma fórmula que Proveedores y Detalle.
         const rep = calcularReposicion({
           ventasDia7: item.velocity_7d,
           ventasDia30: item.velocity_30d,

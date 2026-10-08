@@ -1,7 +1,7 @@
-const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
+const { calcularReposicion, costoUnitario } = require('../services/inventory/reposicion');
 const { totalOrden, evaluarRiesgoOrden } = require('../utils/ordenesBorrador');
-const { aplicarAjusteIA } = require('../utils/guardrailsIA');
-const { leerEntradasMotor } = require('../utils/entradasMotor');
+const { aplicarAjusteIA } = require('../services/inventory/guardrailsIA');
+const { leerEntradasMotor } = require('../services/inventory/entradasMotor');
 const db = require('../config/database');
 const { OpenAI } = require('openai');
 const transporter = require('../config/mailer');
@@ -110,7 +110,7 @@ const suppliersController = {
       const rows = todasLasEntradas.filter((item) => String(item.id_proveedor) === String(proveedorId));
 
       const smartList = rows.map(item => {
-        // Motor único de reposición (utils/reposicion.js): misma cantidad que el Consejero del Dashboard.
+        // Motor único de reposición (services/inventory/reposicion.js): misma cantidad que el Consejero del Dashboard.
         const rep = calcularReposicion({
           ventasDia7: item.velocity_7d, ventasDia30: item.velocity_30d, ventas30Total: item.qty_30d_total,
           claseABC: item.claseABC, stock: item.stock_actual, stockSeguridad: item.stock_seguridad,

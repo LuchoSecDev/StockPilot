@@ -1,6 +1,6 @@
 /**
  * @file entradasMotor.js
- * @description Plan 17, Fase 0: una sola consulta con las entradas que necesita `utils/reposicion.js`
+ * @description Plan 17, Fase 0: una sola consulta con las entradas que necesita `reposicion.js`
  * (velocidad de venta a 7 y 30 días, clase ABC y factor de aprendizaje de la IA), para que el
  * Consejero, Proveedores y Detalle de Productos dejen de calcular cada uno lo suyo.
  *
@@ -10,7 +10,7 @@
  * y terminaba recomendando cantidades muy distintas (plan 17, hallazgo E2). Quien necesite ver solo
  * los productos de un proveedor filtra el arreglo que devuelve esta función, no la consulta.
  *
- * @module utils/entradasMotor
+ * @module services/inventory/entradasMotor
  */
 
 /**

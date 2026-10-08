@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularReposicion, calcularTendencia, costoUnitario } from '../../utils/reposicion.js';
+import { calcularReposicion, calcularTendencia, costoUnitario } from '../../services/inventory/reposicion.js';
 import { agruparPorProveedor, totalOrden, evaluarRiesgoOrden } from '../../utils/ordenesBorrador.js';
 
 const base = { ventasDia7: 2, ventasDia30: 2, ventas30Total: 60, claseABC: 'A', stock: 10, stockSeguridad: 4, leadTime: 3, factorIA: 1 };

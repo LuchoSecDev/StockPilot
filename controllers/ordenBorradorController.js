@@ -8,7 +8,7 @@
  */
 const db = require('../config/database');
 const { agruparPorProveedor } = require('../utils/ordenesBorrador');
-const { costoUnitario } = require('../utils/reposicion');
+const { costoUnitario } = require('../services/inventory/reposicion');
 const Notification = require('../models/Notification');
 
 const MAX_ITEMS = 50;

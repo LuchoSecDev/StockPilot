@@ -1,6 +1,6 @@
 const db = require('../config/database');
-const { leerEntradasMotor } = require('../utils/entradasMotor');
-const { calcularReposicion, URGENCIA } = require('../utils/reposicion');
+const { leerEntradasMotor } = require('../services/inventory/entradasMotor');
+const { calcularReposicion, URGENCIA } = require('../services/inventory/reposicion');
 
 // Tipos que este archivo genera/gestiona. Al regenerar una tienda solo se tocan (resuelven o
 // actualizan) alertas de estos tipos — una alerta de otro tipo (ej. "reversion_precio", creada por

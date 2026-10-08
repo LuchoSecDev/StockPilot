@@ -6,7 +6,7 @@
  * ("Pide hoy" / "En esta compra" / "Puede esperar") calculada con el tiempo de entrega del proveedor,
  * y el nivel de stock (Catálogo, Alertas) — plan 17.
  *
- * @module utils/reposicion
+ * @module services/inventory/reposicion
  */
 
 const DIAS_COBERTURA = { A: 15, B: 30, C: 45 };
@@ -26,7 +26,7 @@ const URGENCIA = { HOY: 'Pide hoy', SEMANA: 'En esta compra', ESPERAR: 'Puede es
 // nivel, alguien podría confundirlo con "hay que reponer", que es justo lo contrario.
 const NIVEL = { AGOTADO: 'agotado', CRITICO: 'critico', REPONER: 'reponer', OK: 'ok' };
 
-const { techoSeguro } = require('./redondeo');
+const { techoSeguro } = require('../../utils/redondeo');
 
 const num = (v, def = 0) => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : def);
 
