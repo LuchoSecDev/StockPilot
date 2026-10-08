@@ -12,6 +12,7 @@ const Store = require('../../../models/Store');
 const User = require('../../../models/User');
 const Product = require('../../../models/Product');
 const db = require('../../../config/database');
+const equipo = require('../../../services/interno/equipo');
 
 let contador = 0;
 /** Sufijo único por llamada, para no chocar con UNIQUE (correo/usuario) entre pruebas. */
@@ -98,4 +99,22 @@ async function abrirCaja(id_tienda, id_vendedor, monto_apertura = 50000) {
   return result.lastID;
 }
 
-module.exports = { crearTienda, crearUsuario, crearProducto, abrirCaja };
+/**
+ * Cuenta del equipo interno (panel), creada con el MISMO servicio que usa el script de alta.
+ * @returns {Promise<{id_equipo:number, nombre:string, usuario:string, correo:string, password:string, secreto:string}>}
+ */
+async function crearMiembroEquipo(overrides = {}) {
+  const sufijo = unico();
+  const datos = {
+    nombre: overrides.nombre || 'Integrante de Prueba',
+    correo: overrides.correo || `equipo_${sufijo}@test.local`,
+    usuario: overrides.usuario || `equipo_${sufijo}`,
+    password: overrides.password || 'ClaveDelEquipo123!',
+    secreto: overrides.secreto || equipo.generarSecreto()
+  };
+  const { id_equipo } = await equipo.crearMiembro(datos);
+  if (overrides.activo === false) await db.runAsync('UPDATE interno.equipo SET activo = false WHERE id_equipo = ?', [id_equipo]);
+  return { id_equipo, ...datos };
+}
+
+module.exports = { crearTienda, crearUsuario, crearProducto, abrirCaja, crearMiembroEquipo };

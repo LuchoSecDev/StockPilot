@@ -37,8 +37,9 @@ if (!globalThis[CLAVE]) {
 }
 
 // Orden de creación en middleware/rateLimiter.js: globalLimiter, aiLimiter, authLimiter,
-// twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter. Solo se usa para rotular la medición.
-const NOMBRES = ['global', 'ia', 'auth', '2fa', '2fa-setup', 'codigo-reset', 'olvido-correo', 'olvido-ip'];
+// twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter, internoLoginLimiter,
+// internoSegundoFactorLimiter. Solo se usa para rotular la medición.
+const NOMBRES = ['global', 'ia', 'auth', '2fa', '2fa-setup', 'codigo-reset', 'olvido-correo', 'olvido-ip', 'interno-login', 'interno-2fa'];
 
 /** Pone en cero los contadores de TODOS los limitadores. */
 export async function reiniciarLimitadores() {

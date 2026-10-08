@@ -20,7 +20,7 @@ const { csrfSynchronisedProtection, generateToken } = csrfSync({
   getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.headers['X-CSRF-Token']
 });
 const { logger, requestLogger } = require('./utils/logger');
-const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter } = require('./middleware/rateLimiter');
+const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter, internoLoginLimiter, internoSegundoFactorLimiter } = require('./middleware/rateLimiter');
 const { requireAdmin2FAConfigurado } = require('./middleware/twoFactor');
 
 // Importar rutas
@@ -42,6 +42,7 @@ const auditRoutes = require('./routes/auditRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const clienteRoutes = require('./routes/clienteRoutes');
+const internoRoutes = require('./routes/internoRoutes');
 const scheduler = require('./services/schedulerService');
 
 const app = express();
@@ -174,6 +175,8 @@ app.use('/api/reset-password', resetCodeLimiter);
 app.use('/api/2fa/verify', twoFactorLimiter);
 app.use('/api/2fa/generate', twoFactorSetupLimiter);
 app.use('/api/2fa/disable', twoFactorSetupLimiter);
+app.use('/api/interno/login', internoLoginLimiter);
+app.use('/api/interno/2fa', internoSegundoFactorLimiter);
 
 // 🛡️ SEGURIDAD: política de 2FA del Administrador (apagada por defecto; ver middleware/twoFactor.js)
 app.use('/api/', requireAdmin2FAConfigurado);
@@ -181,6 +184,8 @@ app.use('/api/', requireAdmin2FAConfigurado);
 // Usar rutas
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ia', aiLimiter, aiRoutes);
+// Panel interno del equipo (plan 22): sesión y rutas aparte de las de tienda. Antes de los routers montados en '/' y de '/api'.
+app.use('/api/interno', internoRoutes);
 app.use('/', authRoutes);
 app.use('/', storeRoutes);
 app.use('/', cashRegisterRoutes);
