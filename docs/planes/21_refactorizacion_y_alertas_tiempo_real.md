@@ -267,6 +267,7 @@ services/
 - **P21-21** Zonas con poca cobertura combinada: `tenderoController` 6 %, `dashboardController` 10 %, `auditController` 11 %, `schedulerService` 12 % (los correos), `storeController` 30 % y `reportController` 40 %. Son las candidatas a caracterizar antes de R2 y R3.
 - **P21-22** Las corridas de integración muestran `MaxListenersExceededWarning` (11 listeners en un `Server`, probablemente de `supertest` con `isolate:false`). Es inofensivo, pero ya aparecía antes del cierre de R1; no se verificó si es anterior a R1.
 - **Ratificado, P21-15:** cargar cualquier módulo que importe `config/database.js` ejecuta la auto-migración contra el `DATABASE_URL` del `.env` (en esta sesión ocurrió por accidente al comprobar un `require`; apuntaba a la base local). Refuerza hacerla un comando explícito.
+- **P21-29** *(8-oct, rama `feat/panel-interno-metricas`)* `tests/integration/helpers/db.js` es CommonJS y cargaba su propia copia de `config/database.js`, distinta de la que importa `setupTestDb.js`; esa copia lanza su auto-migración en segundo plano y la primera prueba de cada archivo hacía `TRUNCATE` mientras tanto: deadlock intermitente. Era una carrera latente de la suite desde el plan 20; se hizo visible al agregar las vistas del panel. **Corregido** (el helper espera su migración): 60 corridas seguidas sin fallos, y la suite completa en verde.
 
 #### Revisión del 2FA del commit `ec4d48c` (8-oct-2026) — hallazgos P21-23 a P21-28
 

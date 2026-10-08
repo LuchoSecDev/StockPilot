@@ -1,6 +1,6 @@
 # Plan 22: Panel interno del equipo y funciones liberables por tienda
 
-**Estado (6-oct-2026):** I0 terminada y en producción (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
+**Estado (8-oct-2026):** I0 terminada y en producción (sección 1.4). **I1 e I2 implementadas y verificadas en la rama `feat/panel-interno-metricas`** (acceso del equipo, vistas de métricas y las pantallas Tiendas, Detalle, Embudo y Bitácora; ver «I1 e I2 — Resultados»). I4: solo la pantalla de embudo; faltan las preguntas del registro, el párrafo de la política de datos y la encuesta. I3: después del piloto. Cada fase se aprueba por separado.
 **La sección 5 es el único orden de ejecución vigente** para los planes 19, 21 y 22. **Cambió el 6-oct:** el piloto va con la web y el modo básico; la app nativa va en paralelo (ver «Actualización del 6-oct-2026» en la sección 5).
 **Fecha:** 2026-09-28
 **Origen:** decisión de Luis (28-sep) de tener, antes del piloto, un panel del equipo para:
@@ -212,12 +212,45 @@ Antes de la convocatoria, agregar a `/politica-datos` un párrafo como este:
 | Fase | Contenido | Cuándo |
 |---|---|---|
 | **I0** | Auditoría de autorización: egresos entre tiendas (P22-09), matriz de roles (P22-10), `requireAdmin` donde la matriz lo indique (incluidas las dos rutas de tienda del hallazgo 1.4) y pruebas de 403 | **Hecha** (3-oct, en producción) |
-| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | Antes del arranque del piloto |
-| **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | Antes del arranque del piloto |
+| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | **Hecha en rama (8-oct)**; falta crear las cuentas en producción |
+| **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | **Hecha en rama (8-oct)** |
 | **I3** | Funciones liberables (3.4) | Después del piloto: el modo básico web es una preferencia por usuario y no las necesita |
-| **I4** | Pantalla de embudo, párrafo de la política (3.7), campo de experiencia digital en el registro y encuesta de satisfacción (plan 19, 3.5) | Antes del arranque del piloto |
+| **I4** | Pantalla de embudo, párrafo de la política (3.7), campo de experiencia digital en el registro y encuesta de satisfacción (plan 19, 3.5) | Antes del arranque del piloto. **Hecha: la pantalla de embudo.** Falta: preguntas del registro, párrafo de la política y encuesta |
 
 El código nuevo se escribe desde el inicio con el patrón del plan 21: controladores delgados y lógica en `services/interno/`. Así no se crea más deuda mientras se refactoriza la existente.
+
+#### I1 e I2 — Resultados (rama `feat/panel-interno-metricas`, 8-oct-2026)
+
+Luis pidió medir las tiendas del piloto «o al menos la única que acepte usarla»: el panel funciona con **una sola tienda** (siempre muestra conteos «n de N» y «—» cuando no hay base para un porcentaje).
+
+| Commit | Qué hace |
+|---|---|
+| `cc0cbc0` | Migración, vistas de métricas, definiciones del estudio, `Usuarios.ultimo_acceso` |
+| `df92831` | Acceso del equipo con 2FA, endpoints de métricas, bitácora y `npm run equipo:crear` |
+| `eb0a7f2` | Las cuatro pantallas en `/interno` |
+
+**Lo implementado (y dónde se aparta del diseño de este plan):**
+- **Esquema.** `Tienda.fecha_creacion`, `dias_apertura_semana` (1 a 7, por defecto 7) y `es_prueba`; `Usuarios.ultimo_acceso`; esquema `interno` con `equipo` y `bitacora`. *Aparte del diseño:* `fecha_creacion` se rellena en tres pasos (sin valor por defecto → rellenar → fijar el valor), porque el `ADD COLUMN … DEFAULT CURRENT_TIMESTAMP` del apartado 3.2 pondría «ahora» a todas las tiendas existentes y el `UPDATE` sin guardia pisaría datos en cada arranque. Una sucursal (que no tiene usuarios propios) toma la fecha de su primera venta. `interno.funciones_tienda` no se crea: es I3.
+- **Vistas.** `v_ventas_dia` (auxiliar), `v_tiendas_resumen`, `v_activacion` y `v_adopcion_semanal`. *Aparte del diseño:* `v_embudo` no es una vista; el embudo se compone en `services/interno/definiciones.js` a partir de las otras, para que los umbrales vivan en un solo lugar con su prueba. Un «día con ventas» es un día **calendario de Bogotá** (Neon corre en UTC). Las vistas solo exponen conteos, fechas y estados; una prueba fija la lista exacta de columnas.
+- **Acceso.** `POST /api/interno/login` y `/2fa`: contraseña (bcrypt) + código TOTP obligatorio; un código usado no se repite; el paso pendiente caduca a los 5 minutos; limitadores propios (5 fallos / 15 min); sesión que se regenera en cada paso, de modo que entrar al panel cierra una sesión de tienda abierta en el mismo navegador; `requireEquipo` revalida en cada petición que la cuenta siga activa. Cuentas solo por script, que no guarda la cuenta hasta que el celular genere un código válido.
+- **Métricas.** `GET /api/interno/tiendas`, `/tiendas/:id`, `/embudo`, `/bitacora` y `PUT /tiendas/:id/es-prueba`. Cada respuesta se arma campo por campo; cada consulta queda en la bitácora **antes** de responder (sin rastro no hay datos); marcar una tienda de prueba y su rastro van en una sola transacción.
+- **Pantallas.** `/interno` carga de forma diferida en su propio paquete (32 kB; no viaja en el de las tiendas), con sesión propia y marca `noindex`.
+- **Pruebas.** 32 de las vistas y la migración, 5 de `ultimo_acceso`, 34 de acceso, 30 de métricas (integración) y 20 + 20 unitarias; el script se probó de punta a punta contra `stockpilot_test`. Verificado en un navegador real. Suite completa: **550 pruebas de integración** y **412 unitarias** en verde.
+
+**Definiciones que quedaron fijadas (decisiones de Luis, 28-sep):** activada = ≥ 20 productos y ventas en ≥ 5 de los primeros 7 días calendario (el día del registro cuenta como día 0); adopción de una semana = días con ventas ÷ `dias_apertura_semana`, con tope de 100 %.
+
+**Definiciones PROPUESTAS que Luis debe confirmar antes de la convocatoria** (viven en `services/interno/definiciones.js` y se muestran en pantalla):
+1. **Umbral «regular»** de la adopción: entre 50 % y la meta (80 %) es ámbar; menos de 50 %, rojo. Solo afecta el color del semáforo, no la meta.
+2. **«Con uso en la semana 4»** del embudo: al menos un día con ventas entre los días 22 y 28 desde el registro, entre las tiendas que ya llegaron a esa semana. El plan nombraba la etapa pero no la definía.
+3. **«Productos cargados»** de la activación: hoy cuenta los productos que tiene la tienda (el decidido el 28-sep dice «carga al menos 20 productos» sin ventana). La tabla de 3.3 hablaba de «productos cargados en los primeros 7 días»; ambos números se muestran en el detalle (`productos_cargados` y `productos_primeros_7d`) y cambiar de uno a otro es una línea. Conviene fijarlo antes de publicar la convocatoria (documento de intervención, sección 1.6).
+
+**Lo que NO se hizo (queda de I4):** las preguntas del registro (días de apertura, experiencia digital), el párrafo de la política de datos de 3.7 y la encuesta de satisfacción. El párrafo es un texto legal de `/politica-datos` que ya describe lo que el panel hace (métricas agregadas, cada consulta registrada): **requiere el visto bueno de Luis** y debe publicarse antes de la convocatoria. Mientras no exista la pregunta del registro, todas las tiendas tienen `dias_apertura_semana = 7`.
+
+**Hallazgos mientras se construía:**
+- `Usuarios.id_tienda` cambia cuando un dueño cambia de sucursal (`switchStore`), y las sucursales adicionales no tienen usuarios propios. Por eso «dueño aceptó la política» sale de `Tienda.id_propietario` y no de cualquier usuario de la tienda. «Usuarios» y «último acceso» por tienda son aproximaciones para dueños con varias sucursales.
+- **Carrera en las pruebas de integración** (P21-29): `helpers/db.js` es CommonJS y cargaba su propia copia de `config/database.js`, cuya auto-migración corría en segundo plano mientras la primera prueba hacía `TRUNCATE`: deadlock intermitente (~1 de cada 9 corridas) que se hizo visible al agregar las vistas. Corregido: el helper espera su propia migración. 60 corridas seguidas sin fallos.
+- La auto-migración se ejecuta al cargar `config/database.js`, así que cualquier script que lo importe migra la base que diga su `DATABASE_URL` (P21-15). `equipo:crear` pide confirmar la base destino antes de cargarlo.
+- La migración del panel sondea antes de hacer `ALTER TABLE` (que pide un bloqueo exclusivo aunque la columna exista), corre en una sola transacción bajo candado, reintenta si PostgreSQL la elige como víctima de un deadlock y se repara sola si una columna pierde su valor por defecto.
 
 ---
 
