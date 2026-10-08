@@ -18,18 +18,20 @@ export default defineConfig({
       ],
       reporter: ['text', 'html', 'json'],
       // Piso de regresión, no una meta: fijado un poco por debajo de la cobertura real medida el
-      // 2026-09-27 tras cerrar el plan 20 (10,53% statements / 15,69% branches / 19,55% functions
-      // / 9,75% lines) — solo `npm test`/`test:coverage` (unitarias); las 47 pruebas de
-      // integración de tests/integration/ (npm run test:integration) cubren bastante más código
-      // real (p. ej. Alert.generate/findActive, requireLogin/requireAdmin, la mayoría de
-      // middleware/validation.js) pero esa suite queda excluida de este `include` a propósito
+      // 2026-10-08 tras cerrar R1 del plan 21 (18,33% statements / 25,45% branches / 35,07%
+      // functions / 17,10% lines) — solo `npm test`/`test:coverage` (unitarias). Antes del 8-oct
+      // era 10/15/19/9 (medido el 2026-09-27, plan 20). Las pruebas de integración de
+      // tests/integration/ (npm run test:integration) cubren bastante más código real (69%
+      // de las sentencias; 73,5% combinadas con las unitarias, ver `npm run
+      // test:coverage:combinada`) pero esa suite queda excluida de este `include` a propósito
       // (arriba) y no se mide acá. Si este número baja sin que sea por mover código a
-      // tests/integration/, es una regresión real de cobertura unitaria.
+      // tests/integration/, es una regresión real de cobertura unitaria. Regla del plan 21
+      // (sección 3): al agregar pruebas unitarias estos pisos se SUBEN, nunca se bajan.
       thresholds: {
-        statements: 10,
-        branches: 15,
-        functions: 19,
-        lines: 9
+        statements: 17,
+        branches: 23,
+        functions: 32,
+        lines: 15
       }
     }
   }
