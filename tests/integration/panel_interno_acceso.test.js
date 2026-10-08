@@ -140,6 +140,9 @@ describe('POST /api/interno/2fa (paso 2)', () => {
     const fila = (await bitacora()).find(b => b.accion === 'login_ok');
     expect(fila.id_equipo).toBe(m.id_equipo);
     expect(fila.ip).toBeTruthy();
+    // La bitácora que ve el equipo trae la IP sin la máscara de red (::1, no ::1/128).
+    const listada = (await agente.get('/api/interno/bitacora')).body.registros.find(r => r.accion === 'login_ok');
+    expect(listada.ip).not.toContain('/');
     expect((await db.getAsync('SELECT ultimo_acceso FROM interno.equipo WHERE id_equipo = ?', [m.id_equipo])).ultimo_acceso).toBeInstanceOf(Date);
   });
 

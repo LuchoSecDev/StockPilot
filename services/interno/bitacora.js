@@ -75,7 +75,7 @@ async function listar({ limite, desde, idTienda } = {}) {
   const params = idTienda ? [idTienda] : [];
 
   const registros = await db.allAsync(
-    `SELECT b.id, b.fecha, b.accion, b.id_tienda, b.detalle, b.ip::text AS ip, b.id_equipo, e.nombre AS equipo
+    `SELECT b.id, b.fecha, b.accion, b.id_tienda, b.detalle, host(b.ip) AS ip, b.id_equipo, e.nombre AS equipo
        FROM interno.bitacora b
        LEFT JOIN interno.equipo e ON e.id_equipo = b.id_equipo
        ${condicion}

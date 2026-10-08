@@ -24,6 +24,8 @@ import AuditoriaPage from './pages/AuditoriaPage';
 const AnalyticsDashboardPage = lazy(() => import('./pages/AnalyticsDashboardPage'));
 import SimuladorPage from './pages/SimuladorPage';
 const AprendizajePage = lazy(() => import('./pages/AprendizajePage'));
+// Panel interno del equipo (plan 22): su código no viaja en el bundle de las tiendas.
+const InternoApp = lazy(() => import('./interno/InternoApp'));
 import ForcePasswordPage from './pages/ForcePasswordPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -105,6 +107,9 @@ function App() {
               <LandingPage />
             </PublicRoute>
           } />
+
+          {/* Panel interno del equipo: sesión propia, fuera del layout y de las rutas protegidas de tienda */}
+          <Route path="/interno/*" element={<Suspense fallback={<div className="p-10 text-center animate-pulse text-azul font-bold text-xs">Cargando panel interno...</div>}><InternoApp /></Suspense>} />
 
           {/* Ruta Especial: Activación de Cuenta Obligatoria */}
           <Route path="/activacion-cuenta" element={
