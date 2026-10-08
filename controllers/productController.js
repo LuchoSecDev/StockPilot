@@ -6,8 +6,8 @@ const stream = require('stream');
 const Notification = require('../models/Notification');
 const Alert = require('../models/Alert');
 const db = require('../config/database');
-const { calcularReposicion } = require('../utils/reposicion');
-const { leerEntradasMotor } = require('../utils/entradasMotor');
+const { calcularReposicion } = require('../services/inventory/reposicion');
+const { leerEntradasMotor } = require('../services/inventory/entradasMotor');
 const { ocultarDatosDeMargen } = require('../utils/datosDeMargen');
 
 class ProductController {

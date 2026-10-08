@@ -272,10 +272,10 @@ Qué cambia respecto al 3-oct:
 
 **D. Durante las 6 semanas del piloto**
 - **Se congelan producción y la app:** solo correcciones de errores, cada una con su prueba. Si la herramienta cambia a mitad del piloto, no se sabe si un cambio en los indicadores se debe al tendero o al software.
-- **Congelar no es dejar de desarrollar.** En ramas pueden avanzar R1, R2 y T3 si el Sprint 6 de Bases de Datos Avanzadas cae en estas semanas (se muestra en Docker, sin desplegar).
+- **Congelar no es dejar de desarrollar.** En ramas pueden avanzar R1, R2 y T3 si el Sprint 6 de Bases de Datos Avanzadas cae en estas semanas (se muestra en Docker, sin desplegar). **R1 ya está hecha (8-oct): mezclada a `main` local y subida en la rama `refactor/R1-servicios-ia`**; `origin/main` sin actualizar por el congelamiento. Ver el plan 21, sección 4.
 
 **E. Después del piloto**
-- R1 (antes, si el Sprint 6.3 lo exige), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
+- R1 (hecha el 8-oct y mezclada a `main` local; falta subir `main` y desplegarla después del piloto), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
 - Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
 - Modo básico web fases D y E, e I3, solo si el piloto muestra que hacen falta.
 - Prueba de usabilidad de la app con 2 o 3 tenderos, en entorno aparte, antes de la sustentación.

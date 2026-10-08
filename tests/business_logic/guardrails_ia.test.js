@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aplicarAjusteIA } from '../../utils/guardrailsIA.js';
+import { aplicarAjusteIA } from '../../services/inventory/guardrailsIA.js';
 
 describe('aplicarAjusteIA (guardrail de ajuste de IA, ex-duplicado en aiController.js y suppliersController.js)', () => {
   it('clase A: permite hasta +100%', () => {

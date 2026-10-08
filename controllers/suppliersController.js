@@ -1,16 +1,14 @@
-const { calcularReposicion, costoUnitario } = require('../utils/reposicion');
+const { calcularReposicion, costoUnitario } = require('../services/inventory/reposicion');
 const { totalOrden, evaluarRiesgoOrden } = require('../utils/ordenesBorrador');
-const { aplicarAjusteIA } = require('../utils/guardrailsIA');
-const { leerEntradasMotor } = require('../utils/entradasMotor');
+const { aplicarAjusteIA } = require('../services/inventory/guardrailsIA');
+const { leerEntradasMotor } = require('../services/inventory/entradasMotor');
 const db = require('../config/database');
-const { OpenAI } = require('openai');
+const { pedirJSON } = require('../services/ia/openaiClient');
+const { logger } = require('../utils/logger');
 const transporter = require('../config/mailer');
 const Notification = require('../models/Notification');
 const Alert = require('../models/Alert');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'dummy_key_to_prevent_crash_on_startup'
-});
 
 const suppliersController = {
   // Obtener todos los proveedores de la tienda
@@ -110,7 +108,7 @@ const suppliersController = {
       const rows = todasLasEntradas.filter((item) => String(item.id_proveedor) === String(proveedorId));
 
       const smartList = rows.map(item => {
-        // Motor único de reposición (utils/reposicion.js): misma cantidad que el Consejero del Dashboard.
+        // Motor único de reposición (services/inventory/reposicion.js): misma cantidad que el Consejero del Dashboard.
         const rep = calcularReposicion({
           ventasDia7: item.velocity_7d, ventasDia30: item.velocity_30d, ventas30Total: item.qty_30d_total,
           claseABC: item.claseABC, stock: item.stock_actual, stockSeguridad: item.stock_seguridad,
@@ -155,12 +153,9 @@ const suppliersController = {
       const budgetLimit = presupuesto_maximo || 1000000;
       const { riskLevel, riskReason } = evaluarRiesgoOrden(totalCost, budgetLimit, itemsCriticos, itemsNaranja);
       const promptData = recomendaciones_matematicas.map(r => ({ id: r.id_producto, producto: r.nombre, abc: r.clasificacion_abc, sugerencia_matematica: r.cantidad_sugerida }));
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "system", content: "Asesor Comercial Pyme. Ajusta sugerencias: A (max +100%), B (+50%), C (+20%). Responde JSON: { \"ajustes\": [ { \"id\": ID, \"porcentaje\": \"+15%\", \"razon\": \"...\" } ] }" }, { role: "user", content: JSON.stringify(promptData) }],
-        response_format: { type: "json_object" }
+      const iaResponse = await pedirJSON({
+        messages: [{ role: "system", content: "Asesor Comercial Pyme. Ajusta sugerencias: A (max +100%), B (+50%), C (+20%). Responde JSON: { \"ajustes\": [ { \"id\": ID, \"porcentaje\": \"+15%\", \"razon\": \"...\" } ] }" }, { role: "user", content: JSON.stringify(promptData) }]
       });
-      const iaResponse = JSON.parse(completion.choices[0].message.content);
       const adjustments = iaResponse.ajustes || [];
       const finalCart = recomendaciones_matematicas.map(item => {
         const aiMemory = adjustments.find(a => a.id === item.id_producto);
@@ -221,7 +216,7 @@ const suppliersController = {
           [tiendaId, ordenId, 'Orden Inteligente Proveedor v1.0', datosBase, sugerenciaJson, `Orden #${ordenId} — Riesgo: ${evaluacion_riesgo?.nivel || 'N/A'}`, 'Generación de orden de compra inteligente']
         );
       } catch (auditErr) {
-        console.error('⚠️ Auditoría IA proveedor omitida:', auditErr.message);
+        logger.warn({ err: auditErr }, 'Auditoría IA proveedor omitida');
       }
 
       res.json({ success: true, message: 'Orden Inteligente creada', orden_id: ordenId });
@@ -430,7 +425,7 @@ const suppliersController = {
       // InventoryMovement/productController, así que sin este disparador las alertas solo se
       // actualizaban tras la próxima venta — Catálogo (en vivo) y Monitor Alertas podían decir cosas
       // distintas justo después de recibir una orden.
-      Alert.generate(tiendaId).catch((e) => console.error('Error regenerando alertas post-recepción:', e));
+      Alert.generate(tiendaId).catch((e) => logger.error({ err: e, tiendaId }, 'Error regenerando alertas post-recepción'));
 
       try {
         await db.runAsync(
@@ -440,13 +435,13 @@ const suppliersController = {
             excesos.length ? `El administrador confirmó un exceso. Motivo: ${motivo}` : 'El administrador confirmó qué llegó realmente']
         );
       } catch (auditErr) {
-        console.error('⚠️ Auditoría de recepción omitida:', auditErr.message);
+        logger.warn({ err: auditErr }, 'Auditoría de recepción omitida');
       }
 
       res.json({ success: true, presupuesto_total: totalReal, estado: nuevoEstado, pendientes });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
-      console.error('❌ completarRecepcion:', e.message);
+      logger.error({ err: e }, 'Error en completarRecepcion');
       res.status(500).json({ success: false, error: 'No se pudo confirmar la recepción.' });
     } finally {
       client.release();

@@ -47,7 +47,7 @@ StockPilot cuenta con una base arquitectónica moderna y desacoplada:
 | :--- | :--- | :--- | :--- |
 | **Fotos de Perfil** | `ProfilePage.jsx` / `Usuarios` | Almacenadas como cadenas Base64 en la columna `foto_url TEXT`. | Un usuario con foto suma ~1.3 MB directo a la tabla. Mil usuarios inflan la base de datos en gigabytes de texto ineficiente. |
 | **Índices Multi-tienda** | `database/init_pg.sql` | ✅ Ya existen índices compuestos en los campos más consultados: `Ventas(id_tienda, fecha_salida)`, `Productos(id_tienda, estado)`, `MovimientosStock(id_tienda, fecha_movimiento)`, `Alertas(id_tienda, resuelta)`. | Falta un índice compuesto `Productos(id_tienda, cantidad)` para acelerar los filtros de stock bajo/crítico al superar millones de registros. |
-| **Procesamiento de IA** | `controllers/aiController.js` | Ejecución en el ciclo de vida síncrono de la petición HTTP. | Consultas complejas bloquean el hilo de eventos de Node.js si la concurrencia es alta. |
+| **Procesamiento de IA** | `controllers/aiController.js` y `services/ia/` (desde el 8-oct, plan 21 R1) | Ejecución en el ciclo de vida síncrono de la petición HTTP. | Consultas complejas bloquean el hilo de eventos de Node.js si la concurrencia es alta. |
 
 ---
 

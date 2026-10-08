@@ -125,17 +125,17 @@ Es un solo producto con un solo esquema, así que **no se crea una base distinta
 **Por qué este y no otro:** tiene un límite claro (recibe indicadores y devuelve recomendaciones) y depende de un proveedor externo lento y con fallos. Aislarlo significa que **si OpenAI falla, las ventas y la caja siguen funcionando**, y permite escalarlo por separado.
 
 **Punto de partida verificado (confírmalo):**
-- Llamadas a OpenAI en `controllers/aiController.js`: recomendaciones, promociones y riesgo de cliente, unas 3 llamadas.
-- Otra llamada en `controllers/suppliersController.js` (~línea 192).
-- `Cache_IA` solo la usa `aiController.js`.
-- `Auditoria_IA` la escriben `aiController.js`, `ordenBorradorController.js` y `suppliersController.js`, y tiene **FK hacia `Tienda` y `Ordenes_Compra`**.
+- **Actualización del 8-oct-2026 (plan 21, R1, mezclada a `main` local y subida en la rama `refactor/R1-servicios-ia`):** las llamadas a OpenAI de recomendaciones, promociones y riesgo de cliente ya viven en `services/ia/` (`recomendaciones.js`, `promociones.js`, `riesgoCliente.js`) y comparten un único cliente en `services/ia/openaiClient.js`. `controllers/aiController.js` quedó como capa HTTP delgada (152 líneas). Esta es la carpeta que se mueve al `ia-service`.
+- La llamada de `controllers/suppliersController.js` (`generateSmartOrder`) sigue en el controlador, pero ya usa el cliente único; falta moverla a un servicio (plan 21, R2).
+- `Cache_IA` solo la usa `services/ia/cacheIA.js`. La caché en memoria `aiCache_v3` se eliminó: era estado por proceso y con varias réplicas cada una habría llamado a OpenAI por separado.
+- `Auditoria_IA` la escriben `services/ia/` (recomendaciones, promociones, estrategia de precio y riesgo), `ordenBorradorController.js` y `suppliersController.js`, y tiene **FK hacia `Tienda` y `Ordenes_Compra`**.
 
 **Diseño propuesto (para aprobar):**
 
 | Aspecto | Propuesta |
 |---|---|
 | Responsabilidad | Construir el prompt, llamar al LLM, validar la respuesta JSON, cachearla y registrar la llamada. **No lee ni escribe tablas del negocio.** |
-| Contrato | REST documentado con **OpenAPI 3**: `POST /v1/recomendaciones`, `POST /v1/promociones`, `POST /v1/riesgo-cliente`, `GET /health`. El monolito envía el snapshot ya calculado por `utils/reposicion.js` y `utils/entradasMotor.js`. La matemática se queda en el monolito. |
+| Contrato | REST documentado con **OpenAPI 3**: `POST /v1/recomendaciones`, `POST /v1/promociones`, `POST /v1/riesgo-cliente`, `GET /health`. El monolito envía el snapshot ya calculado por `services/inventory/reposicion.js` y `services/inventory/entradasMotor.js`. La matemática se queda en el monolito. |
 | Base de datos propia | Esquema `ia` (o una base aparte en el compose). Se mueve **`Cache_IA`** y se crea `ia.llamadas_llm` (modelo, tokens, latencia, hash de la entrada y resultado). |
 | `Auditoria_IA` | **Se queda en el monolito.** Es la auditoría de decisiones de negocio y está atada a órdenes por FK. El monolito la escribe con la respuesta del servicio. Documentar esta decisión: es el ejemplo de *database per service* sin romper la integridad referencial del OLTP. |
 | Seguridad | El servicio no se expone al exterior. Solo el monolito lo llama, con `X-Internal-Key` y la red interna del compose o del clúster. La sesión del usuario sigue en el monolito. |
@@ -256,7 +256,7 @@ Deben calcularse desde `dw`, cada uno con su fórmula en el documento:
 |---|---|
 | 2 | Tabla sustantivo → entidad, adjetivo → atributo y verbo → relación, sacada de las reglas del negocio (`StockPilot - (Requerimientos - Reglas del Negocio).md`). Diagrama conceptual (actualizar `Documentacion/diagrama_er.md`) |
 | 3 | Dependencias funcionales de las tablas principales y verificación de 1FN, 2FN y 3FN tabla por tabla. Diagrama E-R generado **desde `information_schema`** de la base real. **Señalar cualquier tabla que no cumpla 3FN en vez de afirmarlo sin revisar**, por ejemplo campos derivados como saldos o totales guardados |
-| 4 | Extracto del DDL (`database/init_pg.sql`) con restricciones e índices; matriz CRUD (entidad × operación × endpoint); **2 o 3 transacciones OLTP documentadas** con su `BEGIN/COMMIT` (registro de venta con `SELECT … FOR UPDATE`, `Alert.generate` con `pg_advisory_xact_lock` y aplicación de una estrategia de precio en `aiController.js`) |
+| 4 | Extracto del DDL (`database/init_pg.sql`) con restricciones e índices; matriz CRUD (entidad × operación × endpoint); **2 o 3 transacciones OLTP documentadas** con su `BEGIN/COMMIT` (registro de venta con `SELECT … FOR UPDATE`, `Alert.generate` con `pg_advisory_xact_lock` y aplicación de una estrategia de precio en `services/ia/estrategiaPromocion.js`) |
 | 5 | Lista de endpoints de la API REST (19 archivos de rutas), idealmente como OpenAPI; diagrama de capas; stack del frontend |
 
 ---

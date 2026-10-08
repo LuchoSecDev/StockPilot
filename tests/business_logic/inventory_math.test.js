@@ -115,7 +115,7 @@ describe('Motor Matemático de Alertas (Alert.js)', () => {
 
   // "Días de Agotamiento" y "Alertas de Stock Logístico" (calcularDiasAgotamiento/determinarAlertaStock)
   // se quitaron en el plan 17, Fase 4: Alert.js dejó de tener su propio cálculo de cuándo alertar por
-  // stock y ahora usa calcularReposicion (utils/reposicion.js), que ya tiene su propia batería de
+  // stock y ahora usa calcularReposicion (services/inventory/reposicion.js), que ya tiene su propia batería de
   // pruebas — incluyendo el caso que este archivo no cubría (producto agotado sin ventas registradas,
   // que con la fórmula vieja nunca generaba alerta: ver "sin stock, sin ventas y stockSeguridad en 0"
   // en reposicion.test.js). Reimplementar los mismos casos aquí sería probar la misma fórmula dos veces.

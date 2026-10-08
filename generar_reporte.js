@@ -3,7 +3,7 @@ const path = require('path');
 
 const jsonPath = path.join(__dirname, 'evidencia_pruebas.json');
 const jsonIntegracionPath = path.join(__dirname, 'evidencia_pruebas_integration.json');
-const mdPath = path.join(__dirname, 'Documentacion', 'Reporte_Pruebas_StockPilot.md');
+const mdPath = path.join(__dirname, 'docs', 'Reporte_Pruebas_StockPilot.md');
 
 if (!fs.existsSync(jsonPath)) {
     console.error('❌ No se encontró el archivo evidencia_pruebas.json. Asegúrate de ejecutar "npm run test:evidence" primero.');
@@ -137,4 +137,5 @@ El presente documento certifica la ejecución automatizada de la suite de prueba
 
 } catch (e) {
     console.error('Error generando reporte:', e);
+    process.exitCode = 1; // que test:evidence no termine en verde si no se generó el reporte
 }

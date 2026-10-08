@@ -4,10 +4,10 @@
  * de ventas propio, a partir del promedio de ventas diarias (propio o de su categoría) y el
  * tiempo de entrega del proveedor.
  *
- * @module utils/sugerenciasStock
+ * @module services/inventory/sugerenciasStock
  */
 
-const { techoSeguro } = require('./redondeo');
+const { techoSeguro } = require('../../utils/redondeo');
 
 /**
  * Stock de seguridad = colchón de 2 días de venta. Stock mínimo = ventas durante el lead time

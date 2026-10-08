@@ -11,7 +11,7 @@ Archivos generados automáticamente que este proyecto regenera con frecuencia (r
 `git status` antes de tocarlos, aunque en general sí es seguro sobrescribirlos):
 - `evidencia_pruebas.json`
 - `evidencia_pruebas_integration.json` (solo si `npm run test:evidence` alcanzó a correr la integración)
-- `Documentacion/Reporte_Pruebas_StockPilot.md`
+- `docs/Reporte_Pruebas_StockPilot.md`
 - `coverage/`
 
 ## Búsquedas exploratorias de código

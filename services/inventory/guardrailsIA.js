@@ -11,10 +11,10 @@
  * salvo la corrección de punto flotante descrita en `techoSeguro` (utils/redondeo.js), aplicada
  * a `finalTotal`.
  *
- * @module utils/guardrailsIA
+ * @module services/inventory/guardrailsIA
  */
 
-const { techoSeguro } = require('./redondeo');
+const { techoSeguro } = require('../../utils/redondeo');
 
 /**
  * @param {number} baseLoad - Cantidad o carga base antes del ajuste de IA.
