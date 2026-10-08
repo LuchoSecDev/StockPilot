@@ -12,13 +12,11 @@ import SumarStockModal from '../components/productos/SumarStockModal';
 import { useState } from 'react';
 import { SYNC_EVENTS, emitSyncEvent } from '../utils/stockSync';
 import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
 
 const ProductosPage = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const toast = useToast();
-  const { require2FA } = useAuth();
   
   const {
     isAdmin, loading, loadError, recargarProductos, productos, categorias, alert, setAlert,
@@ -35,7 +33,6 @@ const ProductosPage = () => {
   const [promoProducto, setPromoProducto] = useState(null);
 
   const handleOpenPromo = (producto) => {
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de activar ofertas.')) return;
     setPromoProducto(producto);
     setPromoModalOpen(true);
   };
@@ -99,7 +96,6 @@ const ProductosPage = () => {
               />
               <button 
                 onClick={() => {
-                  if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de importar productos.')) return;
                   fileInputRef.current?.click();
                 }} 
                 disabled={uploadLoading}
@@ -149,12 +145,10 @@ const ProductosPage = () => {
         isAdmin={isAdmin}
         onEdit={(p) => handleOpenModal(p)}
         onToggleStatus={(p) => {
-          if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de cambiar el estado de un producto.')) return;
           setToggleProducto(p);
           setToggleModalOpen(true);
         }}
         onDelete={(p) => {
-          if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de eliminar productos.')) return;
           setEliminarProductoSel(p);
           setEliminarModalOpen(true);
         }}

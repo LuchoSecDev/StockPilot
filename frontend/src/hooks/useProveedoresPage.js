@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
 
 export const useProveedoresPage = () => {
-  const { require2FA } = useAuth();
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -394,9 +392,6 @@ export const useProveedoresPage = () => {
   };
 
   const handleOpenSupplierModal = (supplier = null) => {
-    if (require2FA && require2FA(supplier ? 'Debes configurar la autenticación 2FA antes de editar proveedores.' : 'Debes configurar la autenticación 2FA antes de registrar proveedores.')) {
-      return;
-    }
     if (supplier) {
       setIsEditingSupplier(true);
       setSupplierFormData({
@@ -422,9 +417,6 @@ export const useProveedoresPage = () => {
   };
 
   const handleSaveSupplier = async (data) => {
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de guardar cambios.')) {
-      return;
-    }
     setSupplierLoading(true);
     try {
       if (isEditingSupplier) {
@@ -444,9 +436,6 @@ export const useProveedoresPage = () => {
   };
 
   const handleDeleteSupplier = async () => {
-    if (require2FA && require2FA('Debes configurar la autenticación 2FA antes de inhabilitar proveedores.')) {
-      return;
-    }
     setSupplierLoading(true);
     try {
       await axios.delete(`/api/proveedores/${supplierToDelete.id_proveedor}`);

@@ -1,94 +1,62 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe.serial('Seguridad 2FA para Administrador en Acciones CRUD', () => {
+// Credenciales de un Administrador SIN 2FA activo. Por defecto las de la semilla de desarrollo; se pueden
+// cambiar para correr contra otro entorno: E2E_ADMIN_USER=... E2E_ADMIN_PASS=... npx playwright test
+const USUARIO = process.env.E2E_ADMIN_USER || 'admin';
+const CLAVE = process.env.E2E_ADMIN_PASS || 'admin123';
 
-  test('Flujo Completo: Login -> Descartar 2FA -> Bloqueo CRUD y Re-apertura -> Logout y Recordatorio al reingresar', async ({ page }) => {
-    // 1. Iniciar sesión como Administrador
-    await page.goto('/login');
-    await page.fill('#identificador', 'admin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
+async function iniciarSesion(page) {
+  await page.goto('/login');
+  await page.fill('#identificador', USUARIO);
+  await page.fill('#password', CLAVE);
+  await page.click('button[type="submit"]');
 
-    try {
-      const cerrarSesion = page.getByText('Cerrar otra sesión e ingresar aquí');
-      if (await cerrarSesion.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await cerrarSesion.click();
-      }
-    } catch (e) {}
+  const cerrarOtraSesion = page.getByText('Cerrar otra sesión e ingresar aquí');
+  if (await cerrarOtraSesion.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await cerrarOtraSesion.click();
+  }
+  await expect(page).toHaveURL(/.*dashboard/);
+}
 
-    await expect(page).toHaveURL(/.*dashboard/);
+// Durante el piloto la política de 2FA del servidor está APAGADA (REQUIRE_ADMIN_2FA sin definir): el 2FA se
+// recomienda, no se exige. Estas pruebas fijan eso desde la pantalla. El caso con la política encendida
+// (403 DOS_FACTORES_REQUERIDO → se abre el aviso) lo cubren las pruebas de integración de la API.
+test.describe.serial('Aviso de 2FA para el Administrador (política apagada)', () => {
 
-    // 2. Verificar que aparece el modal de 2FA obligatorio
-    const modal2FA = page.locator('form').filter({ hasText: /Configurar Seguridad/i });
-    await expect(modal2FA).toBeVisible();
+  test('informa que la función existe, sin bloquear nada ni abrir ventanas por sí solo', async ({ page }) => {
+    await iniciarSesion(page);
 
-    // 3. Posponer configuración con "Configurar más tarde"
-    const btnMasTarde = page.getByText('Configurar más tarde');
-    await expect(btnMasTarde).toBeVisible();
-    await btnMasTarde.click();
-
-    // 4. Verificar que el modal se cierra y el usuario puede navegar
+    // 1. No hay ventana emergente al entrar; sí un aviso discreto en el encabezado
+    const modal2FA = page.locator('form').filter({ hasText: /Protege tu cuenta|Activa la verificación en dos pasos/i });
     await expect(modal2FA).toBeHidden();
+    const aviso = page.getByRole('button', { name: /verificación en 2 pasos/i }).first();
+    await expect(aviso).toBeVisible();
 
-    // 5. Navegar a Catálogo (Productos)
+    // 2. Puede trabajar con normalidad: "Registrar Producto" abre el formulario (no lo frena el navegador)
     await page.click('nav >> text=Catálogo');
     await expect(page).toHaveURL(/.*productos/);
-    await expect(page.locator('table tbody tr:not(.animate-pulse)').first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole('button', { name: /Registrar Producto/i }).click();
+    await expect(page.getByPlaceholder('Ej: Arroz roa 500g')).toBeVisible();
+    await page.getByRole('button', { name: '×' }).click();
+    await expect(page.getByPlaceholder('Ej: Arroz roa 500g')).toBeHidden();
 
-    // 6. Verificar que aparece la píldora informativa en el layout avisando que 2FA está pendiente
-    await expect(page.getByText(/2FA Pendiente/i).first()).toBeVisible();
-
-    // 7. Intentar acción CRUD: "Registrar Producto"
-    const btnRegistrar = page.getByRole('button', { name: /Registrar Producto/i });
-    await expect(btnRegistrar).toBeVisible();
-    await btnRegistrar.click();
-
-    // 8. VERIFICACIÓN CRÍTICA:
-    // El modal de crear producto NO debe abrirse
-    const modalCrearProducto = page.locator('form').filter({ hasText: /Nuevo Producto/i });
-    await expect(modalCrearProducto).toBeHidden();
-
-    // En su lugar, el modal de 2FA DEBE reabrirse automáticamente exigiendo la configuración
+    // 3. El aviso abre la activación (voluntaria) y se puede posponer
+    await aviso.click();
     await expect(modal2FA).toBeVisible();
-    await expect(page.getByText(/Debes configurar la autenticación 2FA antes de registrar nuevos productos/i).first()).toBeVisible();
-
-    // 9. Posponerlo nuevamente
+    await expect(page.getByRole('heading', { name: 'Protege tu cuenta' })).toBeVisible();
     await page.getByText('Configurar más tarde').click();
     await expect(modal2FA).toBeHidden();
+  });
 
-    // 10. Intentar otra acción CRUD: "Importar" productos
-    const btnImportar = page.getByRole('button', { name: /Importar/i });
-    await expect(btnImportar).toBeVisible();
-    await btnImportar.click();
-
-    // Debe volver a bloquear y reabrir el modal de 2FA
-    await expect(modal2FA).toBeVisible();
-    await expect(page.getByText(/Debes configurar la autenticación 2FA antes de importar productos/i).first()).toBeVisible();
-
-    // Posponerlo para cerrar sesión
-    await page.getByText('Configurar más tarde').click();
-    await expect(modal2FA).toBeHidden();
-
-    // 11. Cerrar Sesión
+  test('al volver a iniciar sesión sigue sin abrir ventanas, y el aviso sigue ahí', async ({ page }) => {
+    await iniciarSesion(page);
     await page.click('button:has-text("Cerrar Sesión")');
     await expect(page).toHaveURL(/.*login/);
 
-    // 12. Volver a iniciar sesión: Debe recordar la configuración y mostrar el modal de nuevo
-    await page.fill('#identificador', 'admin');
-    await page.fill('#password', 'admin123');
-    await page.click('button[type="submit"]');
+    await iniciarSesion(page);
 
-    try {
-      const cerrarSesion = page.getByText('Cerrar otra sesión e ingresar aquí');
-      if (await cerrarSesion.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await cerrarSesion.click();
-      }
-    } catch (e) {}
-
-    await expect(page).toHaveURL(/.*dashboard/);
-
-    // VERIFICACIÓN CRÍTICA: El modal de 2FA reaparece automáticamente tras el login
-    await expect(modal2FA).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('form').filter({ hasText: /Protege tu cuenta/i })).toBeHidden();
+    await expect(page.getByRole('button', { name: /verificación en 2 pasos/i }).first()).toBeVisible();
   });
 
 });

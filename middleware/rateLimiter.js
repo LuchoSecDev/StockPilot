@@ -97,6 +97,23 @@ const twoFactorLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Limitador de /api/2fa/generate y /api/2fa/disable. Va APARTE de twoFactorLimiter a propósito: con la
+// misma clave y el mismo contador, alguien con una sesión abierta podría gastar los intentos del login
+// con 2FA del dueño. Disable pide la contraseña, así que sin esto se podía adivinar sin límite.
+const twoFactorSetupLimiter = rateLimit({
+    store: getStore('rl_2fa_setup:'),
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    keyGenerator: keyBySession,
+    message: {
+        success: false,
+        error: "Demasiados intentos al configurar la verificación en dos pasos. Por seguridad, espera 15 minutos."
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Limitador del código de recuperación de contraseña (6 dígitos: un millón de combinaciones, válido
 // 15 minutos). Cuenta INTENTOS FALLIDOS por correo, no por IP: quien rota de IP no obtiene un contador
 // nuevo, y el correo es lo que protege el código. Se monta en /api/verify-reset-code Y en
@@ -154,4 +171,4 @@ const forgotIpLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter };
+module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter };

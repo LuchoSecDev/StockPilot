@@ -1,13 +1,13 @@
 ---
 title: Certificado de Pruebas Unitarias y Aseguramiento de Calidad
 author: Sistema de Gestión de Inventario Inteligente (StockPilot)
-date: 8/10/2026, 7:34:25 a. m.
+date: 8/10/2026, 3:11:22 p. m.
 ---
 
 # 📄 Certificado Oficial de Calidad de Software y Pruebas Unitarias
 
 **Proyecto:** StockPilot — Sistema de Gestión de Inventario Inteligente
-**Fecha de Certificación:** 8/10/2026, 7:34:25 a. m.
+**Fecha de Certificación:** 8/10/2026, 3:11:22 p. m.
 **Framework de Validación:** Vitest v4
 **Entorno de Ejecución:** Node.js (V8 Engine)
 
@@ -18,17 +18,17 @@ date: 8/10/2026, 7:34:25 a. m.
 El presente documento certifica la ejecución automatizada de la suite de pruebas **unitarias**, más la de **integración** (contra Postgres real — `stockpilot_test` — aislada de desarrollo y producción) sobre los módulos críticos (Lógica Financiera, Inteligencia Artificial y Seguridad) del sistema **StockPilot**. Las pruebas fueron diseñadas bajo el enfoque de validación de caja blanca, pruebas de límites y pruebas de integración de extremo a extremo (HTTP real sobre la aplicación completa, vía supertest).
 
 ### 1.1. Métricas de Ejecución Combinadas
-- **Total de Escenarios Evaluados:** `796`
+- **Total de Escenarios Evaluados:** `821`
 - **Tasa de Éxito (Pass Rate):** `100.00%`
-- **Escenarios Exitosos:** `796`
+- **Escenarios Exitosos:** `821`
 - **Escenarios Fallidos:** `0`
 
 ### 1.2. Desglose por Tipo de Prueba
 
 | Tipo | Escenarios | Exitosos | Fallidos | Latencia |
 |---|---|---|---|---|
-| Unitarias (`npm test`) | 365 | 365 | 0 | 1.04 s |
-| Integración (`npm run test:integration`) | 431 | 431 | 0 | 328.28 s |
+| Unitarias (`npm test`) | 372 | 372 | 0 | 0.62 s |
+| Integración (`npm run test:integration`) | 449 | 449 | 0 | 298.89 s |
 
 > Las pruebas de integración corren contra `stockpilot_test`, una base Postgres real aislada de desarrollo y producción — protegida por un guard que aborta si `DATABASE_URL` no es, de forma verificable, una base de pruebas local (ver `tests/integration/setupTestDb.js`).
 
@@ -386,7 +386,21 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` recepción de mercancía: **cerrar con faltante y confirmar exceso (con motivo) solo se mandan cuando se piden**
 - ✔️ `[Caso de Prueba]` recepción de mercancía: **quedaraFaltante: solo si con lo que llegó ahora alguna línea sigue incompleta**
 
-### 2.22 Módulo Subyacente: `product_polymorphism.test.js`
+### 2.22 Módulo Subyacente: `politica_dos_factores.test.js`
+**Estado:** ✅ Aprobado
+
+- ✔️ `[Caso de Prueba]` politicaActiva: **está apagada por defecto y solo se enciende con el texto exacto «true»**
+- ✔️ `[Caso de Prueba]` rutaExentaDe2FA: **exime las rutas de acceso, de la propia cuenta y de notificaciones**
+- ✔️ `[Caso de Prueba]` rutaExentaDe2FA: **NO exime ninguna ruta de negocio**
+- ✔️ `[Caso de Prueba]` rutaExentaDe2FA: **exige el límite de segmento: «/2fax» o «/perfiles» no cuelgan de «/2fa» ni de «/perfil»**
+- ✔️ `[Caso de Prueba]` rutaExentaDe2FA: **la lista de exentas es corta (cada ruta nueva exenta debe justificarse)**
+- ✔️ `[Caso de Prueba]` debeComprobar2FA: **con la política apagada nunca comprueba**
+- ✔️ `[Caso de Prueba]` debeComprobar2FA > con la política encendida: **comprueba las escrituras de un Administrador**
+- ✔️ `[Caso de Prueba]` debeComprobar2FA > con la política encendida: **no comprueba las lecturas**
+- ✔️ `[Caso de Prueba]` debeComprobar2FA > con la política encendida: **no comprueba rutas exentas aunque sea una escritura**
+- ✔️ `[Caso de Prueba]` debeComprobar2FA > con la política encendida: **no es asunto de esta política quien no es Administrador o no tiene sesión**
+
+### 2.23 Módulo Subyacente: `product_polymorphism.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Patrón Factory Method (ProductFactory.js) > ProductFactory.create() — Selector polimórfico: **Debería crear un PerishableProduct cuando tipo es "Perecedero"**
@@ -417,7 +431,7 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` Patrón Factory Method (ProductFactory.js) > DigitalProduct — Producto intangible: **validate() debería pasar sin fecha de vencimiento**
 - ✔️ `[Caso de Prueba]` Patrón Factory Method (ProductFactory.js) > DigitalProduct — Producto intangible: **validate() debería fallar sin nombre igual que los demás**
 
-### 2.23 Módulo Subyacente: `promociones.test.js`
+### 2.24 Módulo Subyacente: `promociones.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` normalizarDescuento (corrección de descuento efectivo de la IA): **2x1 sin porcentaje explícito (0) se corrige a 50%**
@@ -434,7 +448,7 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` determinarPromocionFallback (reglas deterministas cuando la IA no cubre un candidato): **no vence (null) pero hay sobrestock (>50): combo al 10% por 14 días**
 - ✔️ `[Caso de Prueba]` determinarPromocionFallback (reglas deterministas cuando la IA no cubre un candidato): **no vence y sin sobrestock: descuento genérico del 15% por 10 días (baja rotación)**
 
-### 2.24 Módulo Subyacente: `redondeo.test.js`
+### 2.25 Módulo Subyacente: `redondeo.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` techoSeguro (Math.ceil sin el ruido de punto flotante de JS): **absorbe el ruido cuando el resultado real es un entero exacto (2.2 * 25 = 55.00000000000001)**
@@ -443,7 +457,7 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` techoSeguro (Math.ceil sin el ruido de punto flotante de JS): **un entero exacto (sin ruido) se mantiene igual**
 - ✔️ `[Caso de Prueba]` techoSeguro (Math.ceil sin el ruido de punto flotante de JS): **funciona igual con valores negativos**
 
-### 2.25 Módulo Subyacente: `reposicion.test.js`
+### 2.26 Módulo Subyacente: `reposicion.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` calcularReposicion: **stock sobrado: cantidad 0 y puede esperar**
@@ -475,28 +489,25 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` evaluarRiesgoOrden: **dentro de presupuesto, sin críticos, con productos en alerta (naranja) → Medio**
 - ✔️ `[Caso de Prueba]` evaluarRiesgoOrden: **dentro de presupuesto, sin críticos ni alertas → Bajo**
 
-### 2.26 Módulo Subyacente: `respaldo_local_entorno.test.js`
+### 2.27 Módulo Subyacente: `respaldo_local_entorno.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` debeProgramarRespaldoLocal(): si el cron interno de respaldo debe programarse: **en producción, no**
 - ✔️ `[Caso de Prueba]` debeProgramarRespaldoLocal(): si el cron interno de respaldo debe programarse: **fuera de producción (test, development, undefined), sí**
 - ✔️ `[Caso de Prueba]` debeProgramarRespaldoLocal(): si el cron interno de respaldo debe programarse: **sin argumento, usa process.env.NODE_ENV**
 
-### 2.27 Módulo Subyacente: `security_2fa_crud.test.js`
+### 2.28 Módulo Subyacente: `security_2fa_frontend.test.js`
 **Estado:** ✅ Aprobado
 
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > requiereConfigurar2FAParaAccion: **debe permitir cualquier acción si el usuario no tiene needs2FASetup activo (ej. Tendero o Admin con 2FA)**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > requiereConfigurar2FAParaAccion: **debe permitir acciones si el usuario es null o undefined**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > requiereConfigurar2FAParaAccion: **debe bloquear y exigir 2FA en todas las acciones CRUD cuando needs2FASetup es true**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > requiereConfigurar2FAParaAccion: **debe ser tolerante a mayúsculas y espacios en el nombre de la acción**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > requiereConfigurar2FAParaAccion: **debe permitir acciones de solo lectura y navegación sin exigir 2FA**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > debeMostrarModal2FA: **debe mostrar el modal si el usuario requiere 2FA y NO ha sido descartado en la sesión**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > debeMostrarModal2FA: **no debe mostrar el modal si el usuario ya lo pospuso en la sesión actual**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > debeMostrarModal2FA: **no debe mostrar el modal si el usuario no requiere 2FA**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > obtenerMensajeBloqueo2FA: **debe retornar mensajes específicos para cada acción CRUD**
-- ✔️ `[Caso de Prueba]` Reglas de Seguridad y Validación 2FA en Acciones CRUD > obtenerMensajeBloqueo2FA: **debe retornar mensaje general cuando la acción es genérica o desconocida**
+- ✔️ `[Caso de Prueba]` esBloqueoPorDosFactores (el servidor decidió; el navegador solo reacciona): **reconoce el 403 con el code de la política de 2FA**
+- ✔️ `[Caso de Prueba]` esBloqueoPorDosFactores (el servidor decidió; el navegador solo reacciona): **no confunde otros 403 (sin permisos de administrador, CSRF…) con el bloqueo por 2FA**
+- ✔️ `[Caso de Prueba]` esBloqueoPorDosFactores (el servidor decidió; el navegador solo reacciona): **el code solo cuenta con status 403**
+- ✔️ `[Caso de Prueba]` esBloqueoPorDosFactores (el servidor decidió; el navegador solo reacciona): **tolera errores sin respuesta (red caída, cancelación) y valores vacíos**
+- ✔️ `[Caso de Prueba]` debeMostrarAvisoDosFactores (el aviso informa que la función existe): **se muestra a quien tiene el 2FA pendiente de activar**
+- ✔️ `[Caso de Prueba]` debeMostrarAvisoDosFactores (el aviso informa que la función existe): **no se muestra si ya lo activó, si no aplica (Tendero) o sin sesión**
+- ✔️ `[Caso de Prueba]` contrato del evento: **el nombre del evento es estable (lo emite AuthContext y lo escucha el layout)**
 
-### 2.28 Módulo Subyacente: `security_auth_rules.test.js`
+### 2.29 Módulo Subyacente: `security_auth_rules.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Middleware de Seguridad - Lógica auth.js > requireLogin: **Debería permitir el paso si hay userId y la sesión es válida**
@@ -510,7 +521,7 @@ A continuación se detalla el comportamiento de cada componente sometido a estr�
 - ✔️ `[Caso de Prueba]` Middleware de Seguridad - Lógica auth.js > requireAdmin: **Debería denegar acceso si no hay sesión**
 - ✔️ `[Caso de Prueba]` Middleware de Seguridad - Lógica auth.js > requireAdmin: **Debería denegar acceso si el rol no está definido**
 
-### 2.29 Módulo Subyacente: `sugerencias_stock.test.js`
+### 2.30 Módulo Subyacente: `sugerencias_stock.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` sugerirUmbralesStock (umbrales de reorder point sin historial propio): **calcula stock de seguridad como colchón de 2 días de venta**
@@ -887,7 +898,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 ### 3.26 Flujo: `limitadores_reinicio.test.js`
 **Estado:** ✅ Aprobado
 
-- ✔️ `[Caso de Prueba]` reinicio de los contadores de los limitadores: **registra los 7 limitadores de middleware/rateLimiter.js**
+- ✔️ `[Caso de Prueba]` reinicio de los contadores de los limitadores: **registra los 8 limitadores de middleware/rateLimiter.js**
 - ✔️ `[Caso de Prueba]` reinicio de los contadores de los limitadores: **reiniciarLimitadores() devuelve el límite global a su valor inicial**
 
 ### 3.27 Flujo: `limitador_olvido_contrasena.test.js`
@@ -944,7 +955,29 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` /pedir: armar, aprobar y recibir: **recibir de más pide confirmación con motivo (409) y la pantalla lo reenvía con confirmar_exceso**
 - ✔️ `[Caso de Prueba]` /pedir: armar, aprobar y recibir: **descartar un pedido (Rechazada) lo saca de la lista por aprobar**
 
-### 3.31 Flujo: `productos_carga_masiva.test.js`
+### 3.31 Flujo: `politica_dos_factores.test.js`
+**Estado:** ✅ Aprobado
+
+- ✔️ `[Caso de Prueba]` política APAGADA (por defecto, durante el piloto): **un Administrador SIN 2FA puede crear productos y proveedores**
+- ✔️ `[Caso de Prueba]` política APAGADA (por defecto, durante el piloto): **un valor distinto de «true» tampoco la enciende**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **un Administrador SIN 2FA recibe 403 con code DOS_FACTORES_REQUERIDO y NO se crea nada**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: POST /api/proveedores también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: PUT /api/productos/:id también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: DELETE /api/productos/:id también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: POST /api/clientes también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: POST /api/inventario/ajuste también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **es por defecto: POST /api/ia/apply-strategy también se bloquea (no depende de rutas marcadas a mano)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **un Administrador CON 2FA activo opera con normalidad**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **leer sigue permitido: un Administrador SIN 2FA puede consultar**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **los flujos de la propia cuenta siguen abiertos: activar el 2FA, cerrar sesión y el modo de interfaz**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **el Tendero no se ve afectado (la política es solo del Administrador)**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **FALLA CERRADO: si no se puede consultar el estado del 2FA, responde 500 y NO deja escribir**
+- ✔️ `[Caso de Prueba]` política ENCENDIDA (REQUIRE_ADMIN_2FA=true): **si el Administrador activa el 2FA en plena sesión, la siguiente escritura ya pasa (se lee de la BD, no de la sesión)**
+- ✔️ `[Caso de Prueba]` POST /api/2fa/generate no permite reemplazar un 2FA ya activo: **con el 2FA activo responde 409 DOS_FACTORES_YA_ACTIVO y el secreto NO cambia**
+- ✔️ `[Caso de Prueba]` POST /api/2fa/generate no permite reemplazar un 2FA ya activo: **sin 2FA activo sigue generando (activación inicial y reintentos de activación)**
+- ✔️ `[Caso de Prueba]` limitador de /api/2fa/disable: **tras 5 contraseñas incorrectas, el sexto intento responde 429 aunque la contraseña sea correcta**
+
+### 3.32 Flujo: `productos_carga_masiva.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Productos: carga masiva (.xlsx y .csv): **.xlsx: crea productos nuevos con las columnas mínimas (Código y Nombre)**
@@ -956,7 +989,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Productos: carga masiva (.xlsx y .csv): **sin ninguna columna de Código/Nombre en el encabezado: 400 explícito**
 - ✔️ `[Caso de Prueba]` Productos: carga masiva (.xlsx y .csv): **sin ningún archivo adjunto: 400 (el mensaje viene de validateFileType, no del chequeo propio de bulkUpload — ese queda inalcanzable por esta ruta)**
 
-### 3.32 Flujo: `proveedores_flujo.test.js`
+### 3.33 Flujo: `proveedores_flujo.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Proveedores: orden inteligente (copiloto IA, aprobar, recibir): **ai-copilot: ajusta la cantidad matemática con el porcentaje que responde la IA simulada**
@@ -972,7 +1005,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Proveedores: borrador de orden desde el Consejero IA (/api/ordenes/borrador/*): **solicitarProducto (Tendero): agrega su línea al borrador del proveedor y notifica a los administradores**
 - ✔️ `[Caso de Prueba]` Proveedores: borrador de orden desde el Consejero IA (/api/ordenes/borrador/*): **solicitarProducto: si el producto YA está en un borrador de ese proveedor, da 409 y no duplica la línea**
 
-### 3.33 Flujo: `recepcion_mercancia.test.js`
+### 3.34 Flujo: `recepcion_mercancia.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Recepción de mercancía: lo recibido frente a lo pedido: **recibir exactamente lo pedido cierra la orden como «Completada»**
@@ -998,13 +1031,13 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Recepción de mercancía: cerrar con faltante, estados y permisos: **un producto repetido en la misma recepción da 400 y no escribe nada**
 - ✔️ `[Caso de Prueba]` Recepción de mercancía: cerrar con faltante, estados y permisos: **un Tendero recibe 403 y no cambia nada (la recepción es del Administrador)**
 
-### 3.34 Flujo: `seed_ruta_eliminada.test.js`
+### 3.35 Flujo: `seed_ruta_eliminada.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` POST /api/admin/seed: **con un Administrador responde 404 y no toca ni Tienda ni Usuarios ni Productos**
 - ✔️ `[Caso de Prueba]` POST /api/admin/seed: **sin sesión (con un token CSRF válido, que se obtiene sin iniciar sesión) no ejecuta nada**
 
-### 3.35 Flujo: `sesion_candado_caducada.test.js`
+### 3.36 Flujo: `sesion_candado_caducada.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Candado de sesión caducada: canal app: **sesión VIVA: el segundo login sigue recibiendo 409 SESSION_ACTIVE (el candado funciona)**
@@ -1019,7 +1052,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Candado de sesión caducada: no afecta a lo que no debe: **la clave incorrecta sigue siendo 401 (no se llega a consultar el candado)**
 - ✔️ `[Caso de Prueba]` Candado de sesión caducada: no afecta a lo que no debe: **un candado con el identificador de una sesión que NO existe (basura en la columna) se trata como huérfano**
 
-### 3.36 Flujo: `sesion_por_canal.test.js`
+### 3.37 Flujo: `sesion_por_canal.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Sesión por canal (Tendero): web y app a la vez: **web y app a la vez: las dos sesiones son válidas y cada una guarda su candado en su columna**
@@ -1037,7 +1070,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Sesión por canal: el Administrador no tiene candado: **varios inicios de sesión en cada canal, sin 409 y sin invalidar las anteriores**
 - ✔️ `[Caso de Prueba]` Sesión por canal: con 2FA: **el canal elegido en el paso de la contraseña se conserva al completar el 2FA (el del código no lo cambia)**
 
-### 3.37 Flujo: `tienda_permisos.test.js`
+### 3.38 Flujo: `tienda_permisos.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Permisos de tienda (plan 22, fase I0): **Tendero: PUT /api/tienda/update/:id da 403 y no modifica la tienda**
@@ -1045,7 +1078,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Permisos de tienda (plan 22, fase I0): **Administrador: PUT /api/tienda/update/:id sigue funcionando (200, cambio real)**
 - ✔️ `[Caso de Prueba]` Permisos de tienda (plan 22, fase I0): **Administrador: PUT /api/tienda/estado/:id sigue funcionando (200, la desactiva)**
 
-### 3.38 Flujo: `ventas_canal.test.js`
+### 3.39 Flujo: `ventas_canal.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Ventas.canal: **registrar-venta: una sesión web registra canal «web» y una sesión app, «app»**
@@ -1055,7 +1088,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Ventas.canal: **las ventas anteriores a la columna (o insertadas sin canal) quedan como «web»**
 - ✔️ `[Caso de Prueba]` Ventas.canal: **la base rechaza un canal que no sea «web» o «app»**
 
-### 3.39 Flujo: `ventas_fiado_validaciones.test.js`
+### 3.40 Flujo: `ventas_fiado_validaciones.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` El cliente de la venta tiene que ser de la tienda de la sesión: **carrito: un cliente de OTRA tienda da 404 «Cliente no encontrado»; no se registra la venta ni se descuenta stock**
@@ -1073,7 +1106,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Producto inexistente o de otra tienda en el carrito: **404 «Producto no encontrado o no pertenece a tu tienda» (antes 400 «Error interno procesando la venta»); el resto del carrito no se vende**
 - ✔️ `[Caso de Prueba]` Producto inexistente o de otra tienda en el carrito: **el stock insuficiente sigue siendo 400 con el nombre del producto**
 
-### 3.40 Flujo: `ventas_idempotencia.test.js`
+### 3.41 Flujo: `ventas_idempotencia.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Idempotency-Key en registrar-venta-carrito: **sin la cabecera nada cambia: dos peticiones iguales son dos ventas (compatibilidad con la web)**
@@ -1092,7 +1125,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Idempotency-Key en registrar-venta-carrito: **una clave vacía da 400 y no registra nada**
 - ✔️ `[Caso de Prueba]` Idempotency-Key en registrar-venta-carrito: **las ventas anteriores (sin clave) no estorban: varias ventas sin clave y una con clave conviven**
 
-### 3.41 Flujo: `ventas_metodo_pago.test.js`
+### 3.42 Flujo: `ventas_metodo_pago.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` metodo_pago de una venta: **registrar-venta-carrito rechaza "efectivo" con 400 y no registra nada**
@@ -1110,7 +1143,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` metodo_pago de una venta: **los espacios alrededor se recortan (sanitizeBody) y se guarda el texto exacto**
 - ✔️ `[Caso de Prueba]` metodo_pago de una venta: **sin metodo_pago (o null, o vacío) sigue valiendo «Efectivo» por defecto**
 
-### 3.42 Flujo: `ventas_precio_historico.test.js`
+### 3.43 Flujo: `ventas_precio_historico.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Historial de ventas con el precio al que se vendió: **venta de carrito: si el precio del producto cambia después, el historial conserva el precio de la venta**
@@ -1118,7 +1151,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` Historial de ventas con el precio al que se vendió: **ventas a precios distintos: cada fila y el total usan el suyo**
 - ✔️ `[Caso de Prueba]` Historial de ventas con el precio al que se vendió: **una fila antigua sin precio_unitario (venta anterior a esta corrección) cae al precio actual del producto**
 
-### 3.43 Flujo: `ventas_turno.test.js`
+### 3.44 Flujo: `ventas_turno.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` GET /api/ventas: canal y turno: **cada fila trae el canal de la venta; sin parámetros devuelve todas las de la tienda**
@@ -1128,7 +1161,7 @@ Ejecutadas contra Postgres real (`stockpilot_test`), sobre la aplicación comple
 - ✔️ `[Caso de Prueba]` GET /api/ventas: canal y turno: **un valor de turno distinto de «actual» es un error del cliente (400); no se interpreta como «sin filtro»**
 - ✔️ `[Caso de Prueba]` GET /api/ventas: canal y turno: **las ventas de otra tienda nunca aparecen, con o sin filtro**
 
-### 3.44 Flujo: `venta_concurrencia.test.js`
+### 3.45 Flujo: `venta_concurrencia.test.js`
 **Estado:** ✅ Aprobado
 
 - ✔️ `[Caso de Prueba]` Venta con concurrencia: **POST /api/registrar-venta (un producto): con stock=1, dos ventas simultáneas de 1 unidad -> una sola gana**

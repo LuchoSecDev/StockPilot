@@ -20,7 +20,8 @@ const { csrfSynchronisedProtection, generateToken } = csrfSync({
   getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.headers['X-CSRF-Token']
 });
 const { logger, requestLogger } = require('./utils/logger');
-const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter } = require('./middleware/rateLimiter');
+const { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter } = require('./middleware/rateLimiter');
+const { requireAdmin2FAConfigurado } = require('./middleware/twoFactor');
 
 // Importar rutas
 const authRoutes = require('./routes/authRoutes');
@@ -171,6 +172,11 @@ app.use('/api/reset-password', authLimiter);
 app.use('/api/verify-reset-code', resetCodeLimiter);
 app.use('/api/reset-password', resetCodeLimiter);
 app.use('/api/2fa/verify', twoFactorLimiter);
+app.use('/api/2fa/generate', twoFactorSetupLimiter);
+app.use('/api/2fa/disable', twoFactorSetupLimiter);
+
+// 🛡️ SEGURIDAD: política de 2FA del Administrador (apagada por defecto; ver middleware/twoFactor.js)
+app.use('/api/', requireAdmin2FAConfigurado);
 
 // Usar rutas
 app.use('/api/dashboard', dashboardRoutes);

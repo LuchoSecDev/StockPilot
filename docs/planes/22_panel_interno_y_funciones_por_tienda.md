@@ -278,6 +278,7 @@ Qué cambia respecto al 3-oct:
 - R1 (hecha el 8-oct y subida a `main`), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
 - Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
 - Modo básico web fases D y E, e I3, solo si el piloto muestra que hacen falta.
+- 2FA del Administrador: códigos de recuperación y luego encender `REQUIRE_ADMIN_2FA` (plan 21, P21-26; durante el piloto es solo una recomendación, decisión de Luis del 8-oct).
 - Prueba de usabilidad de la app con 2 o 3 tenderos, en entorno aparte, antes de la sustentación.
 - Distribución en iPhone (requiere un Mac y la membresía de pago de Apple).
 
