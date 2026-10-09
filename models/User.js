@@ -159,7 +159,9 @@ class User {
     }
 
     static async setCurrentSession(userId, sessionId, canal = 'web') {
-        const query = `UPDATE Usuarios SET ${User.columnaSesion(canal)} = ? WHERE id_usuario = ?`;
+        // De paso se anota el último acceso (lo lee el panel interno). Se llama una vez por inicio de sesión completo
+        // —login directo o tras el 2FA—, nunca por petición, así que no multiplica las escrituras.
+        const query = `UPDATE Usuarios SET ${User.columnaSesion(canal)} = ?, ultimo_acceso = CURRENT_TIMESTAMP WHERE id_usuario = ?`;
         await db.runAsync(query, [sessionId, userId]);
     }
 

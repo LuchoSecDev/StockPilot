@@ -2,6 +2,7 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const { asegurarModoInterfaz } = require('./migraciones/modoInterfaz');
+const { asegurarPanelInterno } = require('./migraciones/panelInterno');
 
 const isNeon = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
 
@@ -381,6 +382,10 @@ db.migrationReady = (async function autoMigrate() {
                 );
             `);
             
+            // 8. Panel interno del equipo (plan 22, I1/I2): columnas de métricas, esquema `interno` y sus vistas.
+            // Al final: las vistas leen Ventas, Productos y Usuarios, que ya deben existir.
+            await asegurarPanelInterno(pool);
+
             console.log('✅ Auto-migration: Esquema de Tienda, Usuarios (2FA), Índices, SesionCaja POS, Clientes y Abonos (Fiados), EgresosCaja, NotificacionesUsuario y Promociones_Manuales actualizados exitosamente.');
             return; // Éxito, salir de la función
         } catch (err) {

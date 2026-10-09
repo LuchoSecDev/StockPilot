@@ -17,10 +17,16 @@ const TABLAS = [
   'abonos', 'alertas', 'auditoria_ia', 'cache_ia', 'clientes', 'egresoscaja', 'feedback_ia',
   'historial_precios', 'movimientosstock', 'notificacionesusuario', 'ordenes_detalle',
   'ordenes_compra', 'productos', 'promociones_manuales', 'proveedores', 'reportes',
-  'sesioncaja', 'session', 'usuarios', 'ventasproductos', 'ventas', 'tienda'
+  'sesioncaja', 'session', 'usuarios', 'ventasproductos', 'ventas', 'tienda',
+  // Esquema del panel interno (plan 22): no tiene FK hacia las tablas de arriba, así que CASCADE no lo alcanza.
+  'interno.equipo', 'interno.bitacora'
 ];
 
 async function limpiarBaseDePruebas() {
+  // Este archivo es CommonJS: `require('config/database')` aquí carga SU PROPIA copia del módulo (distinta de la que
+  // importa setupTestDb.js como ESM), y esa copia lanza su auto-migración en segundo plano al cargarse. Sin esperarla,
+  // el TRUNCATE de la primera prueba competía con ella por los bloqueos de las tablas y las vistas (deadlock intermitente).
+  await db.migrationReady;
   await db.pool.query(`TRUNCATE ${TABLAS.join(', ')} RESTART IDENTITY CASCADE`);
 }
 

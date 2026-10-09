@@ -61,6 +61,12 @@ const PoliticaDatosPage = () => {
                 numérico de su inventario (sin datos personales) se envía a la API de OpenAI para generar la
                 recomendación; StockPilot no envía nombres, correos ni contraseñas a ese servicio.
               </p>
+              <p>
+                Para operar y mejorar el servicio, el equipo de StockPilot consulta métricas agregadas de uso de cada
+                tienda (fecha de registro, número de productos cargados, número de días con ventas y fecha del último
+                acceso). Estas métricas no incluyen los montos de las ventas, los productos vendidos ni los datos de
+                los clientes de la tienda. Cada consulta del equipo queda registrada.
+              </p>
             </Seccion>
 
             <Seccion titulo="4. Sus derechos">

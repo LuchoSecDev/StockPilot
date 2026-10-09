@@ -171,4 +171,34 @@ const forgotIpLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter };
+// --- Panel interno del equipo (plan 22). Más estricto que el de las tiendas: son pocas cuentas, con acceso a métricas de
+// TODAS las tiendas, y un código TOTP de 6 dígitos solo se protege con el límite de intentos. ---
+
+// Usuario y contraseña: 5 fallos cada 15 min por IP (solo penaliza los fallidos).
+const internoLoginLimiter = rateLimit({
+    store: getStore('rl_interno_login:'),
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req) => `ip_${ipKeyGenerator(req.ip)}`,
+    message: { success: false, error: "Demasiados intentos. Espera 15 minutos antes de volver a intentarlo." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Código del segundo factor: 5 fallos cada 15 min por CUENTA en proceso de entrada (no por IP: cambiar de IP no reinicia
+// el contador). Sin un intento de entrada pendiente, por IP.
+const internoSegundoFactorLimiter = rateLimit({
+    store: getStore('rl_interno_2fa:'),
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req) => (req.session?.internoPendiente?.idEquipo
+        ? `equipo_${req.session.internoPendiente.idEquipo}`
+        : `ip_${ipKeyGenerator(req.ip)}`),
+    message: { success: false, error: "Demasiados intentos con el código. Espera 15 minutos antes de volver a intentarlo." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+module.exports = { globalLimiter, authLimiter, aiLimiter, twoFactorLimiter, twoFactorSetupLimiter, resetCodeLimiter, forgotEmailLimiter, forgotIpLimiter, internoLoginLimiter, internoSegundoFactorLimiter };

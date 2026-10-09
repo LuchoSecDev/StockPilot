@@ -57,3 +57,32 @@ Para cambiarla: en Render, *Environment* → editar `REQUIRE_ADMIN_2FA` → guar
 5. Dejar constancia (fecha, quién lo pidió, quién lo hizo) en la Bitácora de `docs/seguimiento_planes.xlsx`.
 
 **Intentos fallidos.** Activar o desactivar el 2FA tiene un límite de 5 intentos fallidos cada 15 minutos por usuario; pasado ese límite el servidor responde 429 hasta que se cumpla la ventana.
+
+## 6. Panel interno del equipo (métricas del piloto)
+
+**Qué es.** Una pantalla solo para el equipo de StockPilot, en **`/interno`** (por ejemplo `https://stockpilot-qg0s.onrender.com/interno`), para medir las tiendas del piloto: activación, adopción semanal, embudo y una bitácora de lo que el equipo consulta. Muestra solo **conteos, fechas y estados**; nunca montos, productos ni datos de clientes (Ley 1581 de 2012). Las cuentas del equipo viven en un esquema aparte (`interno`) y no se mezclan con las de las tiendas.
+
+**Antes de la primera vez: copia de seguridad.** El primer despliegue agrega columnas a `Tienda` y `Usuarios` y crea el esquema `interno` con sus vistas (solo agrega; no borra ni reescribe datos de negocio). Confirma que el punto de restauración de Neon (sección 2) está disponible y revisa en los logs de Render que aparezca «Auto-migration … actualizados exitosamente». Si el rol de la base no pudiera crear esquemas, la migración lo dirá en el log y el panel no funcionará; el resto de la app no se afecta.
+
+**Crear una cuenta del equipo** (una por integrante, sin cuentas compartidas, para que la bitácora sirva). Solo se puede por script, nunca desde la web:
+
+```bash
+# Contra producción: pasa la URL de Neon SOLO para este comando (no la dejes en archivos)
+DATABASE_URL="postgresql://…neon…/tu_base" npm run equipo:crear
+```
+
+El script (1) muestra a qué base apunta y exige escribir su nombre para continuar; (2) pide nombre, correo, usuario y contraseña (mínimo 12 caracteres, sin eco); (3) muestra un **código QR una sola vez** para Google Authenticator; y (4) **no guarda la cuenta hasta que escribas un código válido** de la app. Si cierras la terminal antes de escanear, no se crea nada y se repite.
+
+**Desactivar a alguien** (pierde el acceso en su siguiente petición, sin esperar a que caduque su sesión):
+
+```sql
+UPDATE interno.equipo SET activo = false WHERE usuario = 'usuario-del-integrante';
+```
+
+**Si un integrante pierde el celular:** desactivar su cuenta (arriba) y crearle una nueva con el script. No hay recuperación por correo a propósito: el segundo factor es obligatorio.
+
+**Antes de medir: marcar las tiendas del equipo como de prueba.** En producción conviven las tiendas de QA y demostración con las del piloto. En **Tiendas → Detalle → «Marcar como tienda de prueba»** (queda en la bitácora). Las marcadas no cuentan en la activación, la adopción ni el embudo.
+
+**Seguridad del acceso.** Contraseña + código de Google Authenticator (obligatorio); 5 intentos fallidos cada 15 minutos por IP en la contraseña y por cuenta en el código; un código ya usado no sirve otra vez; el intento a medias caduca a los 5 minutos; entrar al panel cierra cualquier sesión de tienda abierta en ese navegador. Todo lo que el equipo consulta queda en la **Bitácora**; si no se puede registrar, no se entregan datos.
+
+**Qué NO hace:** no permite «entrar como» un usuario de una tienda, no edita datos de tiendas y no crea cuentas. La variable `REQUIRE_ADMIN_2FA` (sección 5) es independiente: el 2FA del equipo es siempre obligatorio.

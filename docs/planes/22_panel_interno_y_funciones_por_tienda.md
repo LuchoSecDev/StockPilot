@@ -1,6 +1,6 @@
 # Plan 22: Panel interno del equipo y funciones liberables por tienda
 
-**Estado (6-oct-2026):** I0 terminada y en producción (sección 1.4). I1 a I4: propuesta, nada implementado. Cada fase se aprueba por separado.
+**Estado (8-oct-2026):** I0 terminada y en producción (sección 1.4). **I1 e I2 implementadas y verificadas en la rama `feat/panel-interno-metricas`** (acceso del equipo, vistas de métricas y las pantallas Tiendas, Detalle, Embudo y Bitácora; ver «I1 e I2 — Resultados»). I4: solo la pantalla de embudo; faltan las preguntas del registro, el párrafo de la política de datos y la encuesta. I3: después del piloto. Cada fase se aprueba por separado.
 **La sección 5 es el único orden de ejecución vigente** para los planes 19, 21 y 22. **Cambió el 6-oct:** el piloto va con la web y el modo básico; la app nativa va en paralelo (ver «Actualización del 6-oct-2026» en la sección 5).
 **Fecha:** 2026-09-28
 **Origen:** decisión de Luis (28-sep) de tener, antes del piloto, un panel del equipo para:
@@ -74,7 +74,7 @@ Hallazgos encontrados durante I0, también corregidos y desplegados:
 - **C6:** la carpeta `exports/` era compartida: cualquier usuario listaba y descargaba exportaciones de otras tiendas. Ahora cada archivo lleva la tienda en el nombre, se verifica al descargar, se borra tras la descarga y se eliminó el listado.
 - **C7:** `PUT /api/productos/agregar/:id` sumaba (o restaba, con cantidad negativa) stock sin dejar movimiento en el Kardex. Se eliminó.
 
-Quedan abiertos, sin riesgo de seguridad: **C4** (un CSRF inválido responde 500 en vez de 403) y **C5** (`clienteRoutes` aplica `requireLogin` a todo `/api`).
+Queda abierto, sin riesgo de seguridad, **C5** (`clienteRoutes` aplica `requireLogin` a todo `/api`). **C4** (un CSRF inválido respondía 500 en vez de 403) se corrigió el 3-oct en `feat/backend-app-tendero`: `middleware/errorHandler.js` responde 403 con `CSRF_INVALID` (`csrf_errores.test.js`; anotado aquí el 9-oct).
 
 ---
 
@@ -212,12 +212,47 @@ Antes de la convocatoria, agregar a `/politica-datos` un párrafo como este:
 | Fase | Contenido | Cuándo |
 |---|---|---|
 | **I0** | Auditoría de autorización: egresos entre tiendas (P22-09), matriz de roles (P22-10), `requireAdmin` donde la matriz lo indique (incluidas las dos rutas de tienda del hallazgo 1.4) y pruebas de 403 | **Hecha** (3-oct, en producción) |
-| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | Antes del arranque del piloto |
-| **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | Antes del arranque del piloto |
+| **I1** | Esquema (3.2), cuentas del equipo, inicio de sesión con segundo factor, `requireEquipo`, bitácora | **Hecha en rama (8-oct)**; falta crear las cuentas en producción |
+| **I2** | Vistas de métricas (3.3, excluyendo las tiendas de prueba) y pantallas Tiendas, Detalle y Bitácora (solo lectura) | **Hecha en rama (8-oct)** |
 | **I3** | Funciones liberables (3.4) | Después del piloto: el modo básico web es una preferencia por usuario y no las necesita |
-| **I4** | Pantalla de embudo, párrafo de la política (3.7), campo de experiencia digital en el registro y encuesta de satisfacción (plan 19, 3.5) | Antes del arranque del piloto |
+| **I4** | Pantalla de embudo, párrafo de la política (3.7), campo de experiencia digital en el registro y encuesta de satisfacción (plan 19, 3.5) | Antes del arranque del piloto. **Hecha: la pantalla de embudo.** Falta: preguntas del registro, párrafo de la política y encuesta |
 
 El código nuevo se escribe desde el inicio con el patrón del plan 21: controladores delgados y lógica en `services/interno/`. Así no se crea más deuda mientras se refactoriza la existente.
+
+#### I1 e I2 — Resultados (rama `feat/panel-interno-metricas`, 8-oct-2026)
+
+Luis pidió medir las tiendas del piloto «o al menos la única que acepte usarla»: el panel funciona con **una sola tienda** (siempre muestra conteos «n de N» y «—» cuando no hay base para un porcentaje).
+
+| Commit | Qué hace |
+|---|---|
+| `cc0cbc0` | Migración, vistas de métricas, definiciones del estudio, `Usuarios.ultimo_acceso` |
+| `df92831` | Acceso del equipo con 2FA, endpoints de métricas, bitácora y `npm run equipo:crear` |
+| `eb0a7f2` | Las cuatro pantallas en `/interno` |
+
+**Lo implementado (y dónde se aparta del diseño de este plan):**
+- **Esquema.** `Tienda.fecha_creacion`, `dias_apertura_semana` (1 a 7, por defecto 7) y `es_prueba`; `Usuarios.ultimo_acceso`; esquema `interno` con `equipo` y `bitacora`. *Aparte del diseño:* `fecha_creacion` se rellena en tres pasos (sin valor por defecto → rellenar → fijar el valor), porque el `ADD COLUMN … DEFAULT CURRENT_TIMESTAMP` del apartado 3.2 pondría «ahora» a todas las tiendas existentes y el `UPDATE` sin guardia pisaría datos en cada arranque. Una sucursal (que no tiene usuarios propios) toma la fecha de su primera venta. `interno.funciones_tienda` no se crea: es I3.
+- **Vistas.** `v_ventas_dia` (auxiliar), `v_tiendas_resumen`, `v_activacion` y `v_adopcion_semanal`. *Aparte del diseño:* `v_embudo` no es una vista; el embudo se compone en `services/interno/definiciones.js` a partir de las otras, para que los umbrales vivan en un solo lugar con su prueba. Un «día con ventas» es un día **calendario de Bogotá** (Neon corre en UTC). Las vistas solo exponen conteos, fechas y estados; una prueba fija la lista exacta de columnas.
+- **Acceso.** `POST /api/interno/login` y `/2fa`: contraseña (bcrypt) + código TOTP obligatorio; un código usado no se repite; el paso pendiente caduca a los 5 minutos; limitadores propios (5 fallos / 15 min); sesión que se regenera en cada paso, de modo que entrar al panel cierra una sesión de tienda abierta en el mismo navegador; `requireEquipo` revalida en cada petición que la cuenta siga activa. Cuentas solo por script, que no guarda la cuenta hasta que el celular genere un código válido.
+- **Métricas.** `GET /api/interno/tiendas`, `/tiendas/:id`, `/embudo`, `/bitacora` y `PUT /tiendas/:id/es-prueba`. Cada respuesta se arma campo por campo; cada consulta queda en la bitácora **antes** de responder (sin rastro no hay datos); marcar una tienda de prueba y su rastro van en una sola transacción.
+- **Pantallas.** `/interno` carga de forma diferida en su propio paquete (32 kB; no viaja en el de las tiendas), con sesión propia y marca `noindex`.
+- **Pruebas.** 32 de las vistas y la migración, 5 de `ultimo_acceso`, 34 de acceso, 30 de métricas (integración) y 20 + 20 unitarias; el script se probó de punta a punta contra `stockpilot_test`. Verificado en un navegador real. Suite completa: **550 pruebas de integración** y **412 unitarias** en verde.
+
+**Definiciones que quedaron fijadas (decisiones de Luis, 28-sep):** activada = ≥ 20 productos y ventas en ≥ 5 de los primeros 7 días calendario (el día del registro cuenta como día 0); adopción de una semana = días con ventas ÷ `dias_apertura_semana`, con tope de 100 %.
+
+**Definiciones que Luis confirmó el 9-oct-2026, tal como se propusieron** (P22-20 y P22-21; viven en `services/interno/definiciones.js` y se muestran en pantalla):
+1. **Umbral «regular»** de la adopción: entre 50 % y la meta (80 %) es ámbar; menos de 50 %, rojo. Solo afecta el color del semáforo, no la meta.
+2. **«Con uso en la semana 4»** del embudo: al menos un día con ventas entre los días 22 y 28 desde el registro, entre las tiendas que ya llegaron a esa semana. El plan nombraba la etapa pero no la definía.
+3. **«Productos cargados»** de la activación: hoy cuenta los productos que tiene la tienda (el decidido el 28-sep dice «carga al menos 20 productos» sin ventana). La tabla de 3.3 hablaba de «productos cargados en los primeros 7 días»; ambos números se muestran en el detalle (`productos_cargados` y `productos_primeros_7d`) y cambiar de uno a otro es una línea. **Decidido: cuenta el total de la tienda.** Quedan fijadas antes de publicar la convocatoria (documento de intervención, sección 1.6): cambiarlas después de ver datos es cambiar la definición del estudio.
+
+**Párrafo de la política de datos (3.7, P22-23):** Luis lo aprobó tal cual el 9-oct-2026 y quedó como segundo párrafo de la sección 3 de `/politica-datos`, fijado por `tests/business_logic/politica_datos_metricas_equipo.test.js`. El consentimiento de los usuarios existentes se guarda solo como fecha (`fecha_aceptacion_politica_datos`), sin versión del texto: quien aceptó antes del cambio no aceptó este párrafo explícitamente (ver nota al cierre).
+
+**Lo que NO se hizo (queda de I4):** las preguntas del registro (días de apertura, experiencia digital) y la encuesta de satisfacción. Mientras no exista la pregunta del registro, todas las tiendas tienen `dias_apertura_semana = 7`.
+
+**Hallazgos mientras se construía:**
+- `Usuarios.id_tienda` cambia cuando un dueño cambia de sucursal (`switchStore`), y las sucursales adicionales no tienen usuarios propios. Por eso «dueño aceptó la política» sale de `Tienda.id_propietario` y no de cualquier usuario de la tienda. «Usuarios» y «último acceso» por tienda son aproximaciones para dueños con varias sucursales.
+- **Carrera en las pruebas de integración** (P21-29): `helpers/db.js` es CommonJS y cargaba su propia copia de `config/database.js`, cuya auto-migración corría en segundo plano mientras la primera prueba hacía `TRUNCATE`: deadlock intermitente (~1 de cada 9 corridas) que se hizo visible al agregar las vistas. Corregido: el helper espera su propia migración. 60 corridas seguidas sin fallos.
+- La auto-migración se ejecuta al cargar `config/database.js`, así que cualquier script que lo importe migra la base que diga su `DATABASE_URL` (P21-15). `equipo:crear` pide confirmar la base destino antes de cargarlo.
+- La migración del panel sondea antes de hacer `ALTER TABLE` (que pide un bloqueo exclusivo aunque la columna exista), corre en una sola transacción bajo candado, reintenta si PostgreSQL la elige como víctima de un deadlock y se repara sola si una columna pierde su valor por defecto.
 
 ---
 
@@ -243,8 +278,8 @@ Qué cambia respecto al 3-oct:
 - Respaldo externo: workflow diario de GitHub Actions, cifrado, con 14 días de retención (`docs/restaurar_respaldo.md`). Restauración verificada el 3-oct, según Luis.
 
 **A. Antes de la visita (vigente desde el 6-oct)**
-1. **Modo básico web, fases A, B y C** (plan 19, 3.4.3), cada una con su prueba. Las cuentas existentes se respaldan a `'avanzado'` para no cambiarles el menú de golpe.
-2. **Tienda de demostración** y **material de la visita:** guion de la fase 4 con las 6 tareas, hoja de observación (tiempo, errores, SUS), autorización de tratamiento de datos y formato de línea base.
+1. **Modo básico web, fases A, B y C** (plan 19, 3.4.3), cada una con su prueba. Las cuentas existentes se respaldan a `'avanzado'` para no cambiarles el menú de golpe. **Hecho y en `main` desde el 6-oct.** Queda por decidir si Colaboradores y Cartera entran al menú básico (P19-11).
+2. **Tienda de demostración** y **material de la visita:** guion de la fase 4 con las 6 tareas, hoja de observación (tiempo, errores, SUS), autorización de tratamiento de datos y formato de línea base. Incluir la pregunta de pagos de `docs/propuesta_verificacion_de_pagos.md` (sección 5) y la forma de medir la exactitud de inventario (P22-26).
 3. **Backend para la app: ya hecho** (lo que sigue es histórico, del 3 al 5-oct; está en `main` y desplegado). Lo que quede pendiente del lado de la app no bloquea la visita.
 
 *Histórico, backend para la app* (rama `feat/backend-app-tendero`), cada punto con su prueba:
@@ -266,8 +301,9 @@ Qué cambia respecto al 3-oct:
 2. **I1 e I2:** panel de solo lectura, excluyendo las tiendas de prueba (sección 3.3).
 3. **I4:** preguntas del registro (días de apertura, experiencia digital) y párrafo de la política de datos.
 4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21; **decidida e implementada el 4-oct: opción B, pedir confirmación con motivo, y el faltante queda pendiente en una orden «Parcial»**).
-   - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base).
+   - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base). Seguimiento: P22-24 (cuentas y tiendas de prueba) y P22-25 (entorno de la app).
 5. Decidir si se mantiene despierto el servidor en horario de tienda con un *ping* (cabe en las horas gratuitas de Render si es el único servicio gratuito).
+   - El *ping* en horario de tienda no resuelve las tareas programadas de la madrugada (reversión de precios 00:05, evaluación de la IA 03:00) ni el resumen de los lunes: ver P21-30.
 6. Arranque acordado con cada dueño.
 
 **D. Durante las 6 semanas del piloto**
@@ -276,7 +312,7 @@ Qué cambia respecto al 3-oct:
 
 **E. Después del piloto**
 - R1 (hecha el 8-oct y subida a `main`), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
-- Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
+- Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`) y C5 (C4 ya está corregido).
 - Modo básico web fases D y E, e I3, solo si el piloto muestra que hacen falta.
 - 2FA del Administrador: códigos de recuperación y luego encender `REQUIRE_ADMIN_2FA` (plan 21, P21-26; durante el piloto es solo una recomendación, decisión de Luis del 8-oct).
 - Prueba de usabilidad de la app con 2 o 3 tenderos, en entorno aparte, antes de la sustentación.
