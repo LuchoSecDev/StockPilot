@@ -7,15 +7,15 @@
  *   1. ANTES de tocar la base muestra a cuál apunta (servidor y nombre, sin credenciales) y exige escribir el nombre de la
  *      base para confirmar. Este script SÍ está pensado para correr contra producción, así que no puede tener la guardia
  *      de «solo local» de la semilla; la confirmación explícita ocupa su lugar.
- *   2. La contraseña se escribe sin eco, se pide dos veces y debe tener al menos 12 caracteres.
+ *   2. La contraseña se escribe sin eco (services/interno/entradaOculta.js), se pide dos veces y debe tener al menos 12 caracteres.
  *   3. El segundo factor es obligatorio: se muestra el QR UNA vez y la cuenta NO se guarda hasta que el celular genere un
  *      código válido. Así nadie queda encerrado por un QR mal escaneado.
  *
  * `require('../config/database')` ejecuta la auto-migración de la base destino; por eso solo se carga DESPUÉS de confirmar.
  */
 require('dotenv').config();
-const readline = require('node:readline/promises');
 const qrcode = require('qrcode');
+const { crearEntrada } = require('../services/interno/entradaOculta');
 
 const INTENTOS_DEL_CODIGO = 5;
 
@@ -29,23 +29,10 @@ function destino() {
   }
 }
 
-/** Lee una línea sin mostrarla (contraseñas). Si la entrada no es una terminal (ej. pruebas), lee normal. */
-function preguntarOculto(rl, pregunta) {
-  if (!process.stdin.isTTY) return rl.question(pregunta);
-  return new Promise((resolver) => {
-    const salidaOriginal = rl._writeToOutput;
-    process.stdout.write(pregunta);
-    rl._writeToOutput = () => {};
-    rl.question('').then((texto) => {
-      rl._writeToOutput = salidaOriginal;
-      process.stdout.write('\n');
-      resolver(texto);
-    });
-  });
-}
-
 async function main() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: Boolean(process.stdin.isTTY) });
+  // La contraseña se pide sin eco (ver services/interno/entradaOculta.js y su prueba: el truco anterior no funcionaba en Node 24).
+  const entrada = crearEntrada();
+  const rl = entrada.rl;
   try {
     const dest = destino();
     if (!dest) throw new Error('DATABASE_URL no está definida o no es válida.');
@@ -66,8 +53,8 @@ async function main() {
     const nombre = (await rl.question('Nombre completo: ')).trim();
     const correo = (await rl.question('Correo: ')).trim();
     const usuario = (await rl.question('Usuario (para iniciar sesión): ')).trim();
-    const password = await preguntarOculto(rl, `Contraseña (mínimo ${equipo.LARGO_MINIMO_CLAVE} caracteres): `);
-    const repetida = await preguntarOculto(rl, 'Repite la contraseña: ');
+    const password = await entrada.preguntarOculto(`Contraseña (mínimo ${equipo.LARGO_MINIMO_CLAVE} caracteres): `);
+    const repetida = await entrada.preguntarOculto('Repite la contraseña: ');
     if (password !== repetida) {
       console.log('Las contraseñas no coinciden. No se hizo nada.');
       return 1;
@@ -96,7 +83,7 @@ async function main() {
     console.error(`\nNo se pudo crear la cuenta: ${err.message}`);
     return 1;
   } finally {
-    rl.close();
+    entrada.cerrar();
   }
 }
 
