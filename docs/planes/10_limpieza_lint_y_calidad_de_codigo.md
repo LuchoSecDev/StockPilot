@@ -3,6 +3,7 @@
 **Estado:** Implementado y Verificado
 **Fecha:** 2026-09-19
 **Commit:** `8ae43d7` (`chore(lint): eliminar los 79 hallazgos de ESLint en frontend y backend`)
+**Pendientes (revisado el 9-oct-2026):** P10-01 (`eslint.config.js` en el backend), P10-02 (tono de la plantilla de `generar_reporte.js`) y P10-03 (`test_disable_2fa.js`). El riesgo de `seed_test_data.js` (sección 3.1) quedó resuelto el 28-sep con `database/guardiaSemilla.js` (P10-04).
 
 ---
 
@@ -54,4 +55,4 @@ Ignorados: `node_modules`, `frontend/` (tiene su propia config), `coverage`, `pl
 ## 4. Pendiente / observaciones
 - Agregar `eslint.config.js` al backend (ver recomendación en la sección 2).
 - `react-router-dom` y `axios` están en `devDependencies` del frontend siendo dependencias de ejecución.
-- `Documentacion/Reporte_Pruebas_StockPilot.md` se mantiene a mano: se actualizaron fecha y conteos (124 → **132** pruebas, todas aprobadas) tomados de `npm run test:evidence`. **No** se regeneró con `generar_reporte.js` porque su plantilla sobrescribiría ajustes manuales del documento (p. ej. escribe "Vitest v3" cuando el proyecto usa v4 y omite el motor de cobertura).
+- `Documentacion/Reporte_Pruebas_StockPilot.md` (hoy `docs/Reporte_Pruebas_StockPilot.md`, que ya regenera `generar_reporte.js`: P21-17) se mantenía a mano: se actualizaron fecha y conteos (124 → **132** pruebas, todas aprobadas) tomados de `npm run test:evidence`. **No** se regeneró con `generar_reporte.js` porque su plantilla sobrescribiría ajustes manuales del documento (p. ej. escribe "Vitest v3" cuando el proyecto usa v4 y omite el motor de cobertura).

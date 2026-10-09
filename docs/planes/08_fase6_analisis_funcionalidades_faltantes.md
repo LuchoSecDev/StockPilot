@@ -1,4 +1,8 @@
-# 🔍 Análisis de Funcionalidades Faltantes — StockPilot
+# 🔍 Plan 08: Análisis de Funcionalidades Faltantes — StockPilot
+
+**Estado (revisado el 9-oct-2026):** Fiados (punto 1) y métodos de pago (punto 4) implementados; rentabilidad (2) y conteo físico (3) parciales; historial de costos (5) y notificaciones push (6) sin iniciar. Detalle: P08-01 a P08-09.
+
+> **Cifras sin fuente en este análisis:** «la función #1 más solicitada según MinTIC y Fenalco», «pierden entre $200.000 y $500.000 mensuales», «el 60 % usa Nequi o Daviplata (SFC, 2024)», «tasa de apertura del 90 % frente al 20 %», «inflación >10 % en 2023» y las afirmaciones de «ningún competidor». No tienen una referencia verificable en el repositorio: no citarlas en los documentos académicos sin la fuente (regla del plan 23, sección 6). La evidencia propia es la encuesta (n = 15).
 
 ## Contexto
 
@@ -119,6 +123,8 @@ El objetivo es identificar funcionalidades que **ningún competidor directo** (T
 
 > [!NOTE]
 > Revisando el código, veo que `metodo_pago` ya fue añadido a la tabla `Ventas` en el diagrama ER reciente. Faltaría integrar el selector en el frontend del POS y ajustar la lógica de cierre de caja para filtrar por método.
+
+> **Actualización (9-oct-2026):** implementado en el plan 01 (`PaymentModal.jsx`, `Ventas.metodo_pago`); el arqueo solo suma el efectivo, `metodo_pago` se valida desde el 4-oct y el arqueo muestra el desglose por método desde el 5-oct (plan 24).
 
 ---
 

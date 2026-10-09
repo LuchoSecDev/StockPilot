@@ -1,4 +1,6 @@
-# 🔔 Plan: Sistema de Notificaciones Avanzadas StockPilot
+# 🔔 Plan 06: Sistema de Notificaciones Avanzadas StockPilot
+
+**Estado (revisado el 9-oct-2026):** Fases 1 y 2 implementadas (P06-01). Pendiente: umbrales de metas editables desde el panel del administrador (P06-02, trabajo futuro).
 
 ## Contexto
 

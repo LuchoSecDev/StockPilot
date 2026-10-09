@@ -2,7 +2,7 @@
 
 **Estado:** Implementado y verificado con datos reales
 **Fecha:** 2026-09-20
-**Rama:** `feature/rediseno-fase3` (sale de `fix/consejero-ia-sugerido-cero`; no se sube a `main`)
+**Rama:** `feature/rediseno-fase3` (sale de `fix/consejero-ia-sugerido-cero`). *Actualización 9-oct-2026:* llegó a `main` con `feature/rediseno-fase4` (P14-04).
 **Continúa:** plan 09 (paleta y tokens). Guía de origen: Fase 3 de `docs/rediseno/files/rediseno-visual-recomendaciones.md`.
 
 ---

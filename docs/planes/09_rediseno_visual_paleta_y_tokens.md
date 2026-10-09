@@ -2,7 +2,7 @@
 
 **Estado:** Fases 0, 1, 1b y 2 implementadas y verificadas. **Fase 3 (tipografía y forma): ver plan 12. Fase 4 (verificación): ver plan 14.**
 **Fecha:** 2026-09-19
-**Rama:** `feature/rediseno-visual`
+**Rama:** `feature/rediseno-visual` (mezclada en `main`, igual que las fases 3 y 4: P14-04)
 **Guías de origen:** `docs/rediseno/files/` (`CONTEXTO-REDISENO.md`, `rediseno-visual-recomendaciones.md`, `adenda-plan-rediseno.md`, `implementation_plan remodelación.md`). Precedencia: adenda > plan de recomendaciones > contexto.
 
 ---

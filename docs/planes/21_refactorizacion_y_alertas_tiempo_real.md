@@ -4,7 +4,7 @@
 **Orden de ejecución:** este plan dice *qué* se hace en cada fase y *por qué*. *Cuándo* se hace cada una está en el **plan 22, sección 5**, que es el único orden vigente para los planes 19, 21 y 22. La sección 6 de este plan solo recoge las dependencias entre fases. No todo el plan se hace antes del piloto: lo que queda para después está programado, no descartado.
 **Fecha:** 2026-09-27
 **Origen:**
-- `analisis_mantenibilidad_stockpilot.md`, un análisis externo del 27-sep que Luis compartió. Este plan lo contrasta punto por punto contra el código de `main` del 27-sep, después de cerrar el plan 20.
+- `analisis_mantenibilidad_stockpilot.md`, un análisis externo del 27-sep que Luis compartió (no está en el repositorio). Este plan lo contrasta punto por punto contra el código de `main` del 27-sep, después de cerrar el plan 20.
 - La propuesta de Luis de que el motor de alertas pase a funcionar en tiempo real.
 
 **Regla general:** refactorizar significa mover código sin cambiar el comportamiento. Toda fase debe terminar con todas las pruebas unitarias y de integración en verde (al 28-sep: 196 unitarias y 97 de integración en la rama de R0), y sin bajar los `thresholds` de cobertura de `vitest.config.js`.
@@ -50,6 +50,7 @@ Verificado contra el código de `main` del 27-sep-2026.
 1. **Diez llamadas "dispara y olvida" a `Alert.generate`.** Están después de escrituras en ventas (2), inventario (3), productos (3), recepción de órdenes (1) y el endpoint manual. Cada una es `Alert.generate(tiendaId).catch(e => console.error(...))`: sin `await`, con el error solo en consola y con la misma línea copiada diez veces. Esto debe centralizarse en un solo punto ("el inventario de la tienda X cambió"). **Es exactamente el gancho que necesitan las alertas en tiempo real** (sección 5).
 2. **La auto-migración de `config/database.js` corre en cada `require`**, contra cualquier `DATABASE_URL` y sin protección. Está documentado en el plan 20, sección 8.3, y no se ha corregido. Debe pasar a un comando explícito (`npm run migrate`).
 3. **El scheduler se duplicaría con varias réplicas.** `app.js` lo arranca en cada proceso. Ya está planeado resolverlo con el worker del Sprint 6.2; hay que hacerlo antes de escalar o de activar el tiempo real con varias réplicas.
+   - *Agregado el 9-oct-2026 (P21-30):* con **una sola** réplica el problema es el contrario. En Render gratuito el servidor se duerme a los 15 minutos sin tráfico y `node-cron` no recupera lo que no corrió: la reversión de precios (00:05), la evaluación de la IA (03:00) y el resumen de los lunes pueden no ejecutarse nunca (`docs/restaurar_respaldo.md` ya lo registró para el respaldo). Comprobar en los logs de Render antes del piloto.
 4. **Carrera posible al abrir caja.** `openSession` hace `SELECT` y luego `INSERT` sin transacción. En 10 corridas no se reprodujo, pero nada lo garantiza (plan 20, sección 8.8). Al mover caja a un servicio, conviene envolverlo en una transacción con bloqueo, con el mismo patrón que la venta.
 5. **Consultas repetidas en el frontend.** Cada navegador consulta el servidor por su cuenta, en tres lugares distintos:
    - `Sidebar` pide las alertas cada 60 segundos.
@@ -164,7 +165,7 @@ esos internos.
 **Comportamientos raros encontrados** (caracterizados, NO corregidos):
 
 - **P21-09** `/api/verify-reset-code` no tiene limitador propio: se pueden probar códigos de 6 dígitos sin límite.
-- **P21-10** `suppliersController.completarRecepcion` no valida `cantidad_recibida` contra lo pedido (pedir 5, recibir 500 se acepta). **Resuelto el 4-oct-2026** en la rama `feat/recepcion-con-confirmacion`: `cantidad_recibida` es el total acumulado de la línea (reenviar el mismo total no vuelve a sumar stock); más de lo pedido → 409 `RECEPCION_EXCEDE_PEDIDO` y solo se registra con `confirmar_exceso` y un motivo (queda en el Kardex); menos → la orden queda «Parcial» y se puede seguir recibiendo; `cerrar_con_faltante` la cierra como «Completada» dando el resto por perdido. Pruebas: `recepcion_mercancia.test.js`.
+- **P21-10** `suppliersController.completarRecepcion` no valida `cantidad_recibida` contra lo pedido (pedir 5, recibir 500 se acepta). **Resuelto el 4-oct-2026** en la rama `feat/recepcion-con-confirmacion`: `cantidad_recibida` es el total acumulado de la línea (reenviar el mismo total no vuelve a sumar stock); más de lo pedido → 409 `RECEPCION_EXCEDE_PEDIDO` y solo se registra con `confirmar_exceso` y un motivo (queda en el Kardex); menos → la orden queda «Parcial» y se puede seguir recibiendo; `cerrar_con_faltante` la cierra como «Completada» dando el resto por perdido. Pruebas: `recepcion_mercancia.test.js`. Mezclada en `main` ese mismo día (merge `df20caa`).
 - **P21-11** Contadores de los limitadores compartidos entre pruebas — **resuelto** en esta rama (ver arriba).
 - **P21-12** `bulkUpload`: el `if (!req.file)` es código muerto, `validateFileType` ya responde 400 antes.
 - **P21-13** El `skip` de `globalLimiter` es inerte: está montado en `/api/` y Express entrega `req.path` sin ese prefijo (`/login`, no `/api/login`), así que `/login`, `/registro` y `/2fa/verify` sí gastan el presupuesto global. Comprobado: un `POST /api/login` y un `POST /api/2fa/verify` suman 1 golpe cada uno en el contador global.
@@ -275,7 +276,7 @@ Luis preguntó si el 2FA en operaciones CRUD «quedó bien y probado». **No:** 
 
 **Decisión de Luis (8-oct):** durante el piloto el 2FA **se informa pero no se exige** (los dueños de tienda no son técnicos, no hay códigos de recuperación y la métrica de activación del plan 22 necesita que creen productos). La exigencia queda como una política que se enciende con una variable de entorno después del piloto.
 
-**Qué se hizo** (rama `feat/2fa-politica-servidor`, 3 commits):
+**Qué se hizo** (rama `feat/2fa-politica-servidor`, 3 commits; mezclada en `main` y subida el 8-oct a las 15:12, merge `5faab39`):
 - **Servidor:** `middleware/twoFactor.js` + `utils/politica2FA.js`. Con `REQUIRE_ADMIN_2FA=true`, un Administrador sin 2FA recibe 403 `DOS_FACTORES_REQUERIDO` en **cualquier escritura** (bloquea por defecto, una ruta nueva queda cubierta sola); leer y los flujos de cuenta quedan abiertos; el Tendero no se ve afectado; lee el estado de la BD (no de la sesión) y falla cerrado. **Apagada por defecto.**
 - `generate2FA` responde 409 si el 2FA ya está activo: antes reescribía el secreto con solo tener la sesión.
 - Limitador propio (5 fallos / 15 min) en `/api/2fa/generate` y `/api/2fa/disable`, que no tenían ninguno.
@@ -417,7 +418,7 @@ El orden de ejecución de todo el proyecto está en el **plan 22, sección 5**. 
 | **R0** | — | Hecha (mezclada en `main` el 28-sep) | Red de seguridad de todo lo demás. |
 | **P21-09 y P21-13** (limitador de `verify-reset-code` y `skip` de `globalLimiter`) | R0 | Antes de la visita, en la rama del backend para la app | La app usa esas rutas de autenticación. Cambian el comportamiento a propósito, así que no van dentro de un refactor (sección 3): cada una en su commit, con su prueba. |
 | **R2, solo `caja.js`** (punto 2.4) | R0 | Antes de la visita, en la rama del backend para la app | La app abre y cierra caja; una doble apertura dañaría los arqueos, que son datos del piloto. |
-| **P21-10** (recepción sin tope) | R0 | Antes del arranque del piloto, cuando se decida la regla (decisión 5) | La app recibe mercancía. |
+| **P21-10** (recepción sin tope) | R0 | **Hecha el 4-oct** (`feat/recepcion-con-confirmacion`, merge `df20caa`) | La app recibe mercancía. |
 | **R4, solo migración explícita** (punto 2.2) | — | Antes del arranque del piloto (recomendado, decisión 4) | Con datos reales en producción, una auto-migración en cada `require` es un riesgo que no conviene llevar al piloto. |
 | **R1** | R0 | **Hecha el 8-oct y subida a `main`.** Luis autorizó el despliegue antes de la visita a las tiendas; desde el arranque del piloto rige el congelamiento | La app no lo necesita; es la base del `ia-service`. |
 | **R2** (resto) | R0 | Después del piloto; en rama durante | Toca ventas, inventario y alertas, justo lo que mide el piloto. |

@@ -80,3 +80,8 @@ Para un Tendero que solo usa la interfaz, el cambio visible se limita a esas 4 f
 - **Interfaz:** 3 componentes (`useProductosPage.js`/`ProductosPage.jsx` para el escáner, `HistorialVentasTab.jsx`, `DashboardPage.jsx`), unas 30 a 60 líneas en total.
 - **Pruebas:** los 7 casos de `autorizacion_roles.test.js` con la marca `// I0` se invierten a 403 (o quedan en 200 los que la matriz deje en **T**), más una prueba de 403 por cada ruta nueva de la lista y 6 a 8 pruebas de aislamiento entre tiendas (C1, C2). Esperable: unas 25 pruebas de integración nuevas o modificadas.
 - **Orden sugerido:** primero C1, C2 y C3 (fallas reales y pequeñas, no dependen de tus decisiones); después la matriz D1 a D4; C4 y C5 cuando toques el manejador de errores.
+
+## 5. Cambios posteriores a la matriz (registro)
+
+- **Historial de sesiones de caja** (`GET /api/caja/historial`): solo Administrador desde el 6-oct-2026 (`feat/caja-arqueo-previo`, prueba `caja_historial_autorizacion.test.js`). Antes la API lo entregaba a cualquier usuario con sesión. Ver plan 24, P24-05.
+- **C4** (CSRF inválido → 500) quedó corregido el 3-oct (`middleware/errorHandler.js`, 403 `CSRF_INVALID`). **C5** sigue abierto (P22-16).

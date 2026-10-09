@@ -1,8 +1,10 @@
 # Plan 18: Unificar el Simulador de Escenarios con el motor de reposición
 
-**Estado:** Propuesto, pendiente de confirmación del usuario antes de implementar.
+**Estado (actualizado el 9-oct-2026):** Implementado, fases 1 a 4 (P18-01): `calcularReposicion` acepta `diasCoberturaOverride`, `GET /api/ia/snapshot` recibe `?dias=N`, `SimuladorPage.jsx` usa `cantidad_recomendada` y la respuesta incluye `categoria`.
 **Fecha:** 2026-09-23
 **Depende de / relacionado con:** plan 17 (`17_unificacion_motor_riesgo_inventario.md`), que creó `utils/reposicion.js` y `utils/entradasMotor.js` como fuente única para Consejero, Proveedores y Detalle de Productos. El Simulador de Escenarios (`frontend/src/pages/SimuladorPage.jsx`) quedó fuera de esa unificación y es la única pantalla de "cuánto comprar" que sigue con su propia fórmula.
+
+> *Nota de rutas (9-oct-2026):* desde la fase R1 del plan 21 (8-oct), `utils/reposicion.js`, `utils/entradasMotor.js`, `utils/guardrailsIA.js` y `utils/sugerenciasStock.js` viven en `services/inventory/`, y la lógica de IA de `aiController.js` está en `services/ia/`. Este plan conserva las rutas de su fecha. `utils/recomendacionesDashboard.js` y `utils/promociones.js` siguen en `utils/`.
 
 ---
 
