@@ -1,6 +1,6 @@
 # Plan 25: Tienda de demostración para la visita al tendero
 
-**Estado (9-oct-2026):** no iniciado, listo para ejecutar. D1 a D7 decididas por Luis y plan corregido tras la revisión (sección 0). La fase 1 puede empezar cuando Luis lo pida (primero se hace el commit de docs de D7).
+**Estado (9-oct-2026):** fase 1 hecha en la rama (resultados en la sección 4, «Fase 1 — Resultados»); falta la fase 2 (guion, plantilla de `.env.demo` y ensayo). D1 a D7 decididas por Luis y plan corregido tras la revisión (sección 0).
 **Fecha:** 2026-10-09
 **Rama:** `feat/tienda-demo` (aún no existe; se crea desde `main` al ejecutar la fase 1).
 **Origen:** Luis preguntó (9-oct) si algún plan cubría preparar una tienda de prueba para mostrarle al tendero las funciones principales que tendría si acepta el piloto: alertas de vencimiento, alertas de stock, órdenes de compra preparadas para solo aprobarlas o enviarlas, etc. Respuesta: el plan 22 la nombra pero no la diseña (hallazgo 1.1).
@@ -177,6 +177,33 @@ Hoy hay unos 25 archivos de `docs/` modificados sin commitear, y este plan y el 
 - *Mutación* (restaurar después de cada una): (a) **bajar** la cantidad de un producto de `vencimiento_critico` a ≤ `floor(ventas7 ÷ 7 × días)` → debe desaparecer su alerta y fallar la prueba de integración; (b) reemplazar el generador con semilla por `Math.random` → debe fallar la huella; (c) sembrar con `hoy` fijo y no desplazar las fechas → debe fallar la prueba de fechas relativas; (d) quitar la espera de `db.migrationReady` → documentar si la prueba lo detecta (puede ser intermitente; si no falla de forma fiable, dejarlo anotado como no cubierto); (e) cambiar el sufijo exigido `_demo` por cualquier otro → debe fallar la prueba del CLI, que corre el script como proceso real contra una URL `…/stockpilot` y espera código 1 sin conectarse a nada (mismo patrón que `guardia_semilla.test.js:51`).
 - *Recorrido manual* (navegador integrado). El backend **no sirve el frontend** fuera de producción (`app.js:207-217` [V]): levantar el backend con `.env.demo` (puerto 3000) y el frontend con `cd frontend && npm run dev` (Vite reenvía a `localhost:3000`). Iniciar sesión como Administrador, abrir caja, ver el Monitor de alertas, `/pedir`, aprobar un pedido, abrir `/proveedores` y enviar al buzón de Luis, recibir la orden, vender, fiar y abonar, registrar un egreso y ver el arqueo previo. **No cubre** el recorrido en un celular ni otros navegadores.
 **Criterio de salida.** `npm run demo:sembrar`, con `.env.demo` apuntando a una base local `stockpilot_demo` ya creada, termina sin error y se niega (código 1) con cualquier otra base; las pruebas nuevas pasan y fallan al aplicar cada mutación; `npm test` y `npm run test:integration` en verde; el recorrido manual de la sección 2 (filas 1 a 7) funciona.
+
+#### Fase 1 — Resultados (rama `feat/tienda-demo`, 9-oct-2026)
+
+**Qué se hizo.**
+- `database/demoEscenario.js`: función **pura** `armarEscenario({ hoy, semilla, correoProveedor })`. 28 productos, 207 ventas (de mostrador y fiadas) en 27 días y 622 movimientos de Kardex (ruido con mulberry32, semilla 25), 3 fiados, un abono, una caja de ayer cerrada con diferencia de $1.500, un egreso, tres pedidos (Aprobada A, Borrador A, Enviada B) y el Kardex.
+- `database/seed_demo.js`: `sembrarDemo({ contrasena, hoy, correoProveedor })` espera `db.migrationReady`, vacía **en una sola transacción** las tablas de la app (no `interno.*`) con `RESTART IDENTITY CASCADE`, siembra y llama a `Alert.generate`. El CLI, dentro de `require.main === module`, exige host local **y** base que termine en `_demo`, y `DEMO_PASSWORD` (mínimo 8 caracteres).
+- `package.json`: `npm run demo:sembrar` (`node -r dotenv/config database/seed_demo.js dotenv_config_path=.env.demo`). No hay `demo:reiniciar`: reiniciar es volver a correr el mismo comando.
+- Pruebas: `tests/business_logic/demo_escenario.test.js` (23), `demo_guardia.test.js` (7) y `tests/integration/demo_sembrado.test.js` (19).
+
+**Ajustes respecto al plan (y por qué).**
+- **Los pedidos llevan productos distintos de los que `/pedir` sugiere.** En la primera versión, el pedido aprobado (arroz, aceite) y el enviado (leche) coincidían con lo que `/pedir` seguía sugiriendo, y la pantalla parecía pedir lo ya pedido (el motor de sugerencias no descuenta lo que está en camino; solo lo que está en borrador). Ahora: aprobado = reposición rutinaria (azúcar, atún, papas); borrador = lo de «stock bajo» (café, pasta, gaseosa); enviado = lácteos sanos (mantequilla, kumis). Se añadió el producto sano `kumis` (28 productos).
+- **El resumen de borradores** (`GET /api/ordenes/borradores/resumen`) viene indexado por **producto**, no por orden ni proveedor; la prueba se ajustó a eso.
+- **No se creó `.env.demo.example`:** una regla de permisos del entorno impide escribir archivos `.env.*`. La plantilla de las variables (`DATABASE_URL`, `PORT`, `NODE_ENV`, `SESSION_SECRET`, `DEMO_PASSWORD`, `DEMO_CORREO_PROVEEDOR`) va en el guion de la fase 2.
+- **La clave de la cuenta de demostración sale de `DEMO_PASSWORD`** (no está en el repositorio ni en este plan).
+
+**Verificación.**
+- `npm test`: **444** pruebas en verde en esta rama (414 + 30 nuevas). `npm run test:integration`: **569** en verde (550 + 19 nuevas).
+- **Mutaciones** (todas detectadas por las pruebas; se restauró el código después de cada una): bajar el stock del yogur a 1; reemplazar el generador por `Math.random`; no desplazar las fechas con «hoy»; subir `stock_maximo` del jabón; quitar el sufijo `_demo` de la guardia; quitar `RESTART IDENTITY`; marcar la tienda como real; no guardar `precio_unitario`; no llamar a `Alert.generate`.
+- **No detectada:** quitar `await db.migrationReady`. En las pruebas la migración ya terminó antes de sembrar; el riesgo (deadlock con la auto-migración al arrancar) es intermitente y queda cubierto solo por el código y por el comentario.
+- **Recorrido manual** en el navegador integrado, con el backend sobre una base local nueva `stockpilot_demo` (correo desactivado) y Vite: inicio de sesión de la cuenta de demostración; panel con 27 productos (la corrección de los pedidos añadió después el 28.º, `kumis`) y 4 alertas urgentes; Monitor de alertas con las 12 alertas previstas; `/pedir` con las sugerencias por proveedor, un pedido por aprobar y dos por recibir; `/proveedores` con las tres órdenes (Aprobada, Borrador, Enviada); `/cartera` con $43.300 en la calle (Marta $28.100, Lucía $15.200, Jairo $0); el POS pide **Abrir Caja**. Reiniciar (volver a sembrar) dejó el mismo estado.
+- **No verificado:** el envío real de correo (el backend corrió con las credenciales vaciadas a propósito), el recorrido en un celular, ni «Registrar» una recepción desde `/pedir` en el navegador (sí por API en la prueba de integración).
+
+**Cosas a tener presentes para el guion (fase 2).**
+- En `/pedir`, el pedido **aprobado** y el **enviado** aparecen los dos como «Aprobado, esperando la mercancía» dentro de «Por recibir»: la pantalla no distingue «Aprobada» de «Enviada». El envío por correo y el «ya la envié» viven en `/proveedores`.
+- La cuenta de demostración arranca en **modo básico** (valor por defecto); `/cartera` hay que abrirla desde «Ver menú completo» (P19-11).
+- **Node 24:** el gancho `rl._writeToOutput` ya no existe; ver la corrección de `npm run equipo:crear` (P22-27), que se descubrió al probar el script de cuentas del equipo en una terminal real.
+- Cada vez que se siembra, las **sesiones** de la base de demostración se borran: hay que volver a iniciar sesión.
 
 ### Fase 2: reinicio y guion de la visita (depende de la fase 1; D3 y D4 ya decididas)
 **Objetivo.** Poder dejar la demostración como nueva antes de cada visita y tener un guion.
