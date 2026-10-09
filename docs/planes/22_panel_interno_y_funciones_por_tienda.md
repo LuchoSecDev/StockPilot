@@ -74,7 +74,7 @@ Hallazgos encontrados durante I0, también corregidos y desplegados:
 - **C6:** la carpeta `exports/` era compartida: cualquier usuario listaba y descargaba exportaciones de otras tiendas. Ahora cada archivo lleva la tienda en el nombre, se verifica al descargar, se borra tras la descarga y se eliminó el listado.
 - **C7:** `PUT /api/productos/agregar/:id` sumaba (o restaba, con cantidad negativa) stock sin dejar movimiento en el Kardex. Se eliminó.
 
-Quedan abiertos, sin riesgo de seguridad: **C4** (un CSRF inválido responde 500 en vez de 403) y **C5** (`clienteRoutes` aplica `requireLogin` a todo `/api`).
+Queda abierto, sin riesgo de seguridad, **C5** (`clienteRoutes` aplica `requireLogin` a todo `/api`). **C4** (un CSRF inválido respondía 500 en vez de 403) se corrigió el 3-oct en `feat/backend-app-tendero`: `middleware/errorHandler.js` responde 403 con `CSRF_INVALID` (`csrf_errores.test.js`; anotado aquí el 9-oct).
 
 ---
 
@@ -239,12 +239,14 @@ Luis pidió medir las tiendas del piloto «o al menos la única que acepte usarl
 
 **Definiciones que quedaron fijadas (decisiones de Luis, 28-sep):** activada = ≥ 20 productos y ventas en ≥ 5 de los primeros 7 días calendario (el día del registro cuenta como día 0); adopción de una semana = días con ventas ÷ `dias_apertura_semana`, con tope de 100 %.
 
-**Definiciones PROPUESTAS que Luis debe confirmar antes de la convocatoria** (viven en `services/interno/definiciones.js` y se muestran en pantalla):
+**Definiciones que Luis confirmó el 9-oct-2026, tal como se propusieron** (P22-20 y P22-21; viven en `services/interno/definiciones.js` y se muestran en pantalla):
 1. **Umbral «regular»** de la adopción: entre 50 % y la meta (80 %) es ámbar; menos de 50 %, rojo. Solo afecta el color del semáforo, no la meta.
 2. **«Con uso en la semana 4»** del embudo: al menos un día con ventas entre los días 22 y 28 desde el registro, entre las tiendas que ya llegaron a esa semana. El plan nombraba la etapa pero no la definía.
-3. **«Productos cargados»** de la activación: hoy cuenta los productos que tiene la tienda (el decidido el 28-sep dice «carga al menos 20 productos» sin ventana). La tabla de 3.3 hablaba de «productos cargados en los primeros 7 días»; ambos números se muestran en el detalle (`productos_cargados` y `productos_primeros_7d`) y cambiar de uno a otro es una línea. Conviene fijarlo antes de publicar la convocatoria (documento de intervención, sección 1.6).
+3. **«Productos cargados»** de la activación: hoy cuenta los productos que tiene la tienda (el decidido el 28-sep dice «carga al menos 20 productos» sin ventana). La tabla de 3.3 hablaba de «productos cargados en los primeros 7 días»; ambos números se muestran en el detalle (`productos_cargados` y `productos_primeros_7d`) y cambiar de uno a otro es una línea. **Decidido: cuenta el total de la tienda.** Quedan fijadas antes de publicar la convocatoria (documento de intervención, sección 1.6): cambiarlas después de ver datos es cambiar la definición del estudio.
 
-**Lo que NO se hizo (queda de I4):** las preguntas del registro (días de apertura, experiencia digital), el párrafo de la política de datos de 3.7 y la encuesta de satisfacción. El párrafo es un texto legal de `/politica-datos` que ya describe lo que el panel hace (métricas agregadas, cada consulta registrada): **requiere el visto bueno de Luis** y debe publicarse antes de la convocatoria. Mientras no exista la pregunta del registro, todas las tiendas tienen `dias_apertura_semana = 7`.
+**Párrafo de la política de datos (3.7, P22-23):** Luis lo aprobó tal cual el 9-oct-2026 y quedó como segundo párrafo de la sección 3 de `/politica-datos`, fijado por `tests/business_logic/politica_datos_metricas_equipo.test.js`. El consentimiento de los usuarios existentes se guarda solo como fecha (`fecha_aceptacion_politica_datos`), sin versión del texto: quien aceptó antes del cambio no aceptó este párrafo explícitamente (ver nota al cierre).
+
+**Lo que NO se hizo (queda de I4):** las preguntas del registro (días de apertura, experiencia digital) y la encuesta de satisfacción. Mientras no exista la pregunta del registro, todas las tiendas tienen `dias_apertura_semana = 7`.
 
 **Hallazgos mientras se construía:**
 - `Usuarios.id_tienda` cambia cuando un dueño cambia de sucursal (`switchStore`), y las sucursales adicionales no tienen usuarios propios. Por eso «dueño aceptó la política» sale de `Tienda.id_propietario` y no de cualquier usuario de la tienda. «Usuarios» y «último acceso» por tienda son aproximaciones para dueños con varias sucursales.
@@ -276,8 +278,8 @@ Qué cambia respecto al 3-oct:
 - Respaldo externo: workflow diario de GitHub Actions, cifrado, con 14 días de retención (`docs/restaurar_respaldo.md`). Restauración verificada el 3-oct, según Luis.
 
 **A. Antes de la visita (vigente desde el 6-oct)**
-1. **Modo básico web, fases A, B y C** (plan 19, 3.4.3), cada una con su prueba. Las cuentas existentes se respaldan a `'avanzado'` para no cambiarles el menú de golpe.
-2. **Tienda de demostración** y **material de la visita:** guion de la fase 4 con las 6 tareas, hoja de observación (tiempo, errores, SUS), autorización de tratamiento de datos y formato de línea base.
+1. **Modo básico web, fases A, B y C** (plan 19, 3.4.3), cada una con su prueba. Las cuentas existentes se respaldan a `'avanzado'` para no cambiarles el menú de golpe. **Hecho y en `main` desde el 6-oct.** Queda por decidir si Colaboradores y Cartera entran al menú básico (P19-11).
+2. **Tienda de demostración** y **material de la visita:** guion de la fase 4 con las 6 tareas, hoja de observación (tiempo, errores, SUS), autorización de tratamiento de datos y formato de línea base. Incluir la pregunta de pagos de `docs/propuesta_verificacion_de_pagos.md` (sección 5) y la forma de medir la exactitud de inventario (P22-26).
 3. **Backend para la app: ya hecho** (lo que sigue es histórico, del 3 al 5-oct; está en `main` y desplegado). Lo que quede pendiente del lado de la app no bloquea la visita.
 
 *Histórico, backend para la app* (rama `feat/backend-app-tendero`), cada punto con su prueba:
@@ -299,8 +301,9 @@ Qué cambia respecto al 3-oct:
 2. **I1 e I2:** panel de solo lectura, excluyendo las tiendas de prueba (sección 3.3).
 3. **I4:** preguntas del registro (días de apertura, experiencia digital) y párrafo de la política de datos.
 4. Recomendado: migración explícita (plan 21, punto 2.2) y la regla de recepción de mercancía (P21-10, decisión 5 del plan 21; **decidida e implementada el 4-oct: opción B, pedir confirmación con motivo, y el faltante queda pendiente en una orden «Parcial»**).
-   - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base).
+   - **Antes del arranque, limpiar la base de producción.** Hoy todas las tiendas son de prueba y una tiene el Administrador `admin` con una contraseña conocida (`admin123`, la que crea la semilla). Con tiendas reales eso es una puerta abierta: borrar o cambiar esas cuentas y las tiendas de prueba que no se usen en el piloto, y decidir el **entorno aparte** de desarrollo de la app (el backend en local, o un servicio de pruebas con su propia base). Seguimiento: P22-24 (cuentas y tiendas de prueba) y P22-25 (entorno de la app).
 5. Decidir si se mantiene despierto el servidor en horario de tienda con un *ping* (cabe en las horas gratuitas de Render si es el único servicio gratuito).
+   - El *ping* en horario de tienda no resuelve las tareas programadas de la madrugada (reversión de precios 00:05, evaluación de la IA 03:00) ni el resumen de los lunes: ver P21-30.
 6. Arranque acordado con cada dueño.
 
 **D. Durante las 6 semanas del piloto**
@@ -309,7 +312,7 @@ Qué cambia respecto al 3-oct:
 
 **E. Después del piloto**
 - R1 (hecha el 8-oct y subida a `main`), R2, tiempo real replanteado para la app (notificaciones push) y para la web (SSE), R3, T3 con el worker del Sprint 6.2 y R4.
-- Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`), C4 y C5.
+- Actualizar los E2E de Playwright (`docs/hallazgo_e2e_desactualizados.md`) y C5 (C4 ya está corregido).
 - Modo básico web fases D y E, e I3, solo si el piloto muestra que hacen falta.
 - 2FA del Administrador: códigos de recuperación y luego encender `REQUIRE_ADMIN_2FA` (plan 21, P21-26; durante el piloto es solo una recomendación, decisión de Luis del 8-oct).
 - Prueba de usabilidad de la app con 2 o 3 tenderos, en entorno aparte, antes de la sustentación.

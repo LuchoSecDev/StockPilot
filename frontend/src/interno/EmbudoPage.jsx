@@ -68,7 +68,7 @@ const EmbudoPage = () => {
               <ul className="text-xs font-bold text-slate-600 space-y-1.5 list-disc pl-5">
                 <li><b>Activada:</b> al menos {metas.umbral_productos} productos cargados y ventas en al menos {metas.umbral_dias_con_ventas} de los primeros 7 días (día del registro incluido, hora de Bogotá).</li>
                 <li><b>Adopción de una semana:</b> días con ventas ÷ días que la tienda abre a la semana, con tope de 100 %.</li>
-                <li><b>Con uso en la semana {e.semana_4.semana}:</b> al menos un día con ventas entre los días 22 y 28 desde el registro. <i>Definición propuesta, pendiente de confirmar.</i></li>
+                <li><b>Con uso en la semana {e.semana_4.semana}:</b> al menos un día con ventas entre los días 22 y 28 desde el registro.</li>
               </ul>
             </Seccion>
           </>

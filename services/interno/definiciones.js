@@ -5,9 +5,9 @@
  * muestra. Se fijan ANTES de la convocatoria para que la meta no se ajuste al resultado (documento de intervención,
  * sección 1.6): cambiar un número de este archivo es cambiar la definición del estudio, no «afinar un detalle».
  *
- * Decididas por Luis (plan 22, sección 7): activación (28-sep) y días de apertura (28-sep).
- * PROPUESTAS, pendientes de su visto bueno: el umbral «regular» de la adopción y la definición de «activa en la
- * semana 4» del embudo (marcadas abajo).
+ * Decididas por Luis (plan 22, sección 7): activación (28-sep), días de apertura (28-sep) y, el 9-oct-2026, el umbral
+ * «regular» de la adopción, la definición de «con uso en la semana 4» del embudo y que «productos cargados» cuenta el
+ * total de la tienda (P22-20 y P22-21).
  *
  * @module services/interno/definiciones
  */
@@ -20,9 +20,9 @@ const UMBRAL_DIAS_CON_VENTAS = 5;
 const META_ACTIVACION = 0.25;
 /** Meta de adopción semanal: 80 % de los días de apertura con ventas (documento de intervención). */
 const META_ADOPCION = 0.8;
-/** PROPUESTA: por debajo de la meta pero desde aquí la adopción es «regular» (ámbar); por debajo, «baja» (rojo). */
+/** Decidido el 9-oct-2026: por debajo de la meta pero desde aquí la adopción es «regular» (ámbar); por debajo, «baja» (rojo). */
 const UMBRAL_ADOPCION_REGULAR = 0.5;
-/** PROPUESTA: el embudo mide si la tienda sigue activa en su semana 4 de vida (días 21 a 27 desde el registro). */
+/** Decidido el 9-oct-2026: el embudo mide si la tienda sigue activa en su semana 4 de vida (días 21 a 27 desde el registro). */
 const SEMANA_DEL_EMBUDO = 4;
 
 /**
