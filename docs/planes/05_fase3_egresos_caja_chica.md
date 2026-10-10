@@ -1,4 +1,6 @@
-# Plan de Implementación: Egresos de Caja Chica (Nivel 2)
+# Plan 05: Egresos de Caja Chica (Nivel 2)
+
+**Estado (revisado el 9-oct-2026):** Implementado. Egresos con motivo, foto opcional y aprobación (`ExpenseModal.jsx`, `/api/caja/egreso`, prueba `caja.test.js`). Desde el 28-sep solo el Administrador aprueba o rechaza, solo los de su tienda y solo desde «Registrado» (P22-09). La sección 4 (Redis en producción) sigue pendiente: P05-01.
 
 Este documento detalla la implementación del módulo de egresos/gastos operativos menores que salen del efectivo de la caja durante la jornada laboral, con controles de seguridad y trazabilidad completa.
 

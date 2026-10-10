@@ -1,6 +1,6 @@
 # Plan 04: Fase 3 - Flujo de Caja Menor, Posventa y Futura Facturación Electrónica
 
-**Estado:** Pendiente / Especificación  
+**Estado (revisado el 9-oct-2026):** Parcial. Vertiente A: los egresos de caja chica (punto 2) se implementaron con el plan 05; devoluciones, anulación y reimpresión siguen pendientes (P04-01 a P04-03). Vertiente B: trabajo futuro (P04-05).  
 **Fecha:** 2026-09-17  
 
 ---
@@ -40,3 +40,5 @@ En la evolución del sistema comercial de **StockPilot**, el flujo se dividió e
 ### Vertiente B: Vertiente Fiscal (Facturación Electrónica Oficial)
 * Generación de comprobantes fiscales legales (XML UBL 2.1, Código QR de validación tributaria y firma digital ante entidades como la DIAN).
 * **Acuerdo de proyecto:** Como StockPilot está enfocado en microempresas/tiendas de barrio y para la presentación de tesis de grado, se acordó que la facturación electrónica oficial no es obligatoria para la demostración académica (se sustituye con el documento equivalente POS térmico implementado en Fase 1). Queda formulada en la arquitectura como trabajo futuro integrable mediante APIs de proveedores autorizados (ej. Facturapi, Alegra o Siigo).
+
+> **Por verificar (9-oct-2026, P04-06):** que el tiquete térmico de `TicketPrinter.jsx` sirva como «documento equivalente POS». La Resolución DIAN 000165 de 2023 llevó el POS al formato electrónico, y las fuentes consultadas no coinciden sobre si la obligación alcanza a tiendas no responsables de IVA. Hasta consultarlo con el docente o un contador, en los documentos conviene llamarlo «comprobante de venta» y no «documento equivalente».

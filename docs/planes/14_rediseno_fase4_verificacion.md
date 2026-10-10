@@ -1,6 +1,6 @@
 # Plan 14: Rediseño Visual — Fase 4 (Verificación: contraste, estados y tamaños de pantalla)
 
-**Estado:** Implementado y verificado con datos reales. **Rama local `feature/rediseno-fase4` (sale de `feature/rediseno-fase3`): no está subida.**
+**Estado:** Implementado y verificado con datos reales. **Rama `feature/rediseno-fase4` (sale de `feature/rediseno-fase3`): mezclada en `main` (P14-04; corregido el 9-oct-2026).**
 **Fecha:** 2026-09-21
 **Continúa:** plan 12 (Fase 3). Guía de origen: Fase 4 de `docs/rediseno/files/rediseno-visual-recomendaciones.md` (matriz pantallas × estados × viewports y revisión de contraste).
 
@@ -83,4 +83,4 @@ La medición de desborde de página no veía contenido recortado o partido dentr
 6. La columna de producto en Productos y Movimientos sigue partiendo los nombres largos en 3 líneas (plan 12).
 
 ## 6. Cierre del rediseño
-Con esta fase quedan hechas las Fases 0, 1, 1b, 2, 3 y 4 del plan. Pendiente de decisión del usuario: las observaciones de la sección 5 y subir las ramas a `main`.
+Con esta fase quedan hechas las Fases 0, 1, 1b, 2, 3 y 4 del plan. Pendiente de decisión del usuario: las observaciones de la sección 5 (en el seguimiento: P09-01, P14-01, P14-02 y P12-02). Las ramas ya están en `main`.

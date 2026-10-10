@@ -1,6 +1,6 @@
 # Plan 16: Fase E — Cierre del ciclo (recepción de mercancía y aprendizaje)
 
-**Estado:** Implementado en local (recepción de mercancía y solicitudes del tendero), sin subir. El punto 2 del documento original ("Aprendizaje de la IA") no se implementó — ver sección 1.
+**Estado:** Implementado y en `main` (recepción de mercancía y solicitudes del tendero; corregido el 9-oct-2026). La regla de entregas parciales cambió el 4-oct: ver la actualización al final de la sección 7. El punto 2 del documento original ("Aprendizaje de la IA") no se implementó — ver sección 1.
 **Fecha de revisión:** 2026-09-23 · **Fecha de implementación:** 2026-09-23
 **Depende de:** plan 13 (Fases A a D, ya implementadas en local).
 
@@ -8,7 +8,7 @@
 
 ## 0. Resumen de la revisión
 
-El plan trae dos ideas sólidas (recepción de mercancía y solicitudes del tendero) y una que **no se debe implementar tal como está** (el punto 2, "Aprendizaje de la IA"): duplica y corrompería un mecanismo que ya existe y ya funciona en este proyecto. El resto del documento no conocía la estructura actual del código (nombres de archivo, columnas, endpoints), así que las secciones 2 a 5 corrigen eso punto por punto. Nada de esto se implementó todavía: es el análisis que pediste antes de escribir código.
+El plan trae dos ideas sólidas (recepción de mercancía y solicitudes del tendero) y una que **no se debe implementar tal como está** (el punto 2, "Aprendizaje de la IA"): duplica y corrompería un mecanismo que ya existe y ya funciona en este proyecto. El resto del documento no conocía la estructura actual del código (nombres de archivo, columnas, endpoints), así que las secciones 2 a 5 corrigen eso punto por punto. Cuando se escribió esta revisión (23-sep) nada de esto estaba implementado; la implementación está en la sección 7.
 
 ## 1. Corrección importante: el punto 2 ("Aprendizaje de la IA") ya existe, y de otra forma
 
@@ -64,7 +64,7 @@ Como ya se hizo en las Fases B y en el plan 15 (Fiados), el esquema vive en dos 
 
 ## 6. Lo que el plan no menciona y conviene agregar al alcance
 
-- Prueba unitaria para el nuevo endpoint de recepción con los mismos casos que ya tiene `tests/business_logic/ordenesBorrador` (por ahora inline en `reposicion.test.js`): cantidad recibida igual, menor y mayor a la pedida; producto ya sin stock de seguridad tras recibir menos de lo esperado.
+- Prueba unitaria para el nuevo endpoint de recepción con los mismos casos que ya tiene `tests/business_logic/ordenesBorrador` (por ahora inline en `reposicion.test.js`): cantidad recibida igual, menor y mayor a la pedida; producto ya sin stock de seguridad tras recibir menos de lo esperado. *(Hecho el 4-oct: `tests/integration/recepcion_mercancia.test.js`, 17 pruebas; P16-02.)*
 - Actualizar `docs/planes/13_plan_consejero_ia_a_borrador_de_orden.md` (sección "Estado") cuando esta fase quede implementada, como se hizo con las Fases A-D.
 
 ## 7. Decisiones tomadas (2026-09-23) e implementación
@@ -80,6 +80,8 @@ El usuario pidió decidir las preguntas de la sección 5 con criterio de dueño 
 **Solicitudes del tendero** (`controllers/ordenBorradorController.js` → `solicitarProducto`, `POST /api/ordenes/borrador/solicitar`, cualquier sesión — no solo administrador): un producto a la vez, con la cantidad que ya trae la recomendación (no la decide el llamante), se suma al borrador abierto del proveedor (o lo crea) marcado con `solicitado_por`; si el producto ya estaba en un borrador, responde 409 en vez de duplicar o pisar la cantidad. Avisa a los administradores de la tienda con `Notification.notifyAdmins` (nuevo, mismo mecanismo que ya usaba `broadcast` para avisar a los tenderos, ahora también hacia el otro lado). En el Dashboard, la tarjeta del Consejero para un tendero (`!isAdmin`) muestra "Solicitar al Administrador" en vez de "Agregar al pedido"; tras solicitar, muestra "Solicitado ✓" (solo dura la sesión del navegador: no hay un endpoint de resumen para tenderos, a propósito, para no exponerles el estado financiero del borrador). En `OrdenesHistory.jsx`, cualquier línea con `solicitado_por` se ve con la insignia "Solicitado por {nombre}" (`getOrderDetail` ahora hace `LEFT JOIN Usuarios`).
 
 **Esquema:** `Ordenes_Detalle` gana `cantidad_recibida INTEGER` y `solicitado_por INTEGER REFERENCES Usuarios`, en `config/database.js` (auto-migración) y en `database/init_pg.sql` (instalación nueva).
+
+> **Actualización (4-oct-2026, P21-10, decisión de Luis):** la decisión 1 de la sección 5 («cerrar del todo») ya no rige. Recibir **menos** de lo pedido deja la orden «Parcial» con el faltante pendiente y se puede seguir recibiendo; `cerrar_con_faltante` la cierra como «Completada». Recibir **más** responde 409 `RECEPCION_EXCEDE_PEDIDO` y solo se registra con `confirmar_exceso` y un motivo, que queda en el Kardex. `cantidad_recibida` es el total acumulado de la línea (reenviar el mismo total no suma stock). La decisión 2 (se paga lo recibido) se mantiene. Detalle en el plan 21, sección R0.
 
 **Verificación real (Playwright, sesión de administrador, sin tocar la BD a mano):**
 - `PATCH /estado` con `Completada` → 400 (hay que usar `/completar`).

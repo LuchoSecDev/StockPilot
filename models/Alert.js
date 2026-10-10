@@ -294,19 +294,23 @@ class Alert {
   }
 
   /**
-   * Retorna conteos para la UI (Dashboard / Sidebar). Plan 17, Fase 4 (hallazgo O4): antes contaba
-   * FILAS de alerta agrupadas solo por `severidad`, así que un producto por vencer (severidad
-   * "critico" también) inflaba el mismo contador que el Dashboard rotula "Productos Agotados"; y un
-   * producto con dos alertas activas (ej. stock_bajo + vencimiento_proximo) se contaba dos veces.
-   * Ahora: `critico`/`advertencia` son específicamente de stock (para no romper el rótulo existente
-   * en el Dashboard), y todo se cuenta por producto distinto, no por fila.
+   * Retorna conteos para la UI (Dashboard / Sidebar / campanita / Monitor) y para la app (contrato [A1]).
+   * Se agrupa por `severidad` y se cuenta por PRODUCTO distinto, no por fila (un producto con dos alertas
+   * del mismo grupo cuenta una vez). Regla decidida por Luis el 9-oct-2026:
+   *   critico     = stock_critico + vencimiento_critico
+   *   advertencia = stock_bajo + vencimiento_proximo
+   *   info        = sobrestock y avisos (p. ej. reversion_precio)
+   *   total       = productos distintos con cualquier alerta activa
+   * Antes (plan 17, Fase 4, hallazgo O4) critico/advertencia eran solo de STOCK y los vencimientos críticos
+   * caían en `info`, para no inflar el rótulo «Productos Agotados» del Dashboard; ese rótulo ya cambió.
+   * Debe coincidir con frontend/src/utils/alertas.js (prueba: tests/integration/alertas_conteo_coherente.test.js).
    */
   static async getStats(tiendaId) {
     const row = await db.getAsync(`
         SELECT
-          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.tipo = 'stock_critico') as critico,
-          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.tipo = 'stock_bajo') as advertencia,
-          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.tipo NOT IN ('stock_critico', 'stock_bajo')) as info,
+          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.severidad = 'critico') as critico,
+          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.severidad = 'advertencia') as advertencia,
+          COUNT(DISTINCT a.id_producto) FILTER (WHERE a.severidad IS DISTINCT FROM 'critico' AND a.severidad IS DISTINCT FROM 'advertencia') as info,
           COUNT(DISTINCT a.id_producto) as total
         FROM Alertas a
         WHERE a.id_tienda = ? AND a.resuelta = 0

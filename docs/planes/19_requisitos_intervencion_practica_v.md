@@ -1,12 +1,14 @@
 # Plan 19: Requisitos de la intervención (Práctica V) antes de datos reales
 
-**Estado (6-oct-2026):** 3.1 y 3.2 implementadas y verificadas. **3.4 (modo básico), fases A, B y C: IMPLEMENTADAS el 6-oct en la rama `feat/modo-basico-web` (subida al remoto, sin mezclar a `main` ni desplegar).** Fase A y B: columna `Usuarios.modo_interfaz`, endpoint e interruptor, menú reducido. Fase C: pantalla `/pedir`, solo Administrador. Además, el modo básico no muestra ni pide las tarjetas de IA del Dashboard (plan 23). Decisión de Luis del 6-oct; ver «Actualización del 6-oct-2026» del plan 22, sección 5. 3.3 y 3.5 (incluida la encuesta de satisfacción) se implementan con el panel (plan 22, I1, I2 e I4), antes del arranque del piloto. 3.6 sigue documentada como diseño, sin implementar.
+**Estado (6-oct-2026, corregido el 9-oct):** 3.1 y 3.2 implementadas y verificadas. **3.4 (modo básico), fases A, B y C: IMPLEMENTADAS el 6-oct en la rama `feat/modo-basico-web`, mezclada en `main` ese día (merge `02f7ecc`) y subida a `origin` a las 11:00.** Fase A y B: columna `Usuarios.modo_interfaz`, endpoint e interruptor, menú reducido. Fase C: pantalla `/pedir`, solo Administrador. Además, el modo básico no muestra ni pide las tarjetas de IA del Dashboard (plan 23). Decisión de Luis del 6-oct; ver «Actualización del 6-oct-2026» del plan 22, sección 5. 3.3 y 3.5 (incluida la encuesta de satisfacción) se implementan con el panel (plan 22, I1, I2 e I4), antes del arranque del piloto. 3.6 sigue documentada como diseño, sin implementar.
 **Fecha:** 2026-09-25
-**Origen:** `docs/contexto_revision_cowork_2026-09-23.md`, sección 3 ("Decisiones y sugerencias de producto"), y el análisis de resultados de `Documentacion/StockPilot_Intervencion_y_Viabilidad.docx` (sección 2.6, "Antes de recibir datos de negocios reales se deben cumplir dos condiciones...").
+**Origen:** `docs/contexto_revision_cowork_2026-09-23.md` (ya no está en el repositorio tras la limpieza de `docs/`), sección 3 ("Decisiones y sugerencias de producto"), y el análisis de resultados de `docs/StockPilot_Intervencion_y_Viabilidad.docx` (sección 2.6, "Antes de recibir datos de negocios reales se deben cumplir dos condiciones...").
 
 ---
 
 ## 3.1 Copias de seguridad de PostgreSQL — implementado
+
+> **Actualización (3-oct-2026):** en producción el respaldo es el workflow `.github/workflows/respaldo-neon.yml` (diario, cifrado, 14 días; restauración en `docs/restaurar_respaldo.md`, verificada el 3-oct). El cron de `utils/backup.js` solo se programa en local (P19-01 descartado, P19-02 terminado). Lo que sigue describe la primera versión.
 
 **Problema:** `utils/backup.js` copiaba el archivo físico `database/inventario.db` (SQLite). Al migrar a PostgreSQL, `createBackup()` nunca encontraba ese archivo y no generaba ningún respaldo en producción — ya estaba deshabilitado en `app.js` con el comentario `// (Obsoleto en Postgres)`.
 
@@ -34,9 +36,13 @@
 
 **Fuera de esta ronda (no pedido):** un flujo de re-consentimiento si el texto de la política cambia en el futuro, y el ejercicio real de los derechos (hoy dice "escribiendo al soporte", no hay un formulario de autoservicio).
 
+> **Ojo (plan 23, P23-06):** la aclaración de que a OpenAI no llegan datos personales no es del todo cierta hoy: el Consejero envía el nombre del proveedor y las promociones envían el «motivo del dueño» (texto libre). Se corrige con P23-06 y la revisión jurídica P23-07.
+
 ---
 
-## 3.3 Métrica de activación de la prueba gratuita — solo documentado, sin implementar
+## 3.3 Métrica de activación de la prueba gratuita — reemplazada por el plan 22
+
+> **Superado (9-oct-2026):** esta sección queda como historial. La definición vigente es la del plan 22 (decisión 3 del 28-sep: ≥ 20 productos **y** ventas en ≥ 5 de los primeros 7 días) y está implementada en `interno.v_activacion` y `services/interno/definiciones.js` (rama `feat/panel-interno-metricas`). El SQL de abajo además usa `Tienda.fecha_creacion`, que no existía (P19-10); el plan 22 la agregó.
 
 Del `docx` (sección 3.3 del contexto y 2.6/4.2 de la intervención): la meta es **≥ 25% de activación**, definida como "registros que cargan al menos 20 productos y registran ventas durante 7 días ÷ registros totales".
 
@@ -96,7 +102,7 @@ Contexto (2026-09-24): la muestra de la encuesta (F1) está sesgada hacia tender
 
 ---
 
-## 3.4 Modo básico (divulgación progresiva) — evaluación y plan detallado, sin implementar
+## 3.4 Modo básico (divulgación progresiva) — fases A, B y C implementadas (6-oct-2026); D y E pendientes
 
 **Estado (6-oct-2026):** el 3-oct se había aplazado porque la app nativa iba a la visita. Ya no: **el piloto y la visita van con la web**, así que se construyen A, B y C como prototipo y se lleva a la prueba de usabilidad (fase F, tal como se había pensado desde el principio). Decisiones del 6-oct:
 - `/pedir` (fase C) solo para el **Administrador**; la fase D (permisos de Colaborador sobre órdenes, medio-alto riesgo) y la E (catálogo simplificado) quedan para después de la visita.
@@ -142,11 +148,14 @@ El diseño original (ver historial de este documento) proponía 4 accesos: *Vend
 
 **Conclusión:** el modo básico real son **5 vistas** (Vender, ¿Qué pido?/Recibir, Alertas, Catálogo simplificado, más el switch a modo avanzado siempre visible), no 4. El resto del sistema no desaparece — solo se deja de mostrar en el menú hasta que el usuario decida activarlo o hasta que el propio sistema detecte que ya lo necesita (ej. Colaboradores, cuando hay más de un usuario).
 
+> **Observación (9-oct-2026, P19-11):** la regla de Colaboradores es circular: el segundo usuario se crea justamente en esa pantalla, así que nunca aparecería. Además, en lo implementado (`frontend/src/utils/menu.js`) ni Colaboradores ni Cartera están en el menú básico: un dueño que fía o tiene un empleado debe pasar a «Ver menú completo» para crear clientes o colaboradores. Decidirlo antes de la visita.
+
 ### 3.4.3 Plan de implementación por fases
 
 **Fase A — Preferencia y toggle (riesgo bajo, sin tocar la navegación aún)**
 - Columna nueva `Usuarios.modo_interfaz VARCHAR(10) DEFAULT 'basico'` (mismo patrón de migración que `fecha_aceptacion_politica_datos`: `init_pg.sql` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` en `config/database.js`).
 - **Importante para no romper el hábito de quien ya usa el sistema:** el default `'basico'` solo debe aplicar a cuentas *nuevas*. Las cuentas existentes necesitan un backfill explícito a `'avanzado'` en la misma migración (`UPDATE Usuarios SET modo_interfaz = 'avanzado' WHERE modo_interfaz IS NULL AND fecha_registro < NOW()`, ejecutado una sola vez antes de que el default entre en vigor) — si no, todo administrador actual vería su Sidebar reducido de golpe el día del despliegue, un downgrade sorpresivo que iría en contra del propósito de este cambio.
+  - *Cómo quedó implementado (6-oct):* el SQL de arriba no sirve tal cual. `ADD COLUMN … DEFAULT 'basico'` rellena con `'basico'` todas las filas existentes en el mismo paso, así que el `WHERE modo_interfaz IS NULL` no encontraría ninguna. `config/migraciones/modoInterfaz.js` lo hace en orden: columna sin valor por defecto → existentes a `'avanzado'` → recién entonces `DEFAULT 'basico'`, `NOT NULL` y el `CHECK`. Prueba: `modo_interfaz.test.js`.
 - Endpoint `PATCH /api/perfil/modo-interfaz` (el propio usuario cambia su preferencia; un Administrador podría cambiarla para un Colaborador, a definir en la Fase B).
 - Frontend: `AuthContext` expone `user.modoInterfaz`; un switch pequeño y **siempre visible** (no escondido en un submenú) en el Sidebar y en `/perfil` — mitiga el riesgo de "sentirse encerrado" de la evaluación.
 
@@ -156,7 +165,7 @@ El diseño original (ver historial de este documento) proponía 4 accesos: *Vend
 - Punto de decisión pendiente: ¿el Colaborador puede cambiar su propio modo, o solo el Administrador se lo asigna? Recomiendo que el Colaborador sí pueda subirse a avanzado por su cuenta (es su propia curva de aprendizaje), pero que el Administrador vea en qué modo está cada uno desde Colaboradores.
 
 **Fase C — Pantalla nueva "¿Qué pido?" (riesgo medio; la única pantalla verdaderamente nueva)**
-- Ruta `/pedir`, accesible a Administrador **y** Colaborador (hoy el equivalente, Proveedores AI, es `AdminRoute` — este es el cambio de alcance más importante del plan).
+- Ruta `/pedir`, accesible a Administrador **y** Colaborador (hoy el equivalente, Proveedores AI, es `AdminRoute` — este es el cambio de alcance más importante del plan). **Decisión del 6-oct: solo Administrador** mientras no se haga la fase D (`soloAdmin` en `frontend/src/utils/menu.js`).
 - Contenido: lista agrupada por proveedor, solo productos en nivel `critico`/`reponer` (reutiliza `leerEntradasMotor` + `calcularReposicion`, ya existentes — sin SQL nuevo), con la cantidad sugerida y un botón "Armar pedido" que reutiliza `ordenesBorrador`/`suppliersController` para crear el borrador. No expone edición manual de cantidades, simulación de presupuesto ni el panel de IA — eso se queda en Proveedores AI para modo avanzado.
 - Incluye la sección "Recibir mercancía": lista de `Ordenes_Compra` en estado `Aprobada`/`Enviada`, con un botón para marcarlas recibidas (reutiliza `completarRecepcion` tal cual, ya transaccional y ya dispara `Alert.generate` desde el cierre de plan 17).
 
@@ -194,6 +203,6 @@ Contexto (2026-09-24): hoy "Imprimir" en el Punto de Venta ([`CajaRapidaTab.jsx`
 1. **Botón "Descargar recibo (PDF)"**, alterno al de "Imprimir": genera el PDF en el servidor reutilizando `pdfkit` (ya es dependencia del proyecto, ya se usa en `reportController.generateMermaPDF`) a partir de los datos de la venta, y lo entrega como descarga directa (`Content-Disposition: attachment`) — sin pasar por el diálogo de impresión del navegador, así que funciona igual en Windows, Android e iPhone.
 2. **Ver factura individual desde el Historial:** un botón por fila que abre un modal con el mismo formato de recibo (reutilizando el layout de `TicketPrinter`), con las acciones "Reimprimir" y "Descargar PDF" del punto 1.
 
-**Por qué esto NO satura la base de datos (aclaración explícita, a pedido del usuario):** el diseño correcto es generar el PDF/la vista *al leer*, no guardarlo *al vender*. Ni el PDF ni ninguna vista de factura se almacenan — se arman en el momento a partir de `Ventas`/`VentasProductos`, exactamente como ya hace `TicketPrinter` hoy. No se agrega ninguna columna ni tabla nueva. Guardar un PDF por venta como archivo/blob sí sería un problema de crecimiento de almacenamiento — el mismo antipatrón que las fotos de perfil en Base64 señaladas en `Documentacion/hoja_de_ruta_escalabilidad.md` — y es precisamente lo que este diseño evita.
+**Por qué esto NO satura la base de datos (aclaración explícita, a pedido del usuario):** el diseño correcto es generar el PDF/la vista *al leer*, no guardarlo *al vender*. Ni el PDF ni ninguna vista de factura se almacenan — se arman en el momento a partir de `Ventas`/`VentasProductos`, exactamente como ya hace `TicketPrinter` hoy. No se agrega ninguna columna ni tabla nueva. Guardar un PDF por venta como archivo/blob sí sería un problema de crecimiento de almacenamiento — el mismo antipatrón que las fotos de perfil en Base64 señaladas en `docs/hoja_de_ruta_escalabilidad.md` — y es precisamente lo que este diseño evita.
 
 **Por qué no se implementó:** ambas piezas comparten la misma base técnica (formatear una venta como documento), así que tiene sentido construirlas juntas en vez de por separado; queda para cuando el usuario decida priorizarlo.

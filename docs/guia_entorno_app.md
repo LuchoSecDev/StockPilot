@@ -5,6 +5,8 @@
 
 > **Punto de partida para construir la app: `docs/guia_construccion_app.md`** (qué leer, orden de construcción y cuándo se da cada paso por terminado).
 
+> Para la tienda de demostración de la visita (base local `stockpilot_demo`), ver `docs/guion_demo_tienda.md`.
+
 > Estado de esta guía (4-oct-2026): lo marcado **VERIFICADO** se comprobó contra el servidor real; lo marcado **SIN VERIFICAR** se dedujo leyendo el código y no se ha probado en una máquina limpia.
 
 ---

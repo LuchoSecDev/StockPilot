@@ -1,8 +1,9 @@
 ﻿# Plan 13: Del Consejero IA al borrador de orden de compra
 
-**Estado:** Fases A a E implementadas en local, sin subir. La Fase E (recepción de mercancía y solicitudes del tendero) se detalla y verifica en `docs/planes/16_plan_consejero_ia_fase_e_cierre_del_ciclo.md`, junto con la revisión del punto de "Aprendizaje de la IA" del plan original (no se implementó tal como se propuso: duplicaba un mecanismo que ya existe).
+**Estado:** Fases A a E implementadas y en `main` (`feature/orden-desde-consejero`; corregido el 9-oct-2026). La Fase E (recepción de mercancía y solicitudes del tendero) se detalla y verifica en `docs/planes/16_plan_consejero_ia_fase_e_cierre_del_ciclo.md`, junto con la revisión del punto de "Aprendizaje de la IA" del plan original (no se implementó tal como se propuso: duplicaba un mecanismo que ya existe).
 **Fecha:** 2026-09-20
 **Depende de:** plan 11 (`fix/consejero-ia-sugerido-cero`): el Consejero ya solo recomienda productos con `base_load > 0`.
+> *Nota de rutas (9-oct-2026):* desde la fase R1 del plan 21 (8-oct), `utils/reposicion.js`, `utils/entradasMotor.js`, `utils/guardrailsIA.js` y `utils/sugerenciasStock.js` viven en `services/inventory/`, y la lógica de IA de `aiController.js` está en `services/ia/`. Este plan conserva las rutas de su fecha. `utils/recomendacionesDashboard.js` y `utils/promociones.js` siguen en `utils/`.
 **Objetivo:** que una recomendación del Consejero IA se convierta, con un clic, en un **borrador de orden de compra** que el administrador revisa, aprueba y envía al proveedor, sin reescribir nada a mano.
 
 ---
@@ -221,6 +222,7 @@ Al contrastar el plan con el código actual se ajustó lo siguiente. Las decisio
 - **Plantilla del correo.** El color de cabecera pasó del índigo anterior (`#4f46e5`) al azul de la paleta (`#252C93`).
 - **Verificación real (Playwright, sesión y datos de la tienda de prueba, sin tocar la BD a mano):** se editó una línea del borrador #6 (10→7 u), se quitó la otra línea, se aprobó, se copió el pedido al portapapeles ("Pedido #6 — Distribuidora Global…"), se descargó el PDF (200, `application/pdf`) y se marcó como enviada; el historial la muestra como "Enviada". De paso quedó corregida en los datos de prueba la orden con "Ajuste IA 0 %" que el usuario había visto (ahora "Sin ajuste"), porque se editó con el flujo real de la app. Capturas: `docs/planes/img/proveedores-sin-correo.jpg`, `proveedores-historial-final.jpg`.
 - **Fuera de alcance de esta fase:** máquina de estados formal para `PATCH /estado` (sigue aceptando cualquier texto) y recepción de mercancía (Fase E).
+  - *Actualización 9-oct-2026 (P13-01, ahora prioridad Alta):* la recepción ya existe (plan 16) y desde el 4-oct una orden puede quedar «Parcial» (P21-10). `updateOrderStatus` sigue rechazando solo «Completada»: una orden completada se puede devolver a «Borrador» o «Aprobada» y volver a recibirse. La máquina de estados de la Fase B debe incluir «Parcial» y no permitir salir de «Completada» ni de «Rechazada».
 
 ## 14. Urgencia sin historial de ventas (2026-09-23)
 

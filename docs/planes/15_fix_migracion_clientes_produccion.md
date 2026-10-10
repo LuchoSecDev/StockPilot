@@ -1,6 +1,6 @@
 # Plan 15: Fiados falla en producción — la auto-migración no creaba `Clientes` ni `Abonos`
 
-**Estado:** Corregido y verificado en una base temporal que reproduce producción. **Rama local `fix/migracion-clientes-produccion` (sale de `main`): pendiente de subir.**
+**Estado:** Corregido y verificado en una base temporal que reproduce producción. **Rama `fix/migracion-clientes-produccion`: mezclada en `main` (corregido el 9-oct-2026).** Las observaciones de la sección 6 siguen en P15-01 y P20-01.
 **Fecha:** 2026-09-21
 
 ---

@@ -7,7 +7,7 @@
 Dado que StockPilot en producción utiliza **Neon (Serverless Postgres)**, el mecanismo tradicional de generar archivos `.sql` localmente mediante tareas cron programadas ha sido deprecado. Neon proporciona mecanismos nativos y de alta disponibilidad para la recuperación de datos.
 
 ## 2. Point-In-Time Recovery (PITR)
-Neon guarda un historial continuo de todas las transacciones realizadas. Si ocurre un borrado accidental o un fallo de datos, puedes restaurar la base de datos a **cualquier punto específico en el tiempo** (con precisión de segundos) durante tu período de retención (generalmente 7 días en planes base).
+Neon guarda un historial continuo de todas las transacciones realizadas. Si ocurre un borrado accidental o un fallo de datos, puedes restaurar la base de datos a **cualquier punto específico en el tiempo** (con precisión de segundos) durante tu período de retención. **En el plan gratuito, que es el que usa el proyecto, esa ventana es de 6 horas** (plan 19, sección 3.1); para algo que nadie notó a tiempo se usa el respaldo externo de la sección 4.
 
 ### Cómo restaurar:
 1. Iniciar sesión en el panel de control de Neon (console.neon.tech).
@@ -26,8 +26,11 @@ Si necesitas descargar un archivo físico (SQL) por políticas de retención emp
    pg_dump -U tu_usuario_neon -h tu_host_neon.neon.tech -d tu_database -F c -f "stockpilot_backup_$(date +%F).dump"
    ```
 
-## 4. Alertas Críticas
-Cualquier script en el código antiguo que referencie `utils/backup.js` debe ignorarse. Los contenedores efímeros (como los de Render o Railway) no deben usarse para guardar archivos `.dump`, ya que se pierden en cada reinicio del servidor. Toda la gestión debe realizarse desde la plataforma de Neon.
+## 4. Respaldo externo y alertas críticas
+- **El respaldo de producción es el workflow de GitHub Actions** `.github/workflows/respaldo-neon.yml`: diario a las 02:00 (Bogotá), cifrado y con 14 días de retención. Cómo descargarlo y restaurarlo: `docs/restaurar_respaldo.md` (restauración verificada el 3-oct-2026).
+- `utils/backup.js` solo se programa en desarrollo local (`debeProgramarRespaldoLocal`). Los contenedores efímeros (como los de Render o Railway) no deben usarse para guardar archivos `.dump`, ya que se pierden en cada reinicio del servidor.
+- Por la misma razón (Render gratuito se duerme sin tráfico), las tareas programadas que corren dentro del servidor pueden no ejecutarse: ver P21-30 en `docs/seguimiento_planes.xlsx`.
+*(Sección corregida el 9-oct-2026: antes decía que toda la gestión se hacía desde Neon.)*
 
 ## 5. Verificación en dos pasos (2FA) del Administrador
 

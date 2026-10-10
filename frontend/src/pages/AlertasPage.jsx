@@ -2,11 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../context/ToastContext';
 import { AlertCircle, AlertTriangle, Info, ShieldCheck, RefreshCw } from 'lucide-react';
+import { alertasDelGrupo, contarAlertas, seccionesDeAlertas } from '../utils/alertas';
 
 const SeveridadColors = {
   critico: 'bg-rose-50 text-rose-700 border-rose-200',
   advertencia: 'bg-amber-50 text-aviso border-amber-200',
   info: 'bg-azul/10 text-azul border-azul/30'
+};
+
+const SeccionColor = {
+  critico: 'text-rose-700',
+  advertencia: 'text-aviso',
+  info: 'text-azul'
 };
 
 const SeveridadIcon = {
@@ -17,7 +24,6 @@ const SeveridadIcon = {
 
 const AlertasPage = () => {
   const [alertas, setAlertas] = useState([]);
-  const [stats, setStats] = useState({ critico: 0, advertencia: 0, info: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -27,9 +33,8 @@ const AlertasPage = () => {
   const fetchAlertas = useCallback(async (showSpinner = true, signal = null) => {
     try {
       if (showSpinner) setLoading(true);
-      const [alertasRes, statsRes, sessionRes] = await Promise.all([
+      const [alertasRes, sessionRes] = await Promise.all([
         axios.get('/api/alertas', { ...(signal && { signal }) }),
-        axios.get('/api/alertas/stats', { ...(signal && { signal }) }),
         axios.get('/api/session-info', { ...(signal && { signal }) })
       ]);
       if (signal && signal.aborted) return;
@@ -39,7 +44,6 @@ const AlertasPage = () => {
       }
 
       if (alertasRes.data.success) setAlertas(alertasRes.data.alerts);
-      if (statsRes.data.success) setStats(statsRes.data.stats);
     } catch (e) {
       if (axios.isCancel(e) || (signal && signal.aborted)) return;
       toast.error('Error cargando el panel de alertas');
@@ -88,7 +92,11 @@ const AlertasPage = () => {
     }
   };
 
-  const filteredAlertas = alertas.filter(a => filter === 'todas' ? true : a.severidad === filter);
+  // Las tarjetas, los filtros y los separadores salen de la MISMA regla (utils/alertas.js, igual a Alert.getStats): se agrupa
+  // por severidad (críticas = stock crítico + vencimiento crítico, etc.) y cada grupo se parte por tipo con un separador.
+  const stats = contarAlertas(alertas);
+  const filteredAlertas = alertasDelGrupo(alertas, filter);
+  const secciones = seccionesDeAlertas(alertas, filter);
 
   return (
     <div className="p-8 pb-32 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -163,7 +171,14 @@ const AlertasPage = () => {
             <p className="text-sm font-bold text-slate-500 mt-1">El inventario está en perfecto estado y cubierto.</p>
           </div>
         ) : (
-          filteredAlertas.map(alerta => (
+          secciones.map(seccion => (
+            <section key={seccion.clave} className="space-y-4" aria-label={seccion.titulo}>
+              <div className="flex items-center gap-3 pt-2">
+                {(() => { const Icon = SeveridadIcon[seccion.grupo]; return <Icon size={16} className={SeccionColor[seccion.grupo]} />; })()}
+                <h2 className={`text-xs font-bold ${SeccionColor[seccion.grupo]}`}>{seccion.titulo} ({seccion.alertas.length})</h2>
+                <div className="flex-1 border-t border-slate-200"></div>
+              </div>
+              {seccion.alertas.map(alerta => (
             <div key={alerta.id_alerta} className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 transition-shadow hover:shadow-lg ${SeveridadColors[alerta.severidad]}`}>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
@@ -185,6 +200,8 @@ const AlertasPage = () => {
                 ✓ Marcar Resuelta
               </button>
             </div>
+              ))}
+            </section>
           ))
         )}
       </div>

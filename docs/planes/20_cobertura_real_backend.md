@@ -1,6 +1,7 @@
 # Plan 20: Cobertura de pruebas real del backend
 
 **Estado:** **Plan 20 completo — Nivel 1, sección 5 y Nivel 2, sin nada pendiente.** Los 7 flujos de integración del encargo original están hechos (ver sección 8). 149 → 196 pruebas unitarias + **47 de integración** contra Postgres real (`stockpilot_test`). En el camino se encontraron y corrigieron 4 bugs reales: sobreventa concurrente en `registrar-venta-carrito` (8.7), dependencia circular en `database/init_pg.sql` (8), respuesta engañosa en `suppliersController.update`/`.delete` (8.12), e inconsistencia en la degradación ante fallas de IA entre los 3 endpoints de `aiController.js` (8.13). Se limpiaron los `/* v8 ignore */` que ya no hacían falta (8.14) y se agregó un piso de `thresholds` de cobertura en `vitest.config.js` (8.15).
+**Precisión (9-oct-2026):** la única excepción a «sin nada pendiente» es la sección 8.3 (la auto-migración de `config/database.js` corre sin protección), que este plan dejó a propósito como decisión aparte: sigue abierta como P20-01 y P21-15. Los bloques que siguen excluidos de la cobertura están en P20-03.
 **Fecha:** 2026-09-25 (creación) — actualizado 2026-09-27 (plan cerrado por completo)
 **Origen:** tarea encargada por el usuario a partir de una sesión de Claude en Cowork, sobre la cobertura real de `vitest.config.js` (hoy `include` mide solo 5 archivos, reportando 99,27% que no refleja el backend completo).
 
@@ -140,7 +141,7 @@ Quedo pendiente de tu aprobación para extraer (todas, algunas, o ninguna) antes
 
 ## 7. Sección 5 ejecutada — las 7 extracciones + corrección de redondeo (2026-09-25 a 2026-09-27)
 
-Aprobadas las 7, se hicieron en 3 tandas (grupo A/B/C) más un commit de corrección, cada uno verificado con la suite completa en verde antes de commitear. Todo en `feature/cobertura-nivel-1`, sin subir a `origin` ni mezclar a `main`.
+Aprobadas las 7, se hicieron en 3 tandas (grupo A/B/C) más un commit de corrección, cada uno verificado con la suite completa en verde antes de commitear. Todo en `feature/cobertura-nivel-1`, sin subir a `origin` ni mezclar a `main` *(así estaba ese día; se mezcló a `main` el 27-sep, fast-forward)*.
 
 > *Nota del 8-oct-2026 (plan 21, R1):* las rutas `utils/guardrailsIA.js`, `utils/reposicion.js`, `utils/entradasMotor.js` y `utils/sugerenciasStock.js` que cita este plan hoy son `services/inventory/…` (se movieron sin cambiar su comportamiento). `utils/promociones.js` sigue donde estaba. Las referencias a `aiController.js` describen cómo estaba entonces: su lógica vive ahora en `services/ia/` y `services/inventory/`.
 
@@ -298,7 +299,7 @@ Medida la cobertura real (`npm run test:coverage`, solo unitarias) tras cerrar l
 
 ## 6. Para continuar en la próxima sesión
 
-**Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Sin subir a `origin` ni mezclar a `main`.
+**Rama:** `feature/cobertura-nivel-1` (creada a partir de `feature/cobertura-real-backend`, que solo tenía el Paso 0). Mezclada en `main` el 27-sep (fast-forward) y subida con el resto de `main` (corregido el 9-oct-2026).
 
 **Todo el plan 20 está completo:** Nivel 1, sección 5, Nivel 2 (los 7 flujos + los 2 hallazgos corregidos), limpieza de `/* v8 ignore */` y `thresholds` de cobertura. No queda ningún pendiente abierto en este plan — cualquier trabajo nuevo (Nivel 3, otro módulo, etc.) sería un plan aparte.
 

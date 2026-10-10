@@ -3,6 +3,8 @@
 **Estado:** Implementado y Verificado  
 **Fecha:** 2026-09-17  
 
+> **Nota (9-oct-2026):** este plan restringió lo que el Tendero **ve** en la interfaz. La autorización en el servidor (rutas de tienda, egresos, productos, reportes, exportaciones) se completó después, con la fase I0 del plan 22 (matriz de roles P22-10, 28-sep a 3-oct). Ver también P02-01 y P24-05 en `docs/seguimiento_planes.xlsx`.
+
 ---
 
 ## 1. Contexto y Requerimientos

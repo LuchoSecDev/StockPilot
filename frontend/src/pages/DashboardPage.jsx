@@ -403,6 +403,9 @@ const DashboardPage = () => {
               {stats.alertasCriticas > 0 ? 'URGENTE' : 'OK'}
             </span>
           </div>
+          {stats.alertasStock > 0 && (
+            <p className="text-xs font-bold text-slate-500 mt-1">críticas (stock o vencimiento) · {stats.alertasStock} alertas en total</p>
+          )}
         </div>
 
         {/* Ventas Hoy */}
@@ -545,10 +548,10 @@ const DashboardPage = () => {
                 <div className={`w-4 h-4 rounded-full ${stats.alertasCriticas > 0 ? 'bg-rose-500 animate-ping' : (stats.alertasAdvertencia > 0 ? 'bg-ambar animate-pulse' : 'bg-exito')}`}></div>
                 <div>
                   <h3 className="font-bold text-base text-tinta">
-                    {stats.alertasCriticas > 0 ? `${stats.alertasCriticas} Productos Agotados` : (stats.alertasAdvertencia > 0 ? `${stats.alertasAdvertencia} Próximos a Agotarse` : 'Inventario Óptimo')}
+                    {stats.alertasCriticas > 0 ? `${stats.alertasCriticas} Productos en Estado Crítico` : (stats.alertasAdvertencia > 0 ? `${stats.alertasAdvertencia} Productos con Alerta` : 'Inventario Óptimo')}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 font-medium">
-                    {stats.alertasCriticas > 0 ? 'Requieren reabastecimiento urgente' : (stats.alertasAdvertencia > 0 ? 'Cerca del stock mínimo' : 'Niveles de stock saludables')}
+                    {stats.alertasCriticas > 0 ? 'Sin stock suficiente o a punto de vencer: requieren atención urgente' : (stats.alertasAdvertencia > 0 ? 'Cerca del stock mínimo o de vencer' : 'Niveles de stock saludables')}
                   </p>
                 </div>
               </div>

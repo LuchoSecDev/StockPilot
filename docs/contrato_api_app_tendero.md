@@ -306,9 +306,9 @@ Con CSRF. **Cuerpo:** `{ "id_producto": 1, "cantidad": 6, "observacion": "Pedido
 
 ### [A1] `GET /api/alertas`
 `?limit=`. **200** `{ "success": true, "alerts": [...], "data": [...] }` — `alerts` y `data` son **la misma lista** de alertas activas (usar `alerts`). Cada alerta: `id_alerta`, `id_producto`, `tipo` (p. ej. `"stock_critico"`), `severidad` (`"critico"`, `"advertencia"`, `"info"`), `mensaje`, `fecha_creacion`, `resuelta` (0), `nombre_producto`, `codigo`, `datos_json` (texto JSON del motor; no depender de él).
-`GET /api/alertas/stats` → `{ "success": true, "stats": { "critico", "advertencia", "info", "total" } }` para la insignia del menú.
+`GET /api/alertas/stats` → `{ "success": true, "stats": { "critico", "advertencia", "info", "total" } }` para la insignia del menú. **Qué cuenta cada campo (regla única desde el 9-oct-2026, decidida por Luis):** se agrupa por `severidad` y se cuenta por **producto distinto**, no por fila. `critico` = productos con alerta crítica (`stock_critico` o `vencimiento_critico`, que vence en 7 días o menos); `advertencia` = `stock_bajo` o `vencimiento_proximo` (8 a 30 días); `info` = `sobrestock` y avisos (p. ej. `reversion_precio`); `total` = productos distintos con alguna alerta activa. Un producto con alertas de grupos distintos cuenta en cada grupo y una vez en el total. **Cambio del 9-oct (compatible en forma, distinto en significado):** antes `critico`/`advertencia` eran solo de stock y los vencimientos críticos caían en `info`; los campos son los mismos. La app debe mostrar `critico` como «críticas» sin suponer que son solo de stock; para saber de qué tipo es cada una, usar el `tipo` de `GET /api/alertas`.
 Regenerar alertas (`POST /api/alertas/generate`) es del Administrador (403).
-**Prueba:** `contrato_app_tendero.test.js › [A1]`.
+**Prueba:** `contrato_app_tendero.test.js › [A1]` y, para `stats`, `alertas_conteo_coherente.test.js › [A1]`.
 
 ### [A2] `PATCH /api/alertas/:id/resolve`
 Con CSRF, cuerpo `{}`. **200** `{ "success": true, "message": "Alerta archivada." }`. El Tendero puede.

@@ -1,10 +1,12 @@
 # Plan 17: Unificación del motor de riesgo de inventario
 
-**Estado:** El hallazgo E1 ya se corrigió y subió a `main` (commit `c6ae00d`). Fases 0 a 6 implementadas y verificadas en `feature/unificacion-motor-riesgo` (en rama local, pendiente de que el usuario las pruebe manualmente antes de subir a `main`). Plan cerrado salvo por dos consolidaciones descartadas por bajo beneficio (ver 8.7, Fase 6). Ver sección 8 para las decisiones finales y las fases actualizadas.
+**Estado:** El hallazgo E1 ya se corrigió y subió a `main` (commit `c6ae00d`). Fases 0 a 6 implementadas y verificadas en `feature/unificacion-motor-riesgo`, ya mezclada en `main` (P17-03; corregido el 9-oct-2026). Plan cerrado salvo por dos consolidaciones descartadas por bajo beneficio (ver 8.7, Fase 6). Ver sección 8 para las decisiones finales y las fases actualizadas.
 **Corrección 2026-09-25:** una revisión externa (Claude en Cowork) encontró que la fila "Fase 4" de 8.7 decía "Hecho" sin serlo del todo: los disparadores de `Alert.generate` cubrían `productController.js`, `inventoryController.js` y `saleController.js`, pero no `suppliersController.js` — recibir una orden de proveedor actualiza `Productos.cantidad`/`MovimientosStock` con SQL directo dentro de su propia transacción, sin pasar por ninguno de los otros controladores. Un producto recibido no actualizaba sus alertas hasta la siguiente venta (el hallazgo O2 original, sección 7.5, seguía parcialmente abierto). **Ya corregido:** se agregó `Alert.generate(tiendaId)` (fire-and-forget, mismo patrón que los demás disparadores) al final de `completarRecepcion` en `suppliersController.js`, después del `COMMIT`. O2 ahora sí está cerrado en las 4 rutas que mueven stock.
 **Cierre 2026-09-24 (O8):** se construyó la red de seguridad que quedaba pendiente — ver sección 9.
 **Fecha:** 2026-09-23 (v1) · 2026-09-24 (v2, segunda revisión externa verificada contra el código; v3, decisiones del usuario sobre las 6 preguntas abiertas, también verificadas; O8, red de seguridad) · 2026-09-25 (corrección del gap de O2 en `suppliersController.js`)
 **Depende de / relacionado con:** plan 13 (`13_plan_consejero_ia_a_borrador_de_orden.md`) y plan 16 (`16_plan_consejero_ia_fase_e_cierre_del_ciclo.md`), que introdujeron `utils/reposicion.js` como motor único de reposición para el Consejero IA y Proveedores.
+
+> *Nota de rutas (9-oct-2026):* desde la fase R1 del plan 21 (8-oct), `utils/reposicion.js`, `utils/entradasMotor.js`, `utils/guardrailsIA.js` y `utils/sugerenciasStock.js` viven en `services/inventory/`, y la lógica de IA de `aiController.js` está en `services/ia/`. Este plan conserva las rutas de su fecha. `utils/recomendacionesDashboard.js` y `utils/promociones.js` siguen en `utils/`.
 
 ---
 
@@ -371,10 +373,21 @@ Con la verificación de 8.0 (cero referencias en `frontend/src`), aplica la rama
 
 ## 9. O8 — Red de seguridad (cierre, 2026-09-24)
 
-El hallazgo O8 original (`docs/contexto_revision_cowork_2026-09-23.md`, sección 2.2) proponía tres piezas para blindar `Alert.js` contra futuros cambios, ninguna implementada hasta ahora: extraer la lógica a una función pura, un modo *dry-run* reutilizable (el de la Fase 4 fue una corrida única, no una capacidad que quedó en el código) y una variable de entorno para revertir el comportamiento. Las tres quedaron construidas:
+El hallazgo O8 original (`docs/contexto_revision_cowork_2026-09-23.md`, sección 2.2; ese archivo ya no está en el repositorio tras la limpieza de `docs/`) proponía tres piezas para blindar `Alert.js` contra futuros cambios, ninguna implementada hasta ahora: extraer la lógica a una función pura, un modo *dry-run* reutilizable (el de la Fase 4 fue una corrida única, no una capacidad que quedó en el código) y una variable de entorno para revertir el comportamiento. Las tres quedaron construidas:
 
 1. **Función pura `Alert.evaluarProducto(item, extra, hoy)`** (`models/Alert.js`) — recibe una fila de `leerEntradasMotor` más los datos de vencimiento/stock máximo, y devuelve el arreglo de alertas (stock, vencimiento, sobrestock) sin tocar la base de datos. Extraída literalmente de lo que antes vivía inline dentro del `for` de `generate()`; tanto `generate()` como el nuevo `dryRun()` (punto 2) llaman a esta misma función, así que no hay una segunda copia de las reglas que se pueda desincronizar de la primera. Está fuera del bloque `/* v8 ignore */` a propósito — es la primera lógica de `Alert.js` con pruebas unitarias directas (`tests/business_logic/inventory_math.test.js`, 7 casos nuevos, cubriendo el caso E1, stock_bajo, sano, vencimiento crítico/próximo, sobrestock, y la combinación de dos alertas para el mismo producto).
 2. **`Alert.dryRun(tiendaId)`** — calcula qué generaría `generate()` ahora mismo y lo compara contra las alertas activas (`nuevas`, `actualizadas`, `resueltas`, `sinCambios`), sin escribir nada. Expuesto en `GET /api/alertas/dry-run` (`requireAdmin`), para poder auditar el estado o revisar el impacto de un cambio futuro al motor sin necesitar un script de un solo uso como el de la Fase 4.
 3. **`DISABLE_ALERT_ENGINE`** (variable de entorno, documentada en `.env.example`) — si se pone en `"true"`, `generate()` no hace nada (log de advertencia, retorna 0), tanto para los disparadores automáticos como para el botón manual. **Desviación deliberada de la redacción original ("volver atrás"):** no reactiva la lógica vieja de `determinarAlertaStock`/`calcularDiasAgotamiento` — esa tenía el hueco E1 y ya se eliminó del código; reintroducirla para un "rollback" habría revivido a propósito un bug ya corregido. En su lugar es un interruptor de emergencia: apaga el motor por completo si se detecta un problema en producción, sin necesidad de desplegar código nuevo, mientras se investiga.
 
 **Estado de las pruebas tras este cambio:** 149/149 (antes 142), con `models/Alert.js` en 100% de sentencias y líneas dentro del alcance de cobertura del proyecto (ver `vitest.config.js`).
+
+---
+
+#### Actualización del 9-oct-2026: la regla de conteo de alertas pasa a severidad (reemplaza la decisión del hallazgo O4)
+
+La Fase 4 había dejado `Alert.getStats` con `critico`/`advertencia` **solo de stock** (y los vencimientos críticos en `info`) para no inflar el rótulo «Productos Agotados» del Dashboard. Luis decidió el 9-oct que **todas las críticas van juntas**: `critico` = stock crítico + vencimiento crítico; `advertencia` = stock bajo + próximas a vencer; `info` = sobrestock y avisos; siempre por producto distinto. El Monitor de Alertas parte cada grupo en secciones por tipo (separadores), el Dashboard ya no dice «Productos Agotados» sino «Productos en Estado Crítico», y la campanita lista todas las alertas (antes pedía 5 y mostraba «+9»).
+
+- **Código:** `models/Alert.js` (`getStats`), `frontend/src/utils/alertas.js` (la única copia de la regla en el frontend), `NotificationCenter.jsx`, `AlertasPage.jsx`, `DashboardPage.jsx`.
+- **Contrato [A1] de la app:** los campos de `GET /api/alertas/stats` son los mismos, pero cambia lo que cuentan (ver `docs/contrato_api_app_tendero.md`). Hay que **avisar al equipo de la app**.
+- **Pruebas:** `tests/business_logic/alertas_utils.test.js` y `tests/integration/alertas_conteo_coherente.test.js` (compara el frontend con el servidor).
+- **Seguimiento:** P17-04 (arreglo de la campanita) y P17-05 (esta regla).

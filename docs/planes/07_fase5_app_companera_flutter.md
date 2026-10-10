@@ -1,4 +1,8 @@
-# Plan de Expansión: Aplicación Móvil Compañera (Flutter)
+# Plan 07: Aplicación Móvil Compañera (Flutter)
+
+**Estado (9-oct-2026):** en construcción por el equipo, en un repositorio aparte (P07-01). El backend que necesita ya está en `main` (P07-02 y plan 24).
+
+> **Cómo leer este plan:** las secciones 1 a 5 son la propuesta original de septiembre y se conservan como historial. El alcance, las librerías y los plazos vigentes están en la **sección 6**; donde se contradigan, manda la 6. Las decisiones técnicas de la app viven en `docs/propuesta_tecnica_app_flutter.md` y `docs/guia_construccion_app.md`, y la API en `docs/contrato_api_app_tendero.md`.
 
 ## 1. Contexto y Motivación
 Actualmente, la lectura de códigos de barras mediante navegadores web en dispositivos móviles se ve limitada por:

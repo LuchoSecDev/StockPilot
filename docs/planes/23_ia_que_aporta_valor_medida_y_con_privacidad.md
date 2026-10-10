@@ -1,6 +1,6 @@
 # Plan 23: Hacer que la IA aporte valor real, que se pueda medir y que respete la privacidad
 
-**Estado (6-oct-2026):** propuesta. Lo único implementado es el arreglo de privacidad del análisis de riesgo de un cliente (commit `afddd1d`, rama `feat/modo-basico-web`). Cada frente se aprueba por separado.
+**Estado (6-oct-2026):** propuesta. Lo único implementado es el arreglo de privacidad del análisis de riesgo de un cliente (commit `afddd1d`, rama `feat/modo-basico-web`, en `main` desde el 6-oct: merge `02f7ecc`). Cada frente se aprueba por separado.
 **Origen:** conversación del 6-oct con Luis. La IA fue la propuesta de valor del proyecto, aunque ni el programa ni el docente la exigen, así que «toca hacer que funcione con IA». A la vez, el piloto es corto y la IA necesita historial para aprender.
 **Relacionado con:** plan 17 (motor único), plan 19 (modo básico y encuesta), plan 22 (función `ia` por tienda e I3), `docs/planes/16_plan_consejero_ia_fase_e_cierre_del_ciclo.md`.
 
@@ -16,13 +16,13 @@
 
 ## 1. Qué hace realmente la IA hoy (leído en el código, 6-oct)
 
-- **El motor matemático hace casi todo:** cantidad base, urgencia, nivel (agotado, crítico, reponer), alertas, clasificación ABC, selección de qué promocionar y la pantalla `/pedir`. Vive en `utils/reposicion.js` y `utils/promociones.js`.
+- **El motor matemático hace casi todo:** cantidad base, urgencia, nivel (agotado, crítico, reponer), alertas, clasificación ABC, selección de qué promocionar y la pantalla `/pedir`. Vive en `services/inventory/reposicion.js` (en `utils/` hasta R1, 8-oct) y `utils/promociones.js`.
 - **La IA (OpenAI, `gpt-4o-mini`) hace tres cosas, todas acotadas:**
   1. Propone un **ajuste porcentual** sobre la cantidad base (clase A hasta +100 %, B +50 %, C +20 %); el código lo recorta con `aplicarAjusteIA`. Consejero (`aiController.js`, `getDashboardRecommendations`; desde el 8-oct la lógica está en `services/ia/recomendaciones.js`) y copiloto de Proveedores (`suppliersController.js`, `generateSmartOrder`).
   2. En **promociones** elige tipo, descuento (máximo 30 %), duración y producto complementario, y redacta el texto. Si OpenAI falla, `determinarPromocionFallback` cubre el 100 %.
   3. En **Cartera** clasifica el riesgo de un cliente que fía. Es el único lugar sin respaldo de reglas.
 - **La IA solo ve lo mismo que el motor** (stock, cantidad base, tendencia, clase, riesgo). Sin información externa, su ajuste no aporta nada nuevo: que mejore las compras es una suposición que hoy nadie mide.
-- **El «aprendizaje» no es el modelo aprendiendo.** Es el promedio de las últimas 5 evaluaciones por producto (`Feedback_IA`, `utils/entradasMotor.js`), que corrige **solo el punto de reorden** (cuándo aparece «reponer»); no cambia cuánto se sugiere pedir. El modelo de lenguaje no recuerda nada entre llamadas. Lo único parecido a memoria: las promociones reciben las últimas 10 promociones manuales del dueño dentro del texto de la petición.
+- **El «aprendizaje» no es el modelo aprendiendo.** Es el promedio de las últimas 5 evaluaciones por producto (`Feedback_IA`, `services/inventory/entradasMotor.js`), que corrige **solo el punto de reorden** (cuándo aparece «reponer»); no cambia cuánto se sugiere pedir. El modelo de lenguaje no recuerda nada entre llamadas. Lo único parecido a memoria: las promociones reciben las últimas 10 promociones manuales del dueño dentro del texto de la petición.
 
 ### Hallazgo: el evaluador compara un número equivocado (INFERRED, leído, no ejecutado)
 `Ordenes_Detalle.sugerencia_ia` es un `INTEGER` que guarda el **porcentaje** de ajuste de la IA (`ordenBorradorController.js:102`, `suppliersController.js:208`; vale 0 cuando nadie ajustó). Pero `feedbackController.js:99` hace `sugerido = det.sugerencia_ia || det.cantidad_final` y lo trata como **cantidad**. Con un ajuste de +20 %, compara 20 unidades contra las ventas reales. Con ajuste 0 cae a `cantidad_final`, que es lo que terminó pidiendo el dueño, no lo que sugirió el motor ni la IA. Las pruebas existentes escriben una cantidad en esa columna, así que confirman la suposición del evaluador y no lo que escriben las órdenes reales. **Mientras no se corrija, el factor de aprendizaje no es confiable** en las órdenes con ajuste de IA. En el piloto no afecta (el modo básico no ajusta).
@@ -34,6 +34,7 @@
 - **Sí:** activación, adopción, embudo, utilidad de las alertas, exactitud de inventario (ninguno de los indicadores de la Tabla 3 depende de IA, según el documento de Intervención).
 - **No se podrá afirmar nada sobre:** el bucle de aprendizaje, los ajustes de GPT, el Consejero ni el diferenciador frente a Treinta. Se declara como **«no evaluado en el piloto»**, no como incumplido.
 - **Demostrable aunque el piloto sea corto:** que el ciclo completo funciona de punta a punta (sugerencia → pedido → recepción → evaluación → factor), una vez corregido el evaluador. El período de evaluación de cada orden es de **al menos 14 días** (`max(lead_time × 2, 14)`, `feedbackController.js:242`) y la evaluación se corre a diario aunque el período no haya terminado (la proyección se pondera por los días transcurridos). Por eso en un piloto de 6 semanas **sí habrá evaluaciones, pero pocas**: el número exacto depende de cuántas órdenes se aprueben y para qué productos (VERIFIED en el código; corrige la suposición inicial de que se necesitaba «un mes»).
+- **Condición (9-oct-2026, P21-30):** «a diario» supone que el cron de las 03:00 corre. En Render gratuito el servidor se duerme sin tráfico, y `docs/restaurar_respaldo.md` ya registra que el cron interno «casi nunca llega a correr» allí. Hay que resolverlo antes de contar con evaluaciones en el piloto.
 
 ---
 
@@ -70,8 +71,10 @@
 | Llamada | Qué viaja | Estado |
 |---|---|---|
 | Análisis de riesgo de un cliente (Cartera) | Antes: **nombre del cliente**, fechas de compras y abonos, saldo. Ahora: id del cliente y su historial de pagos | **Corregido** (`afddd1d`, con `tests/integration/ia_privacidad.test.js`, confirmado en rojo antes del arreglo) |
-| Consejero | Nombre de producto, **nombre del proveedor** (si es persona natural, es dato personal), stock, cantidades | **Pendiente:** mandar id o etiqueta genérica en vez del nombre del proveedor |
-| Promociones | Productos y las últimas 10 promociones manuales con el **«motivo del dueño» (texto libre)** | **Pendiente:** el texto libre puede contener datos personales |
+| Consejero | Nombre de producto, **nombre del proveedor** (si es persona natural, es dato personal), stock, cantidades | **Pendiente:** mandar id o etiqueta genérica en vez del nombre del proveedor. Dónde: `services/ia/contextoRecomendaciones.js` arma el objeto con `proveedor` y `services/ia/prompts.js` (`mensajesRecomendaciones`) lo envía completo con `JSON.stringify` (verificado el 9-oct) |
+| Promociones | Productos y las últimas 10 promociones manuales con el **«motivo del dueño» (texto libre)** | **Pendiente:** el texto libre puede contener datos personales. Dónde: `services/ia/prompts.js`, `mensajesPromociones` |
+
+Además (9-oct): `services/ia/riesgoCliente.js` ya no envía el nombre del cliente a OpenAI, pero lo sigue escribiendo en `ai_audit.log` (`registrarEnArchivo`, «Evaluación de riesgo cliente {nombre}»). El archivo no va a git (`*.log`), pero en el servidor es un dato personal en un log: cambiarlo por el id junto con P23-06.
 
 La política publicada (`PoliticaDatosPage.jsx`) dice «un resumen numérico sin datos personales» y «StockPilot no envía nombres, correos ni contraseñas a ese servicio». Hasta cerrar los dos pendientes, **no es del todo cierto**.
 
@@ -103,7 +106,7 @@ La producción se congela durante las 6 semanas del piloto (plan 22, sección 5,
 
 - La propuesta de valor sigue siendo válida **por su resultado** («te dice qué pedir y cuánto»), pero no por la frase «usando IA». Conviene reposicionarla como motor propio, explicable y auditable, con la IA como capa opcional en evaluación.
 - Tres frases ponen la IA como núcleo: el título («asistida por inteligencia artificial»), el objetivo general y el objetivo específico 3 («motor predictivo de demanda y copiloto de IA»). Consultar al docente antes de cambiarlas.
-- **No reutilizar** las cifras sin respaldo: 85 % de interés en IA, 28 % y 22 % de reducciones, 4 horas semanales (marcadas así en `docs/contexto_revision_cowork_2026-09-23.md` y `docs/traspaso_cowork_2026-09-26.md`). La reducción de mermas del 4-5 % es una expectativa, no una meta medida.
+- **No reutilizar** las cifras sin respaldo: 85 % de interés en IA, 28 % y 22 % de reducciones, 4 horas semanales (marcadas así en `docs/contexto_revision_cowork_2026-09-23.md` y `docs/traspaso_cowork_2026-09-26.md`, que ya no están en el repositorio tras la limpieza de `docs/`; la lista completa es la de esta viñeta). El plan 08 tiene más cifras en la misma situación. La reducción de mermas del 4-5 % es una expectativa, no una meta medida.
 - Lo que sustenta el producto con evidencia propia es la encuesta (n = 15): registro automatizado 80 %, alertas de caducidad 53 %, alertas de stock 40 %. Ninguna es de IA.
 - Fuente: resumen de los `.docx` hecho por un agente de lectura; **verificar** las citas contra los documentos originales antes de usarlas.
 

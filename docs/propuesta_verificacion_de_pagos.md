@@ -1,6 +1,6 @@
 # Propuesta: verificar que el pago de una venta sí se recibió
 
-**Estado:** propuesta registrada el 4-oct-2026. **No implementada.** **Decisión de Luis (4-oct-2026): por ahora el sistema confía en lo que el Tendero registra.** Este documento deja anotado el problema y las opciones para retomarlo si la visita o el piloto muestran que hace falta.
+**Estado:** propuesta registrada el 4-oct-2026. **Actualización (9-oct-2026): la opción 2 (resumen por método de pago) se implementó el 5-oct** con el arqueo previo `[K5]` y el desglose en `[K3]` (plan 24, P24-04). Las opciones 1, 3 y 4 siguen sin implementar (P24-06). **Decisión de Luis (4-oct-2026): por ahora el sistema confía en lo que el Tendero registra.** Este documento deja anotado el problema y las opciones para retomarlo si la visita o el piloto muestran que hace falta.
 
 ## 1. El problema
 StockPilot no está conectado a ningún banco, datáfono ni billetera. Una venta es una **declaración del Tendero**: «vendí esto y me pagaron así». El sistema no puede saber, por sí solo, si el dinero se recibió realmente.
