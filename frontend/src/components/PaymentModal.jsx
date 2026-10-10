@@ -85,29 +85,29 @@ const PaymentModal = ({ isOpen, onClose, total, onConfirm, loading, user }) => {
           </button>
         </div>
 
-        <div className="p-8">
+        <div className="p-8 max-sm:p-5">
           <div className="text-center mb-8">
             <p className="text-slate-500 font-bold text-xs mb-2">Total a Cobrar</p>
-            <p className="text-5xl font-bold text-azul">
+            <p className="text-5xl max-sm:text-4xl font-bold text-azul">
               ${Number(total).toLocaleString('es-CO')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 max-sm:gap-2">
               {metodos.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => setMetodoPago(m.id)}
-                  className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all ${
+                  className={`flex flex-col items-center justify-center p-4 max-sm:p-2 rounded-lg border-2 transition-all ${
                     metodoPago === m.id
                       ? `${m.border} ${m.bg} shadow-md scale-105`
                       : 'border-slate-100 bg-white hover:bg-slate-50 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className={`${m.color} mb-2`}>{m.icon}</div>
-                  <span className="font-bold text-xs text-tinta-2">{m.id}</span>
+                  <span className="font-bold text-xs max-sm:text-[11px] text-tinta-2">{m.id}</span>
                 </button>
               ))}
             </div>

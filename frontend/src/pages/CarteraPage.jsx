@@ -150,9 +150,9 @@ const CarteraPage = () => {
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs">
                 <th className="p-4 font-bold">Cliente</th>
-                <th className="p-4 font-bold">Cupo Asignado</th>
+                <th className="p-4 font-bold max-sm:hidden">Cupo Asignado</th>
                 <th className="p-4 font-bold">Saldo Pendiente</th>
-                <th className="p-4 font-bold text-center">Acciones</th>
+                <th className="p-4 font-bold text-center max-sm:sticky max-sm:right-0 max-sm:bg-slate-50">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -166,9 +166,9 @@ const CarteraPage = () => {
                 filteredClientes.map(cliente => (
                   <tr key={cliente.id_cliente} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-bold text-tinta">{cliente.nombre}</td>
-                    <td className="p-4 font-bold text-slate-600">${Number(cliente.limite_credito).toLocaleString('es-CO')}</td>
+                    <td className="p-4 font-bold text-slate-600 max-sm:hidden">${Number(cliente.limite_credito).toLocaleString('es-CO')}</td>
                     <td className="p-4 font-bold text-aviso">${Number(cliente.saldo_pendiente).toLocaleString('es-CO')}</td>
-                    <td className="p-4 flex justify-center gap-2">
+                    <td className="p-4 flex justify-center gap-2 max-sm:sticky max-sm:right-0 max-sm:bg-white max-sm:shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]">
                       <button 
                         onClick={() => { setSelectedClient(cliente); setIsAbonoModalOpen(true); }}
                         className="p-2 bg-exito-suave text-exito rounded-lg hover:bg-emerald-200 transition-colors"
