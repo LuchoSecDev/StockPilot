@@ -6,6 +6,7 @@ const Mailer = require('../utils/mailer'); // Servicio de envíos de correo
 const { safeError } = require('../utils/securityUtils');
 const { canalDesdeCabecera, canalDeSesion } = require('../utils/canal');
 const { sesionSigueViva } = require('../utils/candadoSesion');
+const { refrescarAlertasAlEntrar } = require('../services/alertas/refrescoAlEntrar');
 const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 
@@ -107,6 +108,10 @@ class AuthController {
 
             // Registrar la sesión activa en la BD (candado del canal correspondiente)
             await User.setCurrentSession(user.id_usuario, req.sessionID, canal);
+
+            // Recalcular las alertas de la tienda ANTES de responder, para que el Dashboard que se abre ahora no diga
+            // «Inventario Óptimo» con una foto vieja. Nunca hace fallar el login (services/alertas/refrescoAlEntrar.js).
+            await refrescarAlertasAlEntrar(user.id_tienda);
 
             console.log('Sesión establecida correctamente. Enviando respuesta...');
 
@@ -566,6 +571,9 @@ class AuthController {
                 delete req.session.pending2FA_canal;
 
                 await User.setCurrentSession(userId, req.sessionID, req.session.canal);
+
+                // Igual que en el login sin 2FA: alertas al día antes de que la persona vea el Dashboard.
+                await refrescarAlertasAlEntrar(req.session.tiendaId);
 
                 return res.json({ 
                     success: true, 
