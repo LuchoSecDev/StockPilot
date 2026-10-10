@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Bell, Package, Calendar, ShieldCheck, Zap, DollarSign, CheckCircle, XCircle } from 'lucide-react';
+import { textoInsignia } from '../utils/alertas';
 
 const getSeverityStyles = (severity) => {
     switch (severity) {
@@ -121,7 +122,7 @@ const NotificationCenter = () => {
             setLoading(true);
             const [statsRes, alertsRes, notifCountRes, notifsRes] = await Promise.all([
                 axios.get('/api/alertas/stats', { ...(signal && { signal }) }),
-                axios.get('/api/alertas?limit=5', { ...(signal && { signal }) }),
+                axios.get('/api/alertas', { ...(signal && { signal }) }), // TODAS las activas (antes: ?limit=5, y solo salían críticas)
                 axios.get('/api/notificaciones/count', { ...(signal && { signal }) }),
                 axios.get('/api/notificaciones?limit=5', { ...(signal && { signal }) })
             ]);
@@ -132,7 +133,7 @@ const NotificationCenter = () => {
                 newAlertTotal = statsRes.data.stats.total;
                 setStats(statsRes.data.stats);
             }
-            if (alertsRes.data.success) setAlerts(alertsRes.data.alerts.slice(0, 5));
+            if (alertsRes.data.success) setAlerts(alertsRes.data.alerts);
 
             let newNotifCount = 0;
             let parsedNotifs = [];
@@ -247,7 +248,7 @@ const NotificationCenter = () => {
                 </div>
                 {totalBadge > 0 && (
                     <span className={`absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 flex items-center justify-center text-xs font-bold text-white rounded-full border-2 shadow-md ${isOpen ? 'border-azul' : 'border-white'} ${hasUrgent ? 'bg-rose-500' : 'bg-ambar'}`}>
-                        {totalBadge > 9 ? '+9' : totalBadge}
+                        {textoInsignia(totalBadge)}
                     </span>
                 )}
             </button>

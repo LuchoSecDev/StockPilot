@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../context/ToastContext';
 import { AlertCircle, AlertTriangle, Info, ShieldCheck, RefreshCw } from 'lucide-react';
+import { alertasDelGrupo, contarAlertas } from '../utils/alertas';
 
 const SeveridadColors = {
   critico: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -17,7 +18,6 @@ const SeveridadIcon = {
 
 const AlertasPage = () => {
   const [alertas, setAlertas] = useState([]);
-  const [stats, setStats] = useState({ critico: 0, advertencia: 0, info: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -27,9 +27,8 @@ const AlertasPage = () => {
   const fetchAlertas = useCallback(async (showSpinner = true, signal = null) => {
     try {
       if (showSpinner) setLoading(true);
-      const [alertasRes, statsRes, sessionRes] = await Promise.all([
+      const [alertasRes, sessionRes] = await Promise.all([
         axios.get('/api/alertas', { ...(signal && { signal }) }),
-        axios.get('/api/alertas/stats', { ...(signal && { signal }) }),
         axios.get('/api/session-info', { ...(signal && { signal }) })
       ]);
       if (signal && signal.aborted) return;
@@ -39,7 +38,6 @@ const AlertasPage = () => {
       }
 
       if (alertasRes.data.success) setAlertas(alertasRes.data.alerts);
-      if (statsRes.data.success) setStats(statsRes.data.stats);
     } catch (e) {
       if (axios.isCancel(e) || (signal && signal.aborted)) return;
       toast.error('Error cargando el panel de alertas');
@@ -88,7 +86,10 @@ const AlertasPage = () => {
     }
   };
 
-  const filteredAlertas = alertas.filter(a => filter === 'todas' ? true : a.severidad === filter);
+  // Las tarjetas y los filtros salen de la MISMA regla (utils/alertas.js, igual a Alert.getStats): antes las tarjetas contaban
+  // por tipo (4 / 3 / 5) y los filtros por severidad (6 / 5 / 1).
+  const stats = contarAlertas(alertas);
+  const filteredAlertas = alertasDelGrupo(alertas, filter);
 
   return (
     <div className="p-8 pb-32 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -131,7 +132,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('critico')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'critico' ? 'bg-rose-50 border-rose-300 text-rose-700 shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-rose-200'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertCircle size={10} /> Críticas</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertCircle size={10} /> Stock crítico</p>
           <p className="text-3xl font-bold">{stats.critico}</p>
         </button>
 
@@ -139,7 +140,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('advertencia')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'advertencia' ? 'bg-amber-50 border-amber-300 text-aviso shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-amber-200'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertTriangle size={10} /> Advertencias</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertTriangle size={10} /> Stock bajo</p>
           <p className="text-3xl font-bold">{stats.advertencia}</p>
         </button>
 
@@ -147,7 +148,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('info')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'info' ? 'bg-azul/10 border-azul/30 text-azul shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-azul/30'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><Info size={10} /> Sobrestock</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><Info size={10} /> Vencimiento y sobrestock</p>
           <p className="text-3xl font-bold">{stats.info}</p>
         </button>
       </div>
