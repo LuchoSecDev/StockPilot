@@ -12,6 +12,7 @@
     "equipo:crear": "node scripts/equipo_crear.js",
     "seed": "node database/seed_test_data.js",
     "demo:sembrar": "node -r dotenv/config database/seed_demo.js dotenv_config_path=.env.demo",
+    "demo:servidor": "node -r dotenv/config app.js dotenv_config_path=.env.demo",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:evidence": "node scripts/run_evidence.js",

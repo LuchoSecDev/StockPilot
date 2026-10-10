@@ -231,7 +231,11 @@ if (require.main === module) {
     sembrarDemo({ contrasena: process.env.DEMO_PASSWORD, correoProveedor: process.env.DEMO_CORREO_PROVEEDOR || undefined })
         .then(async (r) => {
             const db = require('../config/database');
+            const destino = new URL(process.env.DATABASE_URL);
             console.log(`✅ Tienda de demostración lista (id ${r.id_tienda}, fecha ${r.hoy}, ${r.alertas} alertas). Usuario: demo`);
+            console.log(`   Base sembrada: ${destino.pathname.replace(/^\//, '')} (${destino.hostname}).`);
+            console.log('   Para entrar, el servidor tiene que usar ESA base: npm run demo:servidor (no npm run dev, que usa tu .env general)');
+            console.log('   y, en otra terminal, cd frontend && npm run dev. La clave es la de DEMO_PASSWORD.');
             await db.pool.end();
         })
         .catch((error) => {
