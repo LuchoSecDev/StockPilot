@@ -1,21 +1,20 @@
 /**
  * Reglas de las alertas de inventario para la interfaz (campanita, Monitor de Alertas). Son la ÚNICA copia en el frontend y
- * siguen la misma regla que `Alert.getStats` del servidor (models/Alert.js): tres grupos por TIPO de alerta y conteo por
- * PRODUCTO distinto, no por fila.
+ * siguen la misma regla que `Alert.getStats` del servidor (models/Alert.js), decidida por Luis el 9-oct-2026:
+ * se agrupa por SEVERIDAD y se cuenta por PRODUCTO distinto, no por fila.
  *
- *   critico      → stock_critico
- *   advertencia  → stock_bajo
- *   info         → todo lo demás (vencimiento_critico, vencimiento_proximo, sobrestock, reversion_precio…)
+ *   critico      → stock_critico + vencimiento_critico
+ *   advertencia  → stock_bajo + vencimiento_proximo
+ *   info         → sobrestock y avisos (reversion_precio…)
  *
- * Antes las tarjetas del Monitor contaban por tipo pero sus filtros filtraban por `severidad` (6 / 5 / 1 en vez de 4 / 3 / 5),
- * y la campanita pedía solo 5 alertas. Si se decide una regla por severidad (plan 25, pendiente), se cambia AQUÍ y en
- * `Alert.getStats` a la vez. Prueba: tests/business_logic/alertas_utils.test.js (y la de integración que compara con el servidor).
+ * Dentro de cada grupo la lista del Monitor lleva un separador por TIPO (`seccionesDeAlertas`) para distinguir las de
+ * stock de las de vencimiento. Prueba: tests/business_logic/alertas_utils.test.js (y la de integración que compara con el
+ * servidor).
  */
 
 /** @returns {'critico'|'advertencia'|'info'} */
-export function grupoDeAlerta(tipo) {
-  if (tipo === 'stock_critico') return 'critico';
-  if (tipo === 'stock_bajo') return 'advertencia';
+export function grupoDeAlerta(severidad) {
+  if (severidad === 'critico' || severidad === 'advertencia') return severidad;
   return 'info';
 }
 
@@ -23,7 +22,7 @@ export function grupoDeAlerta(tipo) {
 export function alertasDelGrupo(alertas, grupo) {
   const lista = Array.isArray(alertas) ? alertas : [];
   if (grupo !== 'critico' && grupo !== 'advertencia' && grupo !== 'info') return lista;
-  return lista.filter((a) => grupoDeAlerta(a.tipo) === grupo);
+  return lista.filter((a) => grupoDeAlerta(a.severidad) === grupo);
 }
 
 /**
@@ -34,10 +33,44 @@ export function contarAlertas(alertas) {
   const porGrupo = { critico: new Set(), advertencia: new Set(), info: new Set() };
   const todos = new Set();
   for (const a of Array.isArray(alertas) ? alertas : []) {
-    porGrupo[grupoDeAlerta(a.tipo)].add(a.id_producto);
+    porGrupo[grupoDeAlerta(a.severidad)].add(a.id_producto);
     todos.add(a.id_producto);
   }
   return { total: todos.size, critico: porGrupo.critico.size, advertencia: porGrupo.advertencia.size, info: porGrupo.info.size };
+}
+
+// Orden y títulos de los separadores. Los umbrales de vencimiento son los de Alert.determinarAlertaVencimiento.
+const TITULOS_DE_SECCION = [
+  ['stock_critico', 'Stock crítico'],
+  ['vencimiento_critico', 'Por vencer (7 días o menos)'],
+  ['stock_bajo', 'Stock bajo'],
+  ['vencimiento_proximo', 'Próximas a vencer (8 a 30 días)'],
+  ['sobrestock', 'Sobrestock'],
+];
+
+/**
+ * Las alertas de un grupo, partidas por tipo en secciones con título (los separadores de la lista del Monitor). Solo
+ * salen las secciones que tienen alertas. Un tipo que no conocemos va a «Otras alertas» de su grupo, al final.
+ * Un producto con dos alertas (p. ej. stock crítico y vencimiento crítico) aparece en las dos secciones.
+ * @returns {Array<{clave:string, grupo:string, titulo:string, alertas:Array<Object>}>}
+ */
+export function seccionesDeAlertas(alertas, grupo = 'todas') {
+  const secciones = new Map();
+  for (const a of alertasDelGrupo(alertas, grupo)) {
+    const conocida = TITULOS_DE_SECCION.find(([tipo]) => tipo === a.tipo);
+    const g = grupoDeAlerta(a.severidad);
+    const clave = conocida ? a.tipo : `otras_${g}`;
+    if (!secciones.has(clave)) {
+      secciones.set(clave, { clave, grupo: g, titulo: conocida ? conocida[1] : 'Otras alertas', alertas: [] });
+    }
+    secciones.get(clave).alertas.push(a);
+  }
+  const posicion = (clave) => {
+    const i = TITULOS_DE_SECCION.findIndex(([tipo]) => tipo === clave);
+    return i === -1 ? TITULOS_DE_SECCION.length : i;
+  };
+  const orden = ['critico', 'advertencia', 'info'];
+  return [...secciones.values()].sort((x, y) => posicion(x.clave) - posicion(y.clave) || orden.indexOf(x.grupo) - orden.indexOf(y.grupo));
 }
 
 /** Texto de la insignia de la campanita: el número real, y «99+» solo cuando ya no cabe en el círculo. */

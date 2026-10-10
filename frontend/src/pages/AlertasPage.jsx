@@ -2,12 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useToast } from '../context/ToastContext';
 import { AlertCircle, AlertTriangle, Info, ShieldCheck, RefreshCw } from 'lucide-react';
-import { alertasDelGrupo, contarAlertas } from '../utils/alertas';
+import { alertasDelGrupo, contarAlertas, seccionesDeAlertas } from '../utils/alertas';
 
 const SeveridadColors = {
   critico: 'bg-rose-50 text-rose-700 border-rose-200',
   advertencia: 'bg-amber-50 text-aviso border-amber-200',
   info: 'bg-azul/10 text-azul border-azul/30'
+};
+
+const SeccionColor = {
+  critico: 'text-rose-700',
+  advertencia: 'text-aviso',
+  info: 'text-azul'
 };
 
 const SeveridadIcon = {
@@ -86,10 +92,11 @@ const AlertasPage = () => {
     }
   };
 
-  // Las tarjetas y los filtros salen de la MISMA regla (utils/alertas.js, igual a Alert.getStats): antes las tarjetas contaban
-  // por tipo (4 / 3 / 5) y los filtros por severidad (6 / 5 / 1).
+  // Las tarjetas, los filtros y los separadores salen de la MISMA regla (utils/alertas.js, igual a Alert.getStats): se agrupa
+  // por severidad (críticas = stock crítico + vencimiento crítico, etc.) y cada grupo se parte por tipo con un separador.
   const stats = contarAlertas(alertas);
   const filteredAlertas = alertasDelGrupo(alertas, filter);
+  const secciones = seccionesDeAlertas(alertas, filter);
 
   return (
     <div className="p-8 pb-32 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -132,7 +139,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('critico')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'critico' ? 'bg-rose-50 border-rose-300 text-rose-700 shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-rose-200'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertCircle size={10} /> Stock crítico</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertCircle size={10} /> Críticas</p>
           <p className="text-3xl font-bold">{stats.critico}</p>
         </button>
 
@@ -140,7 +147,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('advertencia')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'advertencia' ? 'bg-amber-50 border-amber-300 text-aviso shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-amber-200'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertTriangle size={10} /> Stock bajo</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><AlertTriangle size={10} /> Advertencias</p>
           <p className="text-3xl font-bold">{stats.advertencia}</p>
         </button>
 
@@ -148,7 +155,7 @@ const AlertasPage = () => {
           onClick={() => setFilter('info')}
           className={`w-full h-24 sm:h-28 flex flex-col justify-center items-center p-3 sm:p-4 rounded-lg border-2 transition-colors transition-shadow ${filter === 'info' ? 'bg-azul/10 border-azul/30 text-azul shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-azul/30'}`}
         >
-          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><Info size={10} /> Vencimiento y sobrestock</p>
+          <p className="text-xs font-bold opacity-100 mb-1 flex items-center justify-center gap-1"><Info size={10} /> Sobrestock</p>
           <p className="text-3xl font-bold">{stats.info}</p>
         </button>
       </div>
@@ -164,7 +171,14 @@ const AlertasPage = () => {
             <p className="text-sm font-bold text-slate-500 mt-1">El inventario está en perfecto estado y cubierto.</p>
           </div>
         ) : (
-          filteredAlertas.map(alerta => (
+          secciones.map(seccion => (
+            <section key={seccion.clave} className="space-y-4" aria-label={seccion.titulo}>
+              <div className="flex items-center gap-3 pt-2">
+                {(() => { const Icon = SeveridadIcon[seccion.grupo]; return <Icon size={16} className={SeccionColor[seccion.grupo]} />; })()}
+                <h2 className={`text-xs font-bold ${SeccionColor[seccion.grupo]}`}>{seccion.titulo} ({seccion.alertas.length})</h2>
+                <div className="flex-1 border-t border-slate-200"></div>
+              </div>
+              {seccion.alertas.map(alerta => (
             <div key={alerta.id_alerta} className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 transition-shadow hover:shadow-lg ${SeveridadColors[alerta.severidad]}`}>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
@@ -186,6 +200,8 @@ const AlertasPage = () => {
                 ✓ Marcar Resuelta
               </button>
             </div>
+              ))}
+            </section>
           ))
         )}
       </div>

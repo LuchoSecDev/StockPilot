@@ -380,3 +380,14 @@ El hallazgo O8 original (`docs/contexto_revision_cowork_2026-09-23.md`, sección
 3. **`DISABLE_ALERT_ENGINE`** (variable de entorno, documentada en `.env.example`) — si se pone en `"true"`, `generate()` no hace nada (log de advertencia, retorna 0), tanto para los disparadores automáticos como para el botón manual. **Desviación deliberada de la redacción original ("volver atrás"):** no reactiva la lógica vieja de `determinarAlertaStock`/`calcularDiasAgotamiento` — esa tenía el hueco E1 y ya se eliminó del código; reintroducirla para un "rollback" habría revivido a propósito un bug ya corregido. En su lugar es un interruptor de emergencia: apaga el motor por completo si se detecta un problema en producción, sin necesidad de desplegar código nuevo, mientras se investiga.
 
 **Estado de las pruebas tras este cambio:** 149/149 (antes 142), con `models/Alert.js` en 100% de sentencias y líneas dentro del alcance de cobertura del proyecto (ver `vitest.config.js`).
+
+---
+
+#### Actualización del 9-oct-2026: la regla de conteo de alertas pasa a severidad (reemplaza la decisión del hallazgo O4)
+
+La Fase 4 había dejado `Alert.getStats` con `critico`/`advertencia` **solo de stock** (y los vencimientos críticos en `info`) para no inflar el rótulo «Productos Agotados» del Dashboard. Luis decidió el 9-oct que **todas las críticas van juntas**: `critico` = stock crítico + vencimiento crítico; `advertencia` = stock bajo + próximas a vencer; `info` = sobrestock y avisos; siempre por producto distinto. El Monitor de Alertas parte cada grupo en secciones por tipo (separadores), el Dashboard ya no dice «Productos Agotados» sino «Productos en Estado Crítico», y la campanita lista todas las alertas (antes pedía 5 y mostraba «+9»).
+
+- **Código:** `models/Alert.js` (`getStats`), `frontend/src/utils/alertas.js` (la única copia de la regla en el frontend), `NotificationCenter.jsx`, `AlertasPage.jsx`, `DashboardPage.jsx`.
+- **Contrato [A1] de la app:** los campos de `GET /api/alertas/stats` son los mismos, pero cambia lo que cuentan (ver `docs/contrato_api_app_tendero.md`). Hay que **avisar al equipo de la app**.
+- **Pruebas:** `tests/business_logic/alertas_utils.test.js` y `tests/integration/alertas_conteo_coherente.test.js` (compara el frontend con el servidor).
+- **Seguimiento:** P17-04 (arreglo de la campanita) y P17-05 (esta regla).
