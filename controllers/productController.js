@@ -123,6 +123,12 @@ class ProductController {
 
             await Promise.allSettled(promises);
 
+            // Igual que al crear o editar un producto: sin esto el Monitor de Alertas quedaba vacío hasta la primera venta
+            // aunque el archivo trajera productos agotados. Solo si algo cambió; fire-and-forget (no demora ni rompe la carga).
+            if (successCount > 0) {
+                Alert.generate(tiendaId).catch(e => console.error('Error regenerando alertas post-carga masiva:', e));
+            }
+
             res.json({
                 success: true,
                 message: 'Carga masiva completada',
