@@ -104,7 +104,7 @@ const OrdenesHistory = ({
                 <th className="p-5">Saldo Pendiente</th>
                 <th className="p-5">Estado Logístico</th>
                 <th className="p-5">Estado de Pago</th>
-                <th className="p-5 text-right">Acción</th>
+                <th className="p-5 text-right max-md:sticky max-md:right-0 max-md:bg-slate-50">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -142,7 +142,7 @@ const OrdenesHistory = ({
                       {o.estado_pago || 'Pendiente Pago'}
                     </span>
                   </td>
-                  <td className="p-5 text-right flex items-center justify-end gap-4">
+                  <td className="p-5 text-right flex items-center justify-end gap-4 max-md:sticky max-md:right-0 max-md:bg-white max-md:shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]">
                     {o.saldo_pendiente > 0 && (
                       <button
                         onClick={() => handleRegisterPayment(o.id_orden, o.presupuesto_total, o.monto_pagado)}
@@ -180,8 +180,8 @@ const OrdenesHistory = ({
             </div>
 
             {/* Metadata de la orden */}
-            <div className="px-6 pt-5 pb-3 grid grid-cols-3 gap-3">
-              <div className="col-span-3 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+            <div className="px-6 pt-5 pb-3 grid grid-cols-3 max-sm:grid-cols-2 gap-3">
+              <div className="col-span-3 max-sm:col-span-2 bg-slate-50 rounded-2xl p-3 border border-slate-100">
                 <p className="text-xs font-bold text-slate-500">Proveedor</p>
                 <p className="text-sm font-bold text-tinta mt-1">{showHistoryDetail.proveedor_nombre}</p>
               </div>
@@ -193,7 +193,7 @@ const OrdenesHistory = ({
                 <p className="text-xs font-bold text-slate-500">Presupuesto</p>
                 <p className="text-sm font-bold text-tinta mt-1">${showHistoryDetail.presupuesto_total?.toLocaleString()}</p>
               </div>
-              <div className={`rounded-2xl p-3 border ${showHistoryDetail.estado === 'Aprobada' ? 'bg-emerald-50 border-emerald-200' : showHistoryDetail.estado === 'Rechazada' ? 'bg-rose-50 border-rose-200' : showHistoryDetail.estado === 'Enviada' ? 'bg-azul/10 border-azul/30' : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`rounded-2xl p-3 border max-sm:col-span-2 ${showHistoryDetail.estado === 'Aprobada' ? 'bg-emerald-50 border-emerald-200' : showHistoryDetail.estado === 'Rechazada' ? 'bg-rose-50 border-rose-200' : showHistoryDetail.estado === 'Enviada' ? 'bg-azul/10 border-azul/30' : 'bg-amber-50 border-amber-200'}`}>
                 <p className="text-xs font-bold text-slate-500">Estado</p>
                 <p className={`text-sm font-bold mt-1 flex items-center gap-1 ${showHistoryDetail.estado === 'Aprobada' ? 'text-exito' : showHistoryDetail.estado === 'Rechazada' ? 'text-peligro' : showHistoryDetail.estado === 'Enviada' ? 'text-azul' : 'text-aviso'}`}>{showHistoryDetail.estado === 'Enviada' ? <><Mail size={14} /> Enviada</> : showHistoryDetail.estado}</p>
               </div>

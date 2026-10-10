@@ -64,6 +64,17 @@ Las fechas del escenario son relativas a **hoy**: hay que sembrar **el mismo dí
 
 **Extras si sobra tiempo:** venta **fiada** (método «Fiado» pide elegir cliente) [API]; **«Egreso»** (gasto del turno, botón junto al buscador del POS) [?]; **«Historial Caja»**: la caja de ayer, cerrada, con una diferencia de $1.500 [API].
 
+## En celular (si la demostración se hace desde el teléfono)
+
+Ensayado el 9-oct-2026 con la vista de un Galaxy S23 (360×780) emulada en el navegador. Las pantallas del guion no desbordan; lo que cambia respecto al computador:
+
+- El menú está en el botón de tres rayas (arriba a la derecha) y la campanita queda a su izquierda.
+- **Proveedores → historial de órdenes:** la tabla es ancha; la columna **Acción** («Pagar», «Revisar Pedido →») queda fija a la derecha y el resto se desplaza de lado.
+- **Cartera:** se ven Cliente, Saldo Pendiente y las dos acciones; el «Cupo asignado» solo se muestra en pantallas más anchas.
+- **Punto de Venta:** en el carrito, el botón de quitar (✕) baja a una segunda línea.
+- **Historial Caja, Egresos e Historial de ventas** son tablas anchas con desplazamiento lateral; en Egresos, «Acciones» queda al final.
+- El botón redondo de «subir» (abajo a la derecha) puede tapar un campo; desplázate un poco.
+
 ## 4. Plan B
 
 | Si pasa… | Haz… |
@@ -90,5 +101,6 @@ Vuelve a sembrar antes de la siguiente visita. La base de demostración no se us
 ## 7. Qué falta comprobar de este guion
 
 - **Ensayo cronometrado** por una persona que no lo escribió (criterio de salida de la fase 2 del plan 25): sin hacer.
-- **Correo real** al buzón del equipo y el recorrido desde un **celular**: sin hacer.
+- **Correo real** al buzón del equipo: sin hacer.
+- **Celular:** el 9-oct se recorrió en la vista de un Samsung Galaxy S23 (360×780) emulada en el navegador y se corrigieron 5 pantallas (ver «En celular»); falta probarlo en un teléfono real.
 - Los pasos marcados [API] y [?].

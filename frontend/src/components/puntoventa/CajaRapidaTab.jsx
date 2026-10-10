@@ -270,15 +270,15 @@ const CajaRapidaTab = ({ isSessionActive, setIsCashRegisterOpen, user }) => {
                        <p className="font-bold text-tinta text-sm">{item.nombre_producto}</p>
                        <p className="text-xs font-bold text-slate-500">Stock disponible: {item.cantidad}</p>
                      </div>
-                     <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                     <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-2">
                        <p className="font-bold text-azul text-lg">${Number(item.precio || item.precio_unitario || 0).toLocaleString('es-CO')}</p>
                        <div className="flex items-center bg-slate-50 rounded-2xl border border-slate-200">
                           <button onClick={() => updateQuantity(item.id_producto, -1)} className="p-2 text-slate-500 hover:text-rose-500 transition-colors"><Minus size={16} /></button>
                           <span className="w-8 text-center font-bold text-tinta-2">{item.cantidadCart}</span>
                           <button onClick={() => updateQuantity(item.id_producto, 1)} className="p-2 text-slate-500 hover:text-emerald-500 transition-colors"><Plus size={16} /></button>
                        </div>
-                       <p className="font-bold text-exito text-lg min-w-[100px] text-right">${((item.precio || item.precio_unitario || 0) * item.cantidadCart).toLocaleString('es-CO')}</p>
-                       <button onClick={() => removeFromCart(item.id_producto)} className="p-2 text-rose-300 hover:text-peligro bg-rose-50 rounded-lg transition-colors"><X size={16} /></button>
+                       <p className="font-bold text-exito text-lg min-w-[100px] max-sm:min-w-0 text-right">${((item.precio || item.precio_unitario || 0) * item.cantidadCart).toLocaleString('es-CO')}</p>
+                       <button onClick={() => removeFromCart(item.id_producto)} className="p-2 text-rose-300 hover:text-peligro bg-rose-50 rounded-lg transition-colors max-sm:ml-auto"><X size={16} /></button>
                      </div>
                   </div>
                 ))
