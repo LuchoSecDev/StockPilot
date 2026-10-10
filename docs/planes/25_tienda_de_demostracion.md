@@ -1,6 +1,6 @@
 # Plan 25: Tienda de demostración para la visita al tendero
 
-**Estado (9-oct-2026):** fase 1 hecha en la rama (resultados en la sección 4, «Fase 1 — Resultados»); falta la fase 2 (guion, plantilla de `.env.demo` y ensayo). D1 a D7 decididas por Luis y plan corregido tras la revisión (sección 0).
+**Estado (9-oct-2026):** fases 1 y 2 hechas en la rama `feat/tienda-demo` (resultados en la sección 4); falta el ensayo cronometrado por otra persona, el correo real y el celular. D1 a D7 decididas por Luis y plan corregido tras la revisión (sección 0).
 **Fecha:** 2026-10-09
 **Rama:** `feat/tienda-demo` (aún no existe; se crea desde `main` al ejecutar la fase 1).
 **Origen:** Luis preguntó (9-oct) si algún plan cubría preparar una tienda de prueba para mostrarle al tendero las funciones principales que tendría si acepta el piloto: alertas de vencimiento, alertas de stock, órdenes de compra preparadas para solo aprobarlas o enviarlas, etc. Respuesta: el plan 22 la nombra pero no la diseña (hallazgo 1.1).
@@ -211,6 +211,21 @@ Hoy hay unos 25 archivos de `docs/` modificados sin commitear, y este plan y el 
 **Archivos.** Crear `docs/guion_demo_tienda.md` (recorrido de la sección 2 con tiempos, qué clic muestra qué, qué decir de privacidad; plan B sin red / sin correo / sin Render; checklist del día: crear la base una sola vez (`psql -U postgres -c "CREATE DATABASE stockpilot_demo;"` y `psql -U postgres -d stockpilot_demo -f database/init_pg.sql`, según `docs/guia_entorno_app.md:31-35`), sembrar con `npm run demo:sembrar`, levantar el backend con `.env.demo` y el frontend con Vite, probar el correo al buzón de Luis, abrir la caja antes de vender, cerrar sesión). Ajustar `docs/guia_entorno_app.md` solo con un enlace al guion. No tocar código.
 **Verificación.** Ensayo completo cronometrado por una persona que no escribió el guion; anotar fallos en el propio documento. No cubre la reacción de un tendero real (eso es la fase 4 del documento de intervención).
 **Criterio de salida.** El guion existe, se ensayó una vez de punta a punta y el reinicio dejó la base equivalente: mismos conteos de alertas por tipo y producto, y mismas órdenes por estado y proveedor (los ids tampoco cambian, porque el reinicio usa `RESTART IDENTITY`).
+
+#### Fase 2 — Resultados (rama `feat/tienda-demo`, 9-oct-2026)
+
+**Qué se hizo.** `docs/guion_demo_tienda.md`: preparación única (base local, plantilla de `.env.demo`), checklist del día (sembrar el mismo día, `npm run demo:servidor`, Vite, iniciar sesión), guion de 10 pasos con los rótulos exactos de la pantalla, plan B y lo que no se enseña. Se añadió `npm run demo:servidor` (precarga `.env.demo`): sin él, Luis arrancó el servidor con `npm run dev`, que lee el `.env` general y apunta a otra base, y el usuario `demo` «no existía».
+
+**Ensayo técnico** (navegador integrado, base temporal igual a la sembrada, correo desactivado): login; «Armar pedido» (se suma al borrador existente: #2 pasa a 6 productos); «Aprobar pedido» → «Sí, aprobar»; «¿Llegó el pedido? Registrar» con una línea incompleta («Llegó una parte; falta el resto»); detalle de la orden aprobada con «Enviar Orden al Proveedor por Email» (con el correo desactivado el servidor responde 500 y la orden **sigue «Aprobada»**); «Abrir Caja» → vender en efectivo → «¡Éxito! Venta procesada exitosamente.» (se abre la pestaña «Ticket_Venta»); «Ver Arqueo» → «Revisar Arqueo» («Cuadra»); Cartera con $43.300 en la calle.
+
+**Hallazgos del ensayo (no se arreglaron; entraron al seguimiento):**
+- **P25-09.** Tras aprobar un pedido, la lista «Por pedir» de `/pedir` vuelve a sugerir los mismos productos: el motor de sugerencias solo descuenta lo que está en **borrador**, no lo aprobado ni lo enviado que aún no llegó.
+- **P25-10.** El campo «Mensaje para el proveedor (opcional)» del detalle de la orden no se envía: el frontend manda `mensaje_personalizado` (`frontend/src/hooks/useProveedoresPage.js:255`) y ningún archivo del backend lo lee.
+- **«Evaluar Riesgo IA»** (Cartera) existe en el menú completo y necesita IA: el guion dice que no se pulse (D4).
+
+**No verificado:** el envío real de correo, el recorrido en un celular, la venta fiada, «Egreso» e «Historial Caja» en pantalla (los tres están cubiertos por la prueba de integración de la siembra), y el camino «PDF / Ya la envié» (solo por código).
+
+**Falta para cerrar la fase 2:** el ensayo cronometrado por una persona que no escribió el guion (criterio de salida de la sección 4) y que quede anotado en el propio documento.
 
 ### Fase 3 (solo si D1 = B o C): reinicio por tienda
 **No ejecutar sin una nueva decisión de Luis.** Escribir en producción, **alto riesgo** (borrado de datos). Requisitos mínimos si llegara a hacerse: script con `id_tienda` explícito y verificación de `es_prueba = TRUE` antes de borrar; transacción; copia de seguridad previa (`docs/restaurar_respaldo.md`); registro en la bitácora interna; prueba de integración que compruebe que **otra tienda no pierde ni una fila**; la guardia de la semilla no se relaja. Se detalla en una actualización de este plan si se elige.
